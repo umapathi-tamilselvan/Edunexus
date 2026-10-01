@@ -25,6 +25,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Privacy Notice
+    |--------------------------------------------------------------------------
+    |
+    | Version of the privacy notice shown to guardians. Stored with every
+    | consent record (DPDP Act); bump it whenever the notice text changes.
+    |
+    */
+
+    'privacy_notice_version' => env('EDUNEXUS_PRIVACY_NOTICE_VERSION', '2026-10'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Module Overrides
     |--------------------------------------------------------------------------
     |

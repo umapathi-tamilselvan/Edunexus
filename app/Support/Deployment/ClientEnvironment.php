@@ -17,6 +17,19 @@ class ClientEnvironment
 {
     public const CODE_PATTERN = '/^[a-z0-9]{2,20}$/';
 
+    /**
+     * The storage layout Laravel expects, created for each client.
+     */
+    private const STORAGE_DIRECTORIES = [
+        'app/private',
+        'app/public',
+        'framework/cache/data',
+        'framework/sessions',
+        'framework/testing',
+        'framework/views',
+        'logs',
+    ];
+
     public static function apply(Application $app): void
     {
         $client = Env::get('EDUNEXUS_CLIENT');
@@ -44,9 +57,13 @@ class ClientEnvironment
             Env::getRepository()->set($key, $app->bootstrapPath("cache/clients/{$client}/{$file}"));
         }
 
-        if (! is_dir($app->bootstrapPath("cache/clients/{$client}"))) {
-            mkdir($app->bootstrapPath("cache/clients/{$client}"), 0755, true);
-        }
+        self::ensureDirectories($app->bootstrapPath("cache/clients/{$client}"));
+
+        // Each client gets its own storage (files, logs, compiled views), so
+        // clients running from one checkout never see each other's files.
+        $storage = (string) (Env::get('EDUNEXUS_STORAGE_PATH') ?: $app->storagePath("clients/{$client}"));
+        self::ensureDirectories(...array_map(fn (string $path): string => "{$storage}/{$path}", self::STORAGE_DIRECTORIES));
+        $app->useStoragePath($storage);
 
         // The repository is immutable: values loaded first win, so secrets in
         // the secrets file cannot be overridden by the settings file.
@@ -70,6 +87,15 @@ class ClientEnvironment
     public static function secretsFile(string $client): string
     {
         return "{$client}.env.secure";
+    }
+
+    private static function ensureDirectories(string ...$paths): void
+    {
+        foreach ($paths as $path) {
+            if (! is_dir($path)) {
+                mkdir($path, 0755, true);
+            }
+        }
     }
 
     public static function directory(string $basePath, string $client): string

@@ -55,6 +55,17 @@ abstract class TestCase extends BaseTestCase
     }
 
     /**
+     * Switching tokens within one test must not reuse the user the guard
+     * resolved for the previous request (a real request starts fresh).
+     */
+    public function withToken(string $token, string $type = 'Bearer'): static
+    {
+        $this->app['auth']->forgetGuards();
+
+        return parent::withToken($token, $type);
+    }
+
+    /**
      * Issue a bearer token by signing in through the API.
      */
     protected function issueToken(string $email): string
@@ -85,5 +96,6 @@ abstract class TestCase extends BaseTestCase
         }
 
         File::deleteDirectory(app(ClientFiles::class)->root());
+        File::deleteDirectory(storage_path('framework/testing/client-storage'));
     }
 }
