@@ -16,7 +16,7 @@ use Tests\TestCase;
 
 class ClientCommandsTest extends TestCase
 {
-    private const PREFIX = 'educore_testclient_';
+    private const PREFIX = 'edunexus_testclient_';
 
     protected function setUp(): void
     {
@@ -28,16 +28,16 @@ class ClientCommandsTest extends TestCase
 
     public function test_create_writes_env_files_provisions_a_database_and_user_and_creates_the_super_admin(): void
     {
-        $this->artisan('educore:client:create', [
+        $this->artisan('edunexus:client:create', [
             'code' => 'abc',
             '--name' => 'St. Mary\'s "Higher" School',
             '--type' => 'school',
             '--admin-email' => 'owner@abc.test',
-            '--url' => 'https://abc.educore.in',
+            '--url' => 'https://abc.edunexus.in',
         ])
             ->expectsOutputToContain('Client [abc] created.')
             ->expectsOutputToContain(self::PREFIX.'abc')
-            ->expectsOutputToContain('https://abc.educore.in/login')
+            ->expectsOutputToContain('https://abc.edunexus.in/login')
             ->expectsOutputToContain('This password is shown only once.')
             ->assertSuccessful();
 
@@ -47,16 +47,18 @@ class ClientCommandsTest extends TestCase
         $this->assertSame(self::PREFIX.'abc', $client->username);
         $this->assertSame(32, strlen($client->password));
 
-        $directory = app(ClientFiles::class)->directory('abc');
-        $settings = file_get_contents($directory.'/.env');
-        $secrets = file_get_contents($directory.'/.env.secure');
-        $this->assertStringContainsString("EDUCORE_CLIENT_CODE=abc\n", $settings);
-        $this->assertStringContainsString("EDUCORE_INSTITUTION_TYPE=school\n", $settings);
+        $files = app(ClientFiles::class);
+        $this->assertSame($files->directory('abc').'/abc.env', $files->settingsPath('abc'));
+        $this->assertSame($files->directory('abc').'/abc.env.secure', $files->secretsPath('abc'));
+        $settings = file_get_contents($files->settingsPath('abc'));
+        $secrets = file_get_contents($files->secretsPath('abc'));
+        $this->assertStringContainsString("EDUNEXUS_CLIENT_CODE=abc\n", $settings);
+        $this->assertStringContainsString("EDUNEXUS_INSTITUTION_TYPE=school\n", $settings);
         $this->assertStringContainsString("RECEIPT_PREFIX=ABC\n", $settings);
         $this->assertStringNotContainsString('DB_PASSWORD', $settings);
         $this->assertStringNotContainsString('APP_KEY', $settings);
         $this->assertMatchesRegularExpression('/^APP_KEY=base64:.{44}$/m', $secrets);
-        $this->assertSame('0600', substr(sprintf('%o', fileperms($directory.'/.env.secure')), -4));
+        $this->assertSame('0600', substr(sprintf('%o', fileperms($files->secretsPath('abc'))), -4));
 
         $this->asClient('abc', function (): void {
             $this->assertSame(self::PREFIX.'abc@%', DB::selectOne('SELECT CURRENT_USER() AS user')->user);
@@ -72,7 +74,7 @@ class ClientCommandsTest extends TestCase
         $this->asClient('abc', function (): void {
             $this->expectExceptionMessage('SELECT command denied');
 
-            DB::select('SELECT COUNT(*) FROM educore_test.users');
+            DB::select('SELECT COUNT(*) FROM edunexus_test.users');
         });
     }
 
@@ -87,7 +89,7 @@ class ClientCommandsTest extends TestCase
 
     public function test_ask_password_uses_the_typed_password_and_never_prints_it(): void
     {
-        $this->artisan('educore:client:create', ['code' => 'abc', '--name' => 'ABC', '--type' => 'school', '--admin-email' => 'owner@abc.test', '--ask-password' => true])
+        $this->artisan('edunexus:client:create', ['code' => 'abc', '--name' => 'ABC', '--type' => 'school', '--admin-email' => 'owner@abc.test', '--ask-password' => true])
             ->expectsQuestion('Super Admin password (min. 8 characters)', 'Typed@Pass123')
             ->expectsQuestion('Confirm password', 'Typed@Pass123')
             ->doesntExpectOutputToContain('Typed@Pass123')
@@ -101,7 +103,7 @@ class ClientCommandsTest extends TestCase
 
     public function test_ask_password_rejects_a_mismatched_confirmation(): void
     {
-        $this->artisan('educore:client:create', ['code' => 'abc', '--name' => 'ABC', '--type' => 'school', '--admin-email' => 'owner@abc.test', '--ask-password' => true])
+        $this->artisan('edunexus:client:create', ['code' => 'abc', '--name' => 'ABC', '--type' => 'school', '--admin-email' => 'owner@abc.test', '--ask-password' => true])
             ->expectsQuestion('Super Admin password (min. 8 characters)', 'Typed@Pass123')
             ->expectsQuestion('Confirm password', 'Other@Pass123')
             ->expectsOutputToContain('The passwords do not match.')
@@ -133,7 +135,7 @@ class ClientCommandsTest extends TestCase
     #[TestWith(['abcdefghijklmnopqrstu', 'must be 2 to 20 lowercase letters or digits'])]
     public function test_create_rejects_an_invalid_code(string $code, string $message): void
     {
-        $this->artisan('educore:client:create', ['code' => $code, '--name' => 'X', '--type' => 'school', '--admin-email' => 'owner@x.test'])
+        $this->artisan('edunexus:client:create', ['code' => $code, '--name' => 'X', '--type' => 'school', '--admin-email' => 'owner@x.test'])
             ->expectsOutputToContain($message)
             ->assertFailed();
 
@@ -142,7 +144,7 @@ class ClientCommandsTest extends TestCase
 
     public function test_create_rejects_an_unknown_type(): void
     {
-        $this->artisan('educore:client:create', ['code' => 'abc', '--name' => 'ABC', '--type' => 'shop', '--admin-email' => 'owner@abc.test'])
+        $this->artisan('edunexus:client:create', ['code' => 'abc', '--name' => 'ABC', '--type' => 'shop', '--admin-email' => 'owner@abc.test'])
             ->expectsOutputToContain('Type [shop] is not valid. Use one of: school, college, coaching.')
             ->assertFailed();
 
@@ -153,7 +155,7 @@ class ClientCommandsTest extends TestCase
     {
         $this->createClient('abc');
 
-        $this->artisan('educore:client:create', ['code' => 'abc', '--name' => 'Again', '--type' => 'school', '--admin-email' => 'owner@abc.test'])
+        $this->artisan('edunexus:client:create', ['code' => 'abc', '--name' => 'Again', '--type' => 'school', '--admin-email' => 'owner@abc.test'])
             ->expectsOutputToContain('Client [abc] already exists')
             ->assertFailed();
     }
@@ -162,7 +164,7 @@ class ClientCommandsTest extends TestCase
     {
         DB::connection('provisioning')->statement('CREATE DATABASE `'.self::PREFIX.'abc`');
 
-        $this->artisan('educore:client:create', ['code' => 'abc', '--name' => 'ABC', '--type' => 'school', '--admin-email' => 'owner@abc.test'])
+        $this->artisan('edunexus:client:create', ['code' => 'abc', '--name' => 'ABC', '--type' => 'school', '--admin-email' => 'owner@abc.test'])
             ->expectsOutputToContain('Database or MySQL user ['.self::PREFIX.'abc] already exists.')
             ->assertFailed();
 
@@ -191,7 +193,7 @@ class ClientCommandsTest extends TestCase
         $this->createClient('abc', 'school');
         $this->createClient('xyz', 'coaching');
 
-        $this->artisan('educore:client:list')
+        $this->artisan('edunexus:client:list')
             ->expectsTable(['Code', 'Name', 'Type', 'Database', 'URL'], [
                 ['abc', 'ABC Institution', 'school', self::PREFIX.'abc', 'http://localhost:8000'],
                 ['xyz', 'XYZ Institution', 'coaching', self::PREFIX.'xyz', 'http://localhost:8000'],
@@ -207,10 +209,10 @@ class ClientCommandsTest extends TestCase
         $this->asClient('abc', fn () => DB::table('migrations')->where('migration', 'like', '%create_settings_table')->delete());
         $this->asClient('abc', fn () => DB::statement('DROP TABLE settings'));
 
-        $this->artisan('educore:client:migrate', ['code' => 'abc'])->assertSuccessful();
+        $this->artisan('edunexus:client:migrate', ['code' => 'abc'])->assertSuccessful();
         $this->asClient('abc', fn () => $this->assertTrue(DB::getSchemaBuilder()->hasTable('settings')));
 
-        $this->artisan('educore:client:migrate', ['--all' => true])
+        $this->artisan('edunexus:client:migrate', ['--all' => true])
             ->expectsOutputToContain('Migrating [abc]')
             ->expectsOutputToContain('Migrating [xyz]')
             ->assertSuccessful();
@@ -218,15 +220,15 @@ class ClientCommandsTest extends TestCase
 
     public function test_migrate_needs_exactly_one_of_a_code_or_all(): void
     {
-        $this->artisan('educore:client:migrate')->expectsOutputToContain('Pass a client code or --all.')->assertFailed();
-        $this->artisan('educore:client:migrate', ['code' => 'nope'])->expectsOutputToContain('Client [nope] not found')->assertFailed();
+        $this->artisan('edunexus:client:migrate')->expectsOutputToContain('Pass a client code or --all.')->assertFailed();
+        $this->artisan('edunexus:client:migrate', ['code' => 'nope'])->expectsOutputToContain('Client [nope] not found')->assertFailed();
     }
 
     public function test_drop_removes_the_database_user_and_files(): void
     {
         $this->createClient('abc');
 
-        $this->artisan('educore:client:drop', ['code' => 'abc', '--force' => true])->assertSuccessful();
+        $this->artisan('edunexus:client:drop', ['code' => 'abc', '--force' => true])->assertSuccessful();
 
         $database = app(ClientDatabase::class);
         $this->assertFalse($database->databaseExists(self::PREFIX.'abc'));
@@ -238,7 +240,7 @@ class ClientCommandsTest extends TestCase
     {
         $this->createClient('abc');
 
-        $this->artisan('educore:client:drop', ['code' => 'abc'])
+        $this->artisan('edunexus:client:drop', ['code' => 'abc'])
             ->expectsOutputToContain('Re-run with --force to confirm.')
             ->assertFailed();
 
@@ -250,7 +252,7 @@ class ClientCommandsTest extends TestCase
         $this->createClient('abc');
         $this->app['env'] = 'production';
 
-        $this->artisan('educore:client:drop', ['code' => 'abc', '--force' => true])
+        $this->artisan('edunexus:client:drop', ['code' => 'abc', '--force' => true])
             ->expectsOutputToContain('only runs in local and testing environments')
             ->assertFailed();
 
@@ -262,7 +264,7 @@ class ClientCommandsTest extends TestCase
         $this->createClient('abc', 'coaching');
 
         $output = $this->runAsClient('abc', 'echo json_encode(['
-            .'"client" => config("educore.client"),'
+            .'"client" => config("edunexus.client"),'
             .'"database" => DB::connection()->getDatabaseName(),'
             .'"user" => DB::selectOne("SELECT CURRENT_USER() AS u")->u,'
             .'"admins" => App\Domain\Identity\Models\User::role("Super Admin")->pluck("email"),'
@@ -345,8 +347,8 @@ class ClientCommandsTest extends TestCase
                 ...$environment,
                 'PATH' => (string) getenv('PATH'),
                 'HOME' => (string) getenv('HOME'),
-                'EDUCORE_CLIENT' => $code,
-                'EDUCORE_DEPLOYMENTS_PATH' => app(ClientFiles::class)->root(),
+                'EDUNEXUS_CLIENT' => $code,
+                'EDUNEXUS_DEPLOYMENTS_PATH' => app(ClientFiles::class)->root(),
             ],
             timeout: 60,
         );

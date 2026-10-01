@@ -10,7 +10,7 @@ use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 use RuntimeException;
 
-#[Signature('educore:client:migrate {code? : Client code} {--all : Migrate every client} {--seed : Re-run the seeders afterwards (e.g. new permissions)}')]
+#[Signature('edunexus:client:migrate {code? : Client code} {--all : Migrate every client} {--seed : Re-run the seeders afterwards (e.g. new permissions)}')]
 #[Description('Run pending migrations for one client, or all clients')]
 class ClientMigrateCommand extends Command
 {
@@ -40,14 +40,14 @@ class ClientMigrateCommand extends Command
     private function migrate(Client $client, ClientDatabase $database): bool
     {
         return $database->run($client, function () use ($client): bool {
-            $original = config('educore.client');
-            config(['educore.client' => ['code' => $client->code, 'name' => $client->name, 'type' => $client->type->value]]);
+            $original = config('edunexus.client');
+            config(['edunexus.client' => ['code' => $client->code, 'name' => $client->name, 'type' => $client->type->value]]);
 
             try {
                 return $this->callSilently('migrate', ['--force' => true]) === 0
                     && (! $this->option('seed') || $this->callSilently('db:seed', ['--force' => true]) === 0);
             } finally {
-                config(['educore.client' => $original]);
+                config(['edunexus.client' => $original]);
             }
         });
     }

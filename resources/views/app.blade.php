@@ -5,7 +5,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>{{ $title }}</title>
         <script>
-            window.EduCore = @json($config);
+            window.EduNexus = @json($config);
         </script>
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>

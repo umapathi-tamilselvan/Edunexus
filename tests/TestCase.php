@@ -25,7 +25,7 @@ abstract class TestCase extends BaseTestCase
     {
         parent::setUp();
 
-        config(['educore.provisioning.deployments_path' => storage_path('framework/testing/deployments')]);
+        config(['edunexus.provisioning.deployments_path' => storage_path('framework/testing/deployments')]);
     }
 
     /**
@@ -34,7 +34,7 @@ abstract class TestCase extends BaseTestCase
     protected function beforeRefreshingDatabase(): void
     {
         $database = (string) config('database.connections.mysql.database');
-        $prefix = (string) config('educore.provisioning.database_prefix');
+        $prefix = (string) config('edunexus.provisioning.database_prefix');
 
         if (! str_ends_with($database, '_test') || ! str_contains($prefix, 'test')) {
             $this->fail("Refusing to run: tests reset [{$database}] and drop [{$prefix}*] databases and users. Use the phpunit.xml environment.");
@@ -72,7 +72,7 @@ abstract class TestCase extends BaseTestCase
      */
     protected function dropTestClients(): void
     {
-        $prefix = (string) config('educore.provisioning.database_prefix');
+        $prefix = (string) config('edunexus.provisioning.database_prefix');
         $provisioning = DB::connection('provisioning');
         $pattern = str_replace('_', '\\_', $prefix).'%';
 

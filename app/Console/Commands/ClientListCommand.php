@@ -8,7 +8,7 @@ use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 
-#[Signature('educore:client:list')]
+#[Signature('edunexus:client:list')]
 #[Description('List clients found in the deployments directory')]
 class ClientListCommand extends Command
 {
@@ -17,7 +17,7 @@ class ClientListCommand extends Command
         $clients = $files->all();
 
         if ($clients === []) {
-            $this->components->info("No clients in [{$files->root()}]. Create one with educore:client:create.");
+            $this->components->info("No clients in [{$files->root()}]. Create one with edunexus:client:create.");
 
             return self::SUCCESS;
         }

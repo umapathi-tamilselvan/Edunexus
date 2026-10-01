@@ -5,7 +5,7 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 
 /**
- * Seeds a client database. Run by educore:client:create, and safe to rerun.
+ * Seeds a client database. Run by edunexus:client:create, and safe to rerun.
  */
 class DatabaseSeeder extends Seeder
 {

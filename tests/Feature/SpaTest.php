@@ -32,7 +32,7 @@ class SpaTest extends TestCase
 
     public function test_the_institution_name_is_escaped_in_the_page(): void
     {
-        config(['educore.client.name' => '</script><script>alert(1)</script>']);
+        config(['edunexus.client.name' => '</script><script>alert(1)</script>']);
 
         $this->get('/')
             ->assertOk()

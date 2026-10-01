@@ -84,7 +84,7 @@ class ClientDatabase
 
     private function account(string $username): string
     {
-        $host = (string) config('educore.provisioning.user_host');
+        $host = (string) config('edunexus.provisioning.user_host');
 
         return "'{$username}'@'".str_replace("'", '', $host)."'";
     }

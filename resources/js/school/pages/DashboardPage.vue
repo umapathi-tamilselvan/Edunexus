@@ -2,7 +2,7 @@
 import RoleBadge from '../../components/RoleBadge.vue';
 import { session } from '../session';
 
-const school = window.EduCore;
+const school = window.EduNexus;
 </script>
 
 <template>

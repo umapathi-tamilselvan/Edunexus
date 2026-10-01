@@ -3,7 +3,7 @@ import { useRouter } from 'vue-router';
 import LoginCard from '../../components/LoginCard.vue';
 import { session } from '../session';
 
-const school = window.EduCore;
+const school = window.EduNexus;
 const router = useRouter();
 
 async function signIn(credentials) {
@@ -13,5 +13,5 @@ async function signIn(credentials) {
 </script>
 
 <template>
-    <LoginCard :title="school.name" subtitle="Sign in to EduCore" :submit="signIn" />
+    <LoginCard :title="school.name" subtitle="Sign in to EduNexus" :submit="signIn" />
 </template>

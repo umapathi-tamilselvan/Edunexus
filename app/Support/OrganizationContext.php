@@ -16,17 +16,17 @@ final class OrganizationContext
 
     public function code(): string
     {
-        return (string) config('educore.client.code');
+        return (string) config('edunexus.client.code');
     }
 
     public function name(): string
     {
-        return (string) config('educore.client.name');
+        return (string) config('edunexus.client.name');
     }
 
     public function type(): InstitutionType
     {
-        return InstitutionType::from((string) config('educore.client.type'));
+        return InstitutionType::from((string) config('edunexus.client.type'));
     }
 
     /**

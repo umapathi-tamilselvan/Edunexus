@@ -44,7 +44,7 @@ return [
             'transaction_mode' => 'DEFERRED',
         ],
 
-        // Privileged connection used only by educore:client:* commands to
+        // Privileged connection used only by edunexus:client:* commands to
         // create and drop client databases and MySQL users. Never used by
         // the running app.
         'provisioning' => [

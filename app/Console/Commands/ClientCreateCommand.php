@@ -9,13 +9,13 @@ use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 use InvalidArgumentException;
 
-#[Signature('educore:client:create
+#[Signature('edunexus:client:create
     {code : Client code: 2-20 lowercase letters or digits, e.g. "abc"}
     {--name= : Institution name, e.g. "ABC Public School"}
     {--type= : Institution type: school, college or coaching}
     {--admin-email= : Super Admin email}
     {--admin-name=Super Admin : Super Admin name}
-    {--url= : APP_URL for the client (defaults to EDUCORE_CLIENT_URL)}
+    {--url= : APP_URL for the client (defaults to EDUNEXUS_CLIENT_URL)}
     {--ask-password : Prompt for the Super Admin password instead of generating one}')]
 #[Description('Create a client: deployment .env files, its own database and MySQL user, schema, institution-type data and a Super Admin')]
 class ClientCreateCommand extends Command
@@ -64,7 +64,7 @@ class ClientCreateCommand extends Command
         }
 
         $this->newLine();
-        $this->line("  Run as this client: <comment>EDUCORE_CLIENT={$client->code} php artisan serve</comment>");
+        $this->line("  Run as this client: <comment>EDUNEXUS_CLIENT={$client->code} php artisan serve</comment>");
 
         return self::SUCCESS;
     }

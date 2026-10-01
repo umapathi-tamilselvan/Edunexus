@@ -17,7 +17,7 @@ class SessionController extends Controller
 {
     public function store(LoginRequest $request): CurrentUserResource
     {
-        abort_unless($request->hasSession(), 400, 'Cookie login is only available to the EduCore web app.');
+        abort_unless($request->hasSession(), 400, 'Cookie login is only available to the EduNexus web app.');
 
         if (! Auth::guard('web')->attempt($request->only('email', 'password'))) {
             throw ValidationException::withMessages([

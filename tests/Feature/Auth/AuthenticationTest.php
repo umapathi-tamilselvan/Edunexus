@@ -111,7 +111,7 @@ class AuthenticationTest extends TestCase
                 'password' => self::PASSWORD,
             ])
             ->assertBadRequest()
-            ->assertJsonPath('message', 'Cookie login is only available to the EduCore web app.');
+            ->assertJsonPath('message', 'Cookie login is only available to the EduNexus web app.');
     }
 
     public function test_sign_in_attempts_are_rate_limited(): void

@@ -8,7 +8,7 @@ use App\Support\Settings\Setting;
 use Illuminate\Database\Seeder;
 
 /**
- * Seeds what depends on the client's institution type (EDUCORE_INSTITUTION_TYPE):
+ * Seeds what depends on the client's institution type (EDUNEXUS_INSTITUTION_TYPE):
  * its roles and its terminology.
  */
 class InstitutionTypeSeeder extends Seeder

@@ -25,7 +25,7 @@ class BrandingAndModulesTest extends TestCase
     #[TestWith(['coaching', 'fee', 'examination'])]
     public function test_modules_default_to_the_institution_type(string $type, string $included, string $excluded): void
     {
-        config(['educore.client.type' => $type]);
+        config(['edunexus.client.type' => $type]);
         $token = $this->issueToken($this->createUser(Role::Admin)->email);
 
         $modules = $this->withToken($token)->getJson('/api/v1/me')->assertOk()->json('data.modules');
@@ -36,7 +36,7 @@ class BrandingAndModulesTest extends TestCase
 
     public function test_env_overrides_enable_and_disable_modules(): void
     {
-        config(['educore.modules' => ['enable' => ['hostel', 'not-a-module'], 'disable' => ['transport']]]);
+        config(['edunexus.modules' => ['enable' => ['hostel', 'not-a-module'], 'disable' => ['transport']]]);
         $token = $this->issueToken($this->createUser(Role::Admin)->email);
 
         $modules = $this->withToken($token)->getJson('/api/v1/me')->json('data.modules');
@@ -53,7 +53,7 @@ class BrandingAndModulesTest extends TestCase
 
         $this->withToken($token)->getJson('/api/v1/_test/transport')->assertOk();
 
-        config(['educore.modules.disable' => ['transport']]);
+        config(['edunexus.modules.disable' => ['transport']]);
         $this->app['auth']->forgetGuards();
 
         $this->withToken($token)->getJson('/api/v1/_test/transport')

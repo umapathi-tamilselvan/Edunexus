@@ -24,16 +24,16 @@
         <env name="BROADCAST_CONNECTION" value="null"/>
         <env name="CACHE_STORE" value="array"/>
         <env name="DB_CONNECTION" value="mysql"/>
-        <env name="DB_DATABASE" value="educore_test"/>
+        <env name="DB_DATABASE" value="edunexus_test"/>
         <env name="DB_URL" value=""/>
         <env name="APP_URL" value="http://localhost"/>
-        <env name="EDUCORE_CLIENT_CODE" value="test"/>
-        <env name="EDUCORE_ORG_NAME" value="Test Public School"/>
-        <env name="EDUCORE_INSTITUTION_TYPE" value="school"/>
-        <env name="EDUCORE_MODULES_ENABLE" value=""/>
-        <env name="EDUCORE_MODULES_DISABLE" value=""/>
-        <env name="EDUCORE_CLIENT_DB_PREFIX" value="educore_testclient_"/>
-        <env name="EDUCORE_DEPLOYMENTS_PATH" value="storage/framework/testing/deployments"/>
+        <env name="EDUNEXUS_CLIENT_CODE" value="test"/>
+        <env name="EDUNEXUS_ORG_NAME" value="Test Public School"/>
+        <env name="EDUNEXUS_INSTITUTION_TYPE" value="school"/>
+        <env name="EDUNEXUS_MODULES_ENABLE" value=""/>
+        <env name="EDUNEXUS_MODULES_DISABLE" value=""/>
+        <env name="EDUNEXUS_CLIENT_DB_PREFIX" value="edunexus_testclient_"/>
+        <env name="EDUNEXUS_DEPLOYMENTS_PATH" value="storage/framework/testing/deployments"/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>

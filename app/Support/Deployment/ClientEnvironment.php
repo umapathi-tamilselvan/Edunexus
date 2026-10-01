@@ -8,10 +8,10 @@ use Illuminate\Support\Env;
 use RuntimeException;
 
 /**
- * Boots the app as one client. With EDUCORE_CLIENT=abc, the environment
- * comes from deployments/abc/.env.secure (secrets) and deployments/abc/.env
- * (settings) instead of the root .env. Without it, the root .env is used as
- * the development client.
+ * Boots the app as one client. With EDUNEXUS_CLIENT=abc, the environment
+ * comes from deployments/abc/abc.env.secure (secrets) and
+ * deployments/abc/abc.env (settings) instead of the root .env. Without it,
+ * the root .env is used as the development client.
  */
 class ClientEnvironment
 {
@@ -19,20 +19,22 @@ class ClientEnvironment
 
     public static function apply(Application $app): void
     {
-        $client = Env::get('EDUCORE_CLIENT');
+        $client = Env::get('EDUNEXUS_CLIENT');
 
         if ($client === null || $client === '') {
             return;
         }
 
         if (! preg_match(self::CODE_PATTERN, $client)) {
-            throw new RuntimeException("EDUCORE_CLIENT [{$client}] is not a valid client code.");
+            throw new RuntimeException("EDUNEXUS_CLIENT [{$client}] is not a valid client code.");
         }
 
         $directory = self::directory($app->basePath(), $client);
+        $settingsFile = self::settingsFile($client);
+        $secretsFile = self::secretsFile($client);
 
-        if (! is_file($directory.'/.env') || ! is_file($directory.'/.env.secure')) {
-            throw new RuntimeException("Client [{$client}] has no deployment files in [{$directory}]. Create it with: php artisan educore:client:create {$client}");
+        if (! is_file("{$directory}/{$settingsFile}") || ! is_file("{$directory}/{$secretsFile}")) {
+            throw new RuntimeException("Client [{$client}] has no deployment files in [{$directory}]. Create it with: php artisan edunexus:client:create {$client}");
         }
 
         // Each client gets its own cached config, routes and events, so
@@ -47,15 +49,31 @@ class ClientEnvironment
         }
 
         // The repository is immutable: values loaded first win, so secrets in
-        // .env.secure cannot be overridden by .env.
-        Dotenv::create(Env::getRepository(), $directory, '.env.secure')->load();
+        // the secrets file cannot be overridden by the settings file.
+        Dotenv::create(Env::getRepository(), $directory, $secretsFile)->load();
 
         $app->useEnvironmentPath($directory);
-        $app->loadEnvironmentFrom('.env');
+        $app->loadEnvironmentFrom($settingsFile);
+    }
+
+    /**
+     * Non-secret settings file name, e.g. "abc.env".
+     */
+    public static function settingsFile(string $client): string
+    {
+        return "{$client}.env";
+    }
+
+    /**
+     * Secrets file name, e.g. "abc.env.secure".
+     */
+    public static function secretsFile(string $client): string
+    {
+        return "{$client}.env.secure";
     }
 
     public static function directory(string $basePath, string $client): string
     {
-        return rtrim((string) (Env::get('EDUCORE_DEPLOYMENTS_PATH') ?: $basePath.'/deployments'), '/').'/'.$client;
+        return rtrim((string) (Env::get('EDUNEXUS_DEPLOYMENTS_PATH') ?: $basePath.'/deployments'), '/').'/'.$client;
     }
 }

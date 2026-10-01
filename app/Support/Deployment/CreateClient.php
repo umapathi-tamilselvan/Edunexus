@@ -14,7 +14,7 @@ use Throwable;
 /**
  * Creates a client: its deployment files, its own MySQL database and user,
  * its schema and institution-type data, and a Super Admin who can sign in.
- * The same codebase then runs as that client with EDUCORE_CLIENT=<code>.
+ * The same codebase then runs as that client with EDUNEXUS_CLIENT=<code>.
  */
 class CreateClient
 {
@@ -40,12 +40,12 @@ class CreateClient
         // 1. Validate.
         $institutionType = $this->validate($code, $name, $type, $adminEmail);
 
-        $prefix = (string) config('educore.provisioning.database_prefix');
+        $prefix = (string) config('edunexus.provisioning.database_prefix');
         $client = new Client(
             code: $code,
             name: $name,
             type: $institutionType,
-            url: $url ?? (string) config('educore.provisioning.default_url'),
+            url: $url ?? (string) config('edunexus.provisioning.default_url'),
             database: $prefix.$code,
             username: $prefix.$code,
             password: Str::password(32, symbols: false),
@@ -120,15 +120,15 @@ class CreateClient
      */
     private function asClient(Client $client, callable $callback): void
     {
-        $original = config('educore.client');
+        $original = config('edunexus.client');
 
-        config(['educore.client' => ['code' => $client->code, 'name' => $client->name, 'type' => $client->type->value]]);
+        config(['edunexus.client' => ['code' => $client->code, 'name' => $client->name, 'type' => $client->type->value]]);
         $this->permissions->initializeCache();
 
         try {
             $callback();
         } finally {
-            config(['educore.client' => $original]);
+            config(['edunexus.client' => $original]);
             $this->permissions->initializeCache();
         }
     }
@@ -154,7 +154,7 @@ class CreateClient
         $local = $environment === 'local';
 
         return [
-            'APP_NAME' => 'EduCore',
+            'APP_NAME' => 'EduNexus',
             'APP_ENV' => $environment,
             'APP_DEBUG' => $local ? 'true' : 'false',
             'APP_URL' => $client->url,
@@ -162,13 +162,13 @@ class CreateClient
             'APP_FALLBACK_LOCALE' => 'en',
             'APP_FAKER_LOCALE' => 'en_IN',
             'BCRYPT_ROUNDS' => '12',
-            '#client' => 'EduCore client',
-            'EDUCORE_CLIENT_CODE' => $client->code,
-            'EDUCORE_INSTITUTION_TYPE' => $client->type->value,
-            'EDUCORE_ORG_NAME' => $client->name,
+            '#client' => 'EduNexus client',
+            'EDUNEXUS_CLIENT_CODE' => $client->code,
+            'EDUNEXUS_INSTITUTION_TYPE' => $client->type->value,
+            'EDUNEXUS_ORG_NAME' => $client->name,
             'RECEIPT_PREFIX' => strtoupper($client->code),
-            'EDUCORE_MODULES_ENABLE' => '',
-            'EDUCORE_MODULES_DISABLE' => '',
+            'EDUNEXUS_MODULES_ENABLE' => '',
+            'EDUNEXUS_MODULES_DISABLE' => '',
             '#infrastructure' => 'Infrastructure',
             'LOG_CHANNEL' => 'stack',
             'LOG_STACK' => 'single',
@@ -186,7 +186,7 @@ class CreateClient
             'FILESYSTEM_DISK' => 'local',
             'BROADCAST_CONNECTION' => 'log',
             'MAIL_MAILER' => 'log',
-            'MAIL_FROM_ADDRESS' => 'no-reply@'.$client->code.'.educore.in',
+            'MAIL_FROM_ADDRESS' => 'no-reply@'.$client->code.'.edunexus.in',
             'MAIL_FROM_NAME' => $client->name,
         ];
     }

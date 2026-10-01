@@ -9,14 +9,14 @@ use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 use RuntimeException;
 
-#[Signature('educore:client:drop {code : Client code} {--force : Confirm dropping the database, MySQL user and files}')]
+#[Signature('edunexus:client:drop {code : Client code} {--force : Confirm dropping the database, MySQL user and files}')]
 #[Description('Local and testing only: drop a client\'s database, MySQL user and deployment files')]
 class ClientDropCommand extends Command
 {
     public function handle(ClientFiles $files, ClientDatabase $database): int
     {
         if (! $this->laravel->environment(['local', 'testing'])) {
-            $this->components->error('educore:client:drop only runs in local and testing environments.');
+            $this->components->error('edunexus:client:drop only runs in local and testing environments.');
 
             return self::FAILURE;
         }
