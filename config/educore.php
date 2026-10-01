@@ -1,42 +1,58 @@
 <?php
 
+$csv = fn (string $key): array => array_values(array_filter(array_map('trim', explode(',', (string) env($key, '')))));
+
 return [
 
     /*
     |--------------------------------------------------------------------------
-    | Base Domain
+    | Client
     |--------------------------------------------------------------------------
     |
-    | Every school gets a free subdomain on this domain at signup, e.g.
-    | "abc.educore.in". Locally "localhost" gives "abc.localhost".
+    | The institution this deployment serves. Written to the client's
+    | deployments/<code>/.env by educore:client:create. The root .env acts
+    | as the development client.
     |
     */
 
-    'base_domain' => env('EDUCORE_BASE_DOMAIN', 'localhost'),
+    'client' => [
+        'code' => env('EDUCORE_CLIENT_CODE', 'dev'),
+        'name' => env('EDUCORE_ORG_NAME', 'EduCore Development'),
+        'type' => env('EDUCORE_INSTITUTION_TYPE', 'school'),
+    ],
+
+    'receipt_prefix' => env('RECEIPT_PREFIX', 'RCPT'),
 
     /*
     |--------------------------------------------------------------------------
-    | Tenant URLs
+    | Module Overrides
     |--------------------------------------------------------------------------
     |
-    | Links in mails, messages, PDFs and API responses are built from the
-    | school's primary domain with this scheme and optional port, never
-    | from APP_URL.
+    | Comma-separated module codes added to or removed from the institution
+    | type's defaults, e.g. EDUCORE_MODULES_ENABLE=hostel,library.
     |
     */
 
-    'tenant_url_scheme' => env('EDUCORE_TENANT_URL_SCHEME', 'https'),
-
-    'tenant_url_port' => env('EDUCORE_TENANT_URL_PORT'),
+    'modules' => [
+        'enable' => $csv('EDUCORE_MODULES_ENABLE'),
+        'disable' => $csv('EDUCORE_MODULES_DISABLE'),
+    ],
 
     /*
     |--------------------------------------------------------------------------
-    | Cache TTLs (seconds)
+    | Client Provisioning
     |--------------------------------------------------------------------------
+    |
+    | Used by the educore:client:* commands. Each client gets database and
+    | MySQL user "{prefix}{code}", with rights on that database only.
+    |
     */
 
-    'domain_cache_ttl' => 600,
-
-    'entitlement_cache_ttl' => 600,
+    'provisioning' => [
+        'deployments_path' => env('EDUCORE_DEPLOYMENTS_PATH', base_path('deployments')),
+        'database_prefix' => env('EDUCORE_CLIENT_DB_PREFIX', 'educore_'),
+        'user_host' => env('DB_PROVISION_USER_HOST', '%'),
+        'default_url' => env('EDUCORE_CLIENT_URL', 'http://localhost:8000'),
+    ],
 
 ];

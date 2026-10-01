@@ -1,6 +1,6 @@
 <?php
 
-use App\Models\User;
+use App\Domain\Identity\Models\User;
 
 return [
 
@@ -40,6 +40,12 @@ return [
     'guards' => [
         'web' => [
             'driver' => 'session',
+            'provider' => 'users',
+        ],
+
+        // SPA cookie sessions and mobile bearer tokens.
+        'sanctum' => [
+            'driver' => 'sanctum',
             'provider' => 'users',
         ],
     ],
