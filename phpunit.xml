@@ -32,6 +32,8 @@
         <env name="EDUNEXUS_INSTITUTION_TYPE" value="school"/>
         <env name="EDUNEXUS_MODULES_ENABLE" value=""/>
         <env name="EDUNEXUS_MODULES_DISABLE" value=""/>
+        <env name="EDUNEXUS_SUPER_ADMIN_EMAIL" value=""/>
+        <env name="EDUNEXUS_SUPER_ADMIN_PASSWORD" value=""/>
         <env name="EDUNEXUS_CLIENT_DB_PREFIX" value="edunexus_testclient_"/>
         <env name="EDUNEXUS_DEPLOYMENTS_PATH" value="storage/framework/testing/deployments"/>
         <env name="MAIL_MAILER" value="array"/>

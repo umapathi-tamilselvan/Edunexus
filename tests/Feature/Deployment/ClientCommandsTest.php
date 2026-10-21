@@ -218,6 +218,17 @@ class ClientCommandsTest extends TestCase
             ->assertSuccessful();
     }
 
+    public function test_the_root_super_admin_is_never_seeded_into_a_client(): void
+    {
+        config(['edunexus.super_admin' => ['name' => 'Dev Admin', 'email' => 'dev@root.test', 'password' => self::PASSWORD]]);
+        $this->createClient('abc');
+
+        $this->artisan('edunexus:client:migrate', ['code' => 'abc', '--seed' => true])->assertSuccessful();
+
+        $this->asClient('abc', fn () => $this->assertSame(['owner@abc.test'], DB::table('users')->pluck('email')->all()));
+        $this->assertSame('dev@root.test', config('edunexus.super_admin.email'));
+    }
+
     public function test_migrate_needs_exactly_one_of_a_code_or_all(): void
     {
         $this->artisan('edunexus:client:migrate')->expectsOutputToContain('Pass a client code or --all.')->assertFailed();
