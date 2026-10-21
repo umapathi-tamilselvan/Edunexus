@@ -58,14 +58,14 @@ enum InstitutionType: string
     /**
      * Words the UI uses for the academic structure.
      *
-     * @return array{class: string, section: string, teacher: string, head: string}
+     * @return array{class: string, classes: string, section: string, sections: string, teacher: string, head: string}
      */
     public function terminology(): array
     {
         return match ($this) {
-            self::School => ['class' => 'Class', 'section' => 'Section', 'teacher' => 'Teacher', 'head' => 'Principal'],
-            self::College => ['class' => 'Semester', 'section' => 'Division', 'teacher' => 'Faculty', 'head' => 'Principal'],
-            self::Coaching => ['class' => 'Course', 'section' => 'Batch', 'teacher' => 'Tutor', 'head' => 'Centre head'],
+            self::School => ['class' => 'Class', 'classes' => 'Classes', 'section' => 'Section', 'sections' => 'Sections', 'teacher' => 'Teacher', 'head' => 'Principal'],
+            self::College => ['class' => 'Semester', 'classes' => 'Semesters', 'section' => 'Division', 'sections' => 'Divisions', 'teacher' => 'Faculty', 'head' => 'Principal'],
+            self::Coaching => ['class' => 'Course', 'classes' => 'Courses', 'section' => 'Batch', 'sections' => 'Batches', 'teacher' => 'Tutor', 'head' => 'Centre head'],
         };
     }
 }

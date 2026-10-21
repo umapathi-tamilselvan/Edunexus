@@ -4,6 +4,8 @@ namespace App\Providers;
 
 use App\Domain\Identity\Models\User;
 use App\Domain\Identity\Policies\UserPolicy;
+use App\Domain\Student\Models\Student;
+use App\Domain\Student\Policies\StudentPolicy;
 use App\Support\OrganizationContext;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -28,6 +30,7 @@ class AppServiceProvider extends ServiceProvider
     {
         // Policies live in their domain modules, outside the discovery path.
         Gate::policy(User::class, UserPolicy::class);
+        Gate::policy(Student::class, StudentPolicy::class);
 
         $this->configureRateLimiting();
     }

@@ -116,19 +116,23 @@ class CreateClient
     /**
      * Run seeders and model code with the client's identity in config, so
      * the institution-type seeder sees the new client, not the one running
-     * the command.
+     * the command. The root .env's Super Admin is cleared so UserSeeder
+     * never adds it to the client.
      */
     private function asClient(Client $client, callable $callback): void
     {
-        $original = config('edunexus.client');
+        $original = config()->getMany(['edunexus.client', 'edunexus.super_admin']);
 
-        config(['edunexus.client' => ['code' => $client->code, 'name' => $client->name, 'type' => $client->type->value]]);
+        config([
+            'edunexus.client' => ['code' => $client->code, 'name' => $client->name, 'type' => $client->type->value],
+            'edunexus.super_admin' => null,
+        ]);
         $this->permissions->initializeCache();
 
         try {
             $callback();
         } finally {
-            config(['edunexus.client' => $original]);
+            config($original);
             $this->permissions->initializeCache();
         }
     }

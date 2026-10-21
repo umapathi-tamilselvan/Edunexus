@@ -17,8 +17,16 @@ export const session = reactive({
         return this.user?.permissions.includes(permission) ?? false;
     },
 
+    canAny(permissions) {
+        return permissions.some((permission) => this.can(permission));
+    },
+
     hasRole(role) {
         return this.user?.roles.includes(role) ?? false;
+    },
+
+    hasModule(module) {
+        return this.user?.modules.includes(module) ?? false;
     },
 
     async load() {

@@ -1,9 +1,17 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import { http } from '../lib/http';
+import AcademicPage from './pages/AcademicPage.vue';
+import AdmissionsPage from './pages/AdmissionsPage.vue';
 import DashboardPage from './pages/DashboardPage.vue';
 import LoginPage from './pages/LoginPage.vue';
+import StudentDetailPage from './pages/StudentDetailPage.vue';
+import StudentsPage from './pages/StudentsPage.vue';
+import TimetablePage from './pages/TimetablePage.vue';
 import UsersPage from './pages/UsersPage.vue';
 import { session } from './session';
+
+/** Any of these lets a user open the students pages. */
+export const STUDENT_VIEW = ['student.view', 'student.view_assigned', 'student.manage'];
 
 export const router = createRouter({
     history: createWebHistory(),
@@ -12,6 +20,11 @@ export const router = createRouter({
         { path: '/login', name: 'login', component: LoginPage, meta: { guest: true } },
         { path: '/dashboard', name: 'dashboard', component: DashboardPage },
         { path: '/users', name: 'users', component: UsersPage, meta: { permission: 'user.manage' } },
+        { path: '/admissions', name: 'admissions', component: AdmissionsPage, meta: { permission: 'admission.manage', module: 'admission' } },
+        { path: '/timetable', name: 'timetable', component: TimetablePage, meta: { permission: 'academic.view', module: 'academic' } },
+        { path: '/academic', name: 'academic', component: AcademicPage, meta: { permission: 'academic.view', module: 'academic' } },
+        { path: '/students', name: 'students', component: StudentsPage, meta: { permission: STUDENT_VIEW, module: 'student' } },
+        { path: '/students/:id', name: 'student', component: StudentDetailPage, meta: { permission: STUDENT_VIEW, module: 'student' } },
         { path: '/:pathMatch(.*)*', redirect: '/dashboard' },
     ],
 });
@@ -27,7 +40,9 @@ router.beforeEach(async (to) => {
         return { name: 'login' };
     }
 
-    if (to.meta.permission && !session.can(to.meta.permission)) {
+    const permissions = [to.meta.permission ?? []].flat();
+
+    if ((permissions.length && !session.canAny(permissions)) || (to.meta.module && !session.hasModule(to.meta.module))) {
         return { name: 'dashboard' };
     }
 });

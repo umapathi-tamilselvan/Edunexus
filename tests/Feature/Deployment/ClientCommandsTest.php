@@ -123,7 +123,7 @@ class ClientCommandsTest extends TestCase
             $this->assertNotContains('Guardian', $roles);
             // MySQL JSON columns do not keep key order.
             $this->assertEquals(
-                ['class' => 'Semester', 'section' => 'Division', 'teacher' => 'Faculty', 'head' => 'Principal'],
+                ['class' => 'Semester', 'classes' => 'Semesters', 'section' => 'Division', 'sections' => 'Divisions', 'teacher' => 'Faculty', 'head' => 'Principal'],
                 json_decode(DB::table('settings')->where('key', 'institution.terminology')->value('value'), true),
             );
         });
@@ -218,6 +218,17 @@ class ClientCommandsTest extends TestCase
             ->assertSuccessful();
     }
 
+    public function test_the_root_super_admin_is_never_seeded_into_a_client(): void
+    {
+        config(['edunexus.super_admin' => ['name' => 'Dev Admin', 'email' => 'dev@root.test', 'password' => self::PASSWORD]]);
+        $this->createClient('abc');
+
+        $this->artisan('edunexus:client:migrate', ['code' => 'abc', '--seed' => true])->assertSuccessful();
+
+        $this->asClient('abc', fn () => $this->assertSame(['owner@abc.test'], DB::table('users')->pluck('email')->all()));
+        $this->assertSame('dev@root.test', config('edunexus.super_admin.email'));
+    }
+
     public function test_migrate_needs_exactly_one_of_a_code_or_all(): void
     {
         $this->artisan('edunexus:client:migrate')->expectsOutputToContain('Pass a client code or --all.')->assertFailed();
@@ -268,6 +279,8 @@ class ClientCommandsTest extends TestCase
             .'"database" => DB::connection()->getDatabaseName(),'
             .'"user" => DB::selectOne("SELECT CURRENT_USER() AS u")->u,'
             .'"admins" => App\Domain\Identity\Models\User::role("Super Admin")->pluck("email"),'
+            .'"storage" => storage_path(),'
+            .'"files" => Storage::disk("local")->path("report.pdf"),'
             .']);');
 
         $this->assertSame([
@@ -275,7 +288,10 @@ class ClientCommandsTest extends TestCase
             'database' => self::PREFIX.'abc',
             'user' => self::PREFIX.'abc@%',
             'admins' => ['owner@abc.test'],
+            'storage' => $this->clientStorage(),
+            'files' => $this->clientStorage().'/app/private/report.pdf',
         ], json_decode($output, true));
+        $this->assertDirectoryExists($this->clientStorage().'/framework/views');
     }
 
     public function test_each_client_caches_its_config_separately(): void
@@ -301,6 +317,11 @@ class ClientCommandsTest extends TestCase
 
         $this->assertNotSame(0, $process->getExitCode());
         $this->assertStringContainsString('Client [nope] has no deployment files', $process->getErrorOutput().$process->getOutput());
+    }
+
+    private function clientStorage(): string
+    {
+        return storage_path('framework/testing/client-storage');
     }
 
     /**
@@ -349,6 +370,7 @@ class ClientCommandsTest extends TestCase
                 'HOME' => (string) getenv('HOME'),
                 'EDUNEXUS_CLIENT' => $code,
                 'EDUNEXUS_DEPLOYMENTS_PATH' => app(ClientFiles::class)->root(),
+                'EDUNEXUS_STORAGE_PATH' => $this->clientStorage(),
             ],
             timeout: 60,
         );

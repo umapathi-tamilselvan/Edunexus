@@ -19,6 +19,7 @@ enum Permission: string
     case AdmissionManage = 'admission.manage';
 
     case StudentView = 'student.view';
+    case StudentViewAssigned = 'student.view_assigned';
     case StudentManage = 'student.manage';
 
     case StaffView = 'staff.view';

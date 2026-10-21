@@ -8,7 +8,7 @@ Oct 1, 2026 · Umapathi
 
 EduNexus is one Laravel codebase that runs as one client at a time. A client (a school, college or coaching centre) gets its own environment files, its own MySQL database and its own MySQL user, and a running deployment serves exactly that client.
 
-1. One codebase, one Docker image; each client runs it as its own deployment.
+1. One codebase; each client runs it as its own deployment.
 2. The client is chosen at boot by `EDUNEXUS_CLIENT=<code>`, never from the request hostname.
 3. One MySQL database and one MySQL user per client; the user has rights on that database only.
 4. Client settings live in `deployments/<code>/<code>.env`; client secrets live in `deployments/<code>/<code>.env.secure`.
@@ -116,7 +116,7 @@ Without `EDUNEXUS_CLIENT`, the root `.env` is used as the development client (`E
 
 `EDUNEXUS_DEPLOYMENTS_PATH` overrides where client directories are looked up (default `deployments/`).
 
-**In containers.** Each client is one service running the same image with `EDUNEXUS_CLIENT=<code>` and its client directory mounted. A `make up CLIENT=abc` target and the Docker setup are not built yet.
+**Storage.** Each client gets its own storage directory, `storage/clients/<code>/` (files, logs, compiled views), created on first boot. `EDUNEXUS_STORAGE_PATH` overrides it, e.g. to point at a mounted volume. There is no Docker setup; run each client with `EDUNEXUS_CLIENT=<code> php artisan serve`, on its own port and `APP_URL`, and set `SESSION_COOKIE` per client when several run on `localhost`.
 
 ## Institution types
 
@@ -128,7 +128,7 @@ Without `EDUNEXUS_CLIENT`, the root `.env` is used as the development client (`E
 | `college` | Examination, Library, Hostel | Admin, Principal, Teacher, Accountant, Student | Semester / Division / Faculty / Principal |
 | `coaching` | none | Admin, Teacher, Accountant, Guardian, Student | Course / Batch / Tutor / Centre head |
 
-The core set for every type is Academic, Admission, Student, Staff, Attendance, Fee, Communication and Report. The definitions live in `App\Support\Deployment\InstitutionType`. `InstitutionTypeSeeder` syncs the roles and stores the terminology in the `settings` table under `institution.terminology`.
+The core set for every type is Academic, Admission, Student, Staff, Attendance, Fee, Communication and Report. The definitions live in `App\Support\Deployment\InstitutionType`. `InstitutionTypeSeeder` syncs the roles and stores the terminology, with plural forms (Classes, Semesters, Batches…), in the `settings` table under `institution.terminology`. The SPA uses these words in every label.
 
 ## Request lifecycle
 
@@ -147,9 +147,9 @@ app/
 ├── Console/Commands/   # edunexus:client:create|list|migrate|drop
 ├── Domain/             # business modules, all in the client DB
 │   ├── Identity/       # users, roles, permissions, user management (built)
-│   ├── Academic/       # years, classes, sections, subjects, timetable
-│   ├── Admission/
-│   ├── Student/        # students, guardians, enrollments, promotion
+│   ├── Academic/       # years, classes, sections, subjects, periods, timetable (built)
+│   ├── Admission/      # enquiries, decisions, admission with consent (built)
+│   ├── Student/        # students, guardians, enrollments (built); promotion
 │   ├── Staff/
 │   ├── Attendance/
 │   ├── Examination/
@@ -166,6 +166,7 @@ app/
     ├── Deployment/     # ClientEnvironment, CreateClient, ClientFiles, ClientDatabase, InstitutionType
     ├── Modules/        # Module enum, Entitlements
     ├── Settings/       # Setting model
+    ├── Sequences.php   # gapless counters (admission no., later receipts)
     └── OrganizationContext.php
 ```
 
@@ -189,6 +190,43 @@ app/
 | `student_enrollments` | student_id, academic_year_id, section_id, roll_no, status | Unique on (student_id, academic_year_id) |
 | `attendance_records` | enrollment_id, date, period, status, marked_by | Unique on (enrollment_id, date, period) |
 | `holidays` | academic_year_id, date, name | Excluded from attendance percentages |
+
+**Rules built in Phase 2.**
+
+- Exactly one academic year is current; the first year created becomes current.
+- Class names are unique within a year and section names within a class. A class with sections, or a section with students, cannot be deleted, and a section's capacity cannot drop below its enrolled count.
+- One enrollment per student per year, always in a section of that year. Capacity is enforced under a row lock; roll numbers are unique per section and default to the next free number.
+- An enrollment can move to another section of the same year only; changing years is promotion.
+- Guardian phones are normalised (digits only, no +91 or leading 0), encrypted, and matched by keyed hash, so siblings share one guardian record. Each student has at least one guardian and exactly one primary guardian.
+- Students, guardians and enrollments are audited; guardian phone values never enter the audit log.
+
+**Admissions.** An application moves enquiry → approved → admitted, or to rejected (reason required) or withdrawn; small institutions may admit straight from an enquiry. Closed applications cannot change.
+
+- Application numbers are gapless per academic year (`2026-27/0001`); admission numbers default to `<CODE><00001>`, skip numbers typed in by hand, and are given back if the admission rolls back. Both come from the `sequences` table (`App\Support\Sequences`), locked `FOR UPDATE` inside the using transaction.
+- Admitting runs in one transaction: it locks the application, checks the section belongs to the class applied for, creates the student, links or reuses the guardian (by phone), enrolls them, and writes a `guardian_consents` row.
+- Consent is mandatory: the admitting user confirms the guardian saw the privacy notice and records how consent was obtained (`signed_form`, `in_person`, `digital`). The row stores the notice version (`EDUNEXUS_PRIVACY_NOTICE_VERSION`, shown in the UI via `/api/v1/branding`), time, recorder and IP.
+- Guardian phones on applications are encrypted and searchable by exact number, like guardians'.
+
+**Timetable.** Each academic year has a bell schedule of periods (some marked as breaks); each section has a weekly grid of slots (weekday × period → subject and optional teacher).
+
+- A slot's period must belong to the section's year and not be a break; its subject must be offered to the section's class.
+- A teacher cannot be in two sections in the same weekday and period: checked with a readable message and enforced by a unique index.
+- A period in use cannot be deleted or turned into a break.
+- `GET /api/v1/me/timetable` gives a teacher their own week.
+
+**API (Phase 2).** All under `/api/v1`, behind `entitled:academic` or `entitled:student`.
+
+| Area | Endpoints | Permission |
+| --- | --- | --- |
+| Years | `GET/POST academic-years`, `GET/PATCH academic-years/{id}`, `POST academic-years/{id}/make-current` | read `academic.view`, write `academic.manage` |
+| Classes, sections | `GET/POST academic-years/{id}/classes`, `PATCH/DELETE classes/{id}`, `PUT classes/{id}/subjects`, `POST classes/{id}/sections`, `PATCH/DELETE sections/{id}` | read `academic.view`, write `academic.manage` |
+| Subjects | `GET/POST subjects`, `PATCH subjects/{id}` | read `academic.view`, write `academic.manage` |
+| Students | `GET students` (search, `class_id`, `section_id`, `academic_year_id`), `GET students/{id}`, `POST students` (with guardians and optional enrollment), `PATCH students/{id}` | read: see RBAC; write `student.manage` |
+| Guardians | `POST students/{id}/guardians`, `DELETE students/{id}/guardians/{guardian}` | `student.manage` |
+| Enrollments | `POST students/{id}/enrollments`, `PATCH enrollments/{id}` | `student.manage` |
+| Periods | `GET/POST academic-years/{id}/periods`, `PATCH/DELETE periods/{id}` | read `academic.view`, write `academic.manage` |
+| Timetable | `GET sections/{id}/timetable`, `PUT/DELETE sections/{id}/timetable/{weekday}/{period}`, `GET me/timetable` | read `academic.view` (own timetable: any signed-in user), write `academic.manage` |
+| Admissions | `GET/POST admissions`, `GET/PATCH admissions/{id}`, `POST admissions/{id}/decision`, `POST admissions/{id}/admit` | `admission.manage`, module `admission` |
 
 **Promotion workflow.** At year end, an admin bulk-promotes sections into the next year's sections, marking each student promoted, detained, or left. Leaving issues a transfer certificate. This creates new enrollments and never edits old ones.
 
@@ -229,7 +267,7 @@ Exam structure, grading and report cards are data, not code, because CBSE, state
 
 **No registration.** A client's first and only seeded user is its Super Admin, created by `edunexus:client:create`. Users with the `user.manage` permission create every other login and assign roles through the API (`POST /api/v1/users`, `PUT /api/v1/users/{id}/roles`).
 
-**RBAC.** Spatie Permission in the client database, guard `web` for both cookie and token requests. Permissions are fixed in code (`App\Domain\Identity\Enums\Permission`, e.g. `attendance.mark`, `fee.collect`). Roles are seeded per institution type and editable by the client; reseeding never overwrites a client's edits. A teacher's access is further scoped by policy to the sections they teach.
+**RBAC.** Spatie Permission in the client database, guard `web` for both cookie and token requests. Permissions are fixed in code (`App\Domain\Identity\Enums\Permission`, e.g. `attendance.mark`, `fee.collect`). Roles are seeded per institution type and editable by the client; reseeding never overwrites a client's edits. A teacher's access is further scoped by policy: the Teacher role holds `student.view_assigned`, which shows only students enrolled (current year) in sections where they are class teacher or teach a timetable period. `student.view` (Accountant, Principal, Admin) shows every student. Guardian phone numbers are masked except for users with `student.manage`. Roles of clients created before this permission existed keep their previous Teacher permissions until edited.
 
 **Super Admin rules.**
 
@@ -303,8 +341,8 @@ Run on AWS ap-south-1 (Mumbai) with managed data stores; no databases in contain
 
 Ship a v1 a client can run daily on, then add modules only when a paying client asks.
 
-1. **Phase 1, platform (built):** client creation and lifecycle commands, per-client env files and database, institution types, Super Admin, user and role management, Sanctum login for SPA and mobile, audit, SPA shell with login, dashboard and users. Remaining: Docker setup with `make up CLIENT=abc`, per-client local storage.
-2. **Phase 2, institution core:** academic years, classes, sections, subjects, timetable, admissions, students, guardians, enrollments. Exit: one pilot client fully set up.
+1. **Phase 1, platform (built):** client creation and lifecycle commands, per-client env files, database and storage, institution types, Super Admin, user and role management, Sanctum login for SPA and mobile, audit, SPA shell with login, dashboard and users. A Docker setup was dropped by choice.
+2. **Phase 2, institution core (built):** academic years, classes, sections, subjects, students, guardians, enrollments, admissions with guardian consent, bell schedule and timetable, with SPA pages for academic setup, students, admissions and the timetable. Exit: one pilot client fully set up.
 3. **Phase 3, daily operations:** attendance, fees ledger with Razorpay, receipts, guardian notifications. Exit: pilot client collects one full fee term in EduNexus.
 4. **Phase 4, academics:** exams, grading, report cards, homework, guardian mobile app. Exit: one term's report cards issued from EduNexus.
 5. **Phase 5, year-end:** promotion workflow, transfer certificates. Exit: pilot client rolls over to the next academic year.

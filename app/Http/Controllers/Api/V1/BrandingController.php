@@ -21,6 +21,7 @@ class BrandingController extends Controller
                 'terminology' => $organization->type()->terminology(),
                 'logo_url' => $organization->setting('branding.logo_url'),
                 'theme' => $organization->setting('branding.theme'),
+                'privacy_notice_version' => (string) config('edunexus.privacy_notice_version'),
             ],
         ]);
     }

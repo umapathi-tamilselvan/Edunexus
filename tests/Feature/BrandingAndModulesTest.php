@@ -17,7 +17,8 @@ class BrandingAndModulesTest extends TestCase
             ->assertJsonPath('data.code', 'test')
             ->assertJsonPath('data.name', 'Test Public School')
             ->assertJsonPath('data.type', 'school')
-            ->assertJsonPath('data.terminology.class', 'Class');
+            ->assertJsonPath('data.terminology.class', 'Class')
+            ->assertJsonPath('data.privacy_notice_version', '2026-10');
     }
 
     #[TestWith(['school', 'transport', 'hostel'])]
@@ -54,7 +55,6 @@ class BrandingAndModulesTest extends TestCase
         $this->withToken($token)->getJson('/api/v1/_test/transport')->assertOk();
 
         config(['edunexus.modules.disable' => ['transport']]);
-        $this->app['auth']->forgetGuards();
 
         $this->withToken($token)->getJson('/api/v1/_test/transport')
             ->assertForbidden()

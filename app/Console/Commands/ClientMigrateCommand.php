@@ -40,14 +40,18 @@ class ClientMigrateCommand extends Command
     private function migrate(Client $client, ClientDatabase $database): bool
     {
         return $database->run($client, function () use ($client): bool {
-            $original = config('edunexus.client');
-            config(['edunexus.client' => ['code' => $client->code, 'name' => $client->name, 'type' => $client->type->value]]);
+            $original = config()->getMany(['edunexus.client', 'edunexus.super_admin']);
+            config([
+                'edunexus.client' => ['code' => $client->code, 'name' => $client->name, 'type' => $client->type->value],
+                // The root .env's Super Admin must never be seeded into a client.
+                'edunexus.super_admin' => null,
+            ]);
 
             try {
                 return $this->callSilently('migrate', ['--force' => true]) === 0
                     && (! $this->option('seed') || $this->callSilently('db:seed', ['--force' => true]) === 0);
             } finally {
-                config(['edunexus.client' => $original]);
+                config($original);
             }
         });
     }

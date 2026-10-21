@@ -25,6 +25,35 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Seeded Super Admin
+    |--------------------------------------------------------------------------
+    |
+    | Created by `php artisan db:seed` when an email is set, e.g. to sign in
+    | to the development client. Real clients get their Super Admin from
+    | edunexus:client:create instead.
+    |
+    */
+
+    'super_admin' => [
+        'name' => env('EDUNEXUS_SUPER_ADMIN_NAME', 'Super Admin'),
+        'email' => env('EDUNEXUS_SUPER_ADMIN_EMAIL'),
+        'password' => env('EDUNEXUS_SUPER_ADMIN_PASSWORD'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Privacy Notice
+    |--------------------------------------------------------------------------
+    |
+    | Version of the privacy notice shown to guardians. Stored with every
+    | consent record (DPDP Act); bump it whenever the notice text changes.
+    |
+    */
+
+    'privacy_notice_version' => env('EDUNEXUS_PRIVACY_NOTICE_VERSION', '2026-10'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Module Overrides
     |--------------------------------------------------------------------------
     |

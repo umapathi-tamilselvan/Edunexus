@@ -43,7 +43,7 @@ enum Role: string
             )),
             self::Teacher => [
                 Permission::AcademicView,
-                Permission::StudentView,
+                Permission::StudentViewAssigned,
                 Permission::AttendanceView,
                 Permission::AttendanceMark,
                 Permission::ExamView,
