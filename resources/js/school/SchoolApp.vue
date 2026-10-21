@@ -1,21 +1,22 @@
 <script setup>
-import { computed } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import AppHeader from '../components/AppHeader.vue';
-import { STUDENT_VIEW } from './router';
+import AppSidebar from '../components/AppSidebar.vue';
+import { navigation } from './navigation';
 import { session } from './session';
 
 const school = window.EduNexus;
+const route = useRoute();
 const router = useRouter();
+const sidebarOpen = ref(false);
 
-const links = computed(() => [
-    { to: '/dashboard', label: 'Dashboard' },
-    ...(session.hasModule('student') && session.canAny(STUDENT_VIEW) ? [{ to: '/students', label: 'Students' }] : []),
-    ...(session.hasModule('admission') && session.can('admission.manage') ? [{ to: '/admissions', label: 'Admissions' }] : []),
-    ...(session.hasModule('academic') && session.can('academic.view') ? [{ to: '/timetable', label: 'Timetable' }] : []),
-    ...(session.hasModule('academic') && session.can('academic.view') ? [{ to: '/academic', label: 'Academic' }] : []),
-    ...(session.can('user.manage') ? [{ to: '/users', label: 'Users' }] : []),
-]);
+watch(
+    () => route.fullPath,
+    () => {
+        sidebarOpen.value = false;
+    },
+);
 
 async function signOut() {
     await session.signOut();
@@ -25,9 +26,12 @@ async function signOut() {
 
 <template>
     <template v-if="session.signedIn && $route.name !== 'login'">
-        <AppHeader :title="school.name" subtitle="EduNexus" :user-name="session.user.name" :links="links" @sign-out="signOut" />
-        <main class="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-            <RouterView />
+        <AppHeader :institution="school.name" :user="session.user" :sidebar-open="sidebarOpen" @toggle-sidebar="sidebarOpen = !sidebarOpen" @sign-out="signOut" />
+        <AppSidebar :links="navigation" :open="sidebarOpen" @close="sidebarOpen = false" />
+        <main class="pt-17.5 lg:pl-65">
+            <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-7.5 lg:py-7.5">
+                <RouterView />
+            </div>
         </main>
     </template>
     <RouterView v-else />

@@ -1,47 +1,90 @@
 <script setup>
+import { computed } from 'vue';
+import AppIcon from '../../components/AppIcon.vue';
+import PageHeader from '../../components/PageHeader.vue';
 import RoleBadge from '../../components/RoleBadge.vue';
+import { navigation } from '../navigation';
 import { session } from '../session';
 
 const school = window.EduNexus;
+const shortcuts = computed(() => navigation.value.filter((link) => link.to !== '/dashboard'));
 </script>
 
 <template>
-    <div class="space-y-6">
-        <div>
-            <h1 class="text-xl font-semibold">Welcome, {{ session.user.name }}</h1>
-            <p class="text-sm text-slate-500">{{ school.name }} · <span class="capitalize">{{ school.type }}</span> · code <span class="font-mono">{{ school.code }}</span></p>
-        </div>
+    <div class="flex flex-col gap-5 lg:gap-7.5">
+        <PageHeader :title="`Welcome, ${session.user.name}`">
+            <template #description>
+                {{ school.name }} · <span class="capitalize">{{ school.type }}</span> · code <span class="font-mono">{{ school.code }}</span>
+            </template>
+        </PageHeader>
 
-        <div class="grid gap-4 md:grid-cols-3">
-            <section class="card p-5">
-                <h2 class="text-sm font-medium text-slate-500">Your roles</h2>
-                <div class="mt-3 flex flex-wrap gap-1.5">
+        <div class="grid gap-5 md:grid-cols-3 lg:gap-7.5">
+            <section class="card flex flex-col">
+                <div class="flex items-center gap-4 p-5 lg:p-6">
+                    <span class="flex size-11 items-center justify-center rounded-lg bg-primary-light text-primary">
+                        <AppIcon name="shield" class="size-5.5" />
+                    </span>
+                    <div class="flex flex-col gap-1">
+                        <span class="text-2xl/none font-semibold text-gray-900">{{ session.user.roles.length }}</span>
+                        <h2 class="text-2sm text-gray-600">Your roles</h2>
+                    </div>
+                </div>
+                <div class="mt-auto flex min-h-14 flex-wrap items-center gap-1.5 border-t border-gray-200 px-5 py-4 lg:px-6">
                     <RoleBadge v-for="role in session.user.roles" :key="role" :role="role" />
                 </div>
             </section>
 
-            <section class="card p-5">
-                <h2 class="text-sm font-medium text-slate-500">Permissions</h2>
-                <p class="mt-2 text-2xl font-semibold">{{ session.user.permissions.length }}</p>
+            <section class="card flex flex-col">
+                <div class="flex items-center gap-4 p-5 lg:p-6">
+                    <span class="flex size-11 items-center justify-center rounded-lg bg-info-light text-info">
+                        <AppIcon name="key" class="size-5.5" />
+                    </span>
+                    <div class="flex flex-col gap-1">
+                        <span class="text-2xl/none font-semibold text-gray-900">{{ session.user.permissions.length }}</span>
+                        <h2 class="text-2sm text-gray-600">Permissions</h2>
+                    </div>
+                </div>
+                <p class="mt-auto flex min-h-14 items-center border-t border-gray-200 px-5 py-4 text-2sm text-gray-600 lg:px-6">Granted through your roles.</p>
             </section>
 
-            <section class="card p-5">
-                <h2 class="text-sm font-medium text-slate-500">Modules in your plan</h2>
-                <div class="mt-3 flex flex-wrap gap-1.5">
-                    <span v-for="module in session.user.modules" :key="module" class="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium capitalize text-emerald-800">
-                        {{ module }}
+            <section class="card flex flex-col">
+                <div class="flex items-center gap-4 p-5 lg:p-6">
+                    <span class="flex size-11 items-center justify-center rounded-lg bg-success-light text-success-strong">
+                        <AppIcon name="layers" class="size-5.5" />
                     </span>
-                    <span v-if="!session.user.modules.length" class="text-sm text-slate-500">No active plan.</span>
+                    <div class="flex flex-col gap-1">
+                        <span class="text-2xl/none font-semibold text-gray-900">{{ session.user.modules.length }}</span>
+                        <h2 class="text-2sm text-gray-600">Modules in your plan</h2>
+                    </div>
+                </div>
+                <div class="mt-auto flex min-h-14 flex-wrap items-center gap-1.5 border-t border-gray-200 px-5 py-4 lg:px-6">
+                    <span v-for="module in session.user.modules" :key="module" class="badge-success capitalize">{{ module }}</span>
+                    <span v-if="!session.user.modules.length" class="text-2sm text-gray-600">No active plan.</span>
                 </div>
             </section>
         </div>
 
-        <RouterLink v-if="session.can('user.manage')" to="/users" class="card flex items-center justify-between p-5 hover:border-indigo-300">
-            <div>
-                <h2 class="font-semibold">Manage users</h2>
-                <p class="text-sm text-slate-500">Create logins and assign their roles.</p>
+        <section v-if="shortcuts.length" class="card">
+            <div class="card-header">
+                <h2 class="card-title">Quick access</h2>
             </div>
-            <span class="text-indigo-600" aria-hidden="true">→</span>
-        </RouterLink>
+            <div class="card-body grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                <RouterLink
+                    v-for="link in shortcuts"
+                    :key="link.to"
+                    :to="link.to"
+                    class="group flex items-start gap-4 rounded-xl border border-gray-200 p-4 transition-colors hover:border-primary/40 hover:bg-primary-light/50"
+                >
+                    <span class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary-light text-primary">
+                        <AppIcon :name="link.icon" class="size-5" />
+                    </span>
+                    <span class="flex min-w-0 flex-1 flex-col gap-0.5">
+                        <span class="text-sm font-semibold text-gray-900 group-hover:text-primary-strong">{{ link.label }}</span>
+                        <span class="text-2sm text-gray-600">{{ link.description }}</span>
+                    </span>
+                    <AppIcon name="arrow-right" class="mt-0.5 size-4 text-gray-400 transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
+                </RouterLink>
+            </div>
+        </section>
     </div>
 </template>

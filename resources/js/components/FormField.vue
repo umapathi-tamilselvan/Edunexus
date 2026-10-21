@@ -7,10 +7,10 @@ defineProps({
 </script>
 
 <template>
-    <label class="block">
-        <span class="mb-1 block text-sm font-medium text-slate-700">{{ label }}</span>
+    <label class="flex flex-col gap-1.5" :class="{ 'field-invalid': error }">
+        <span class="text-2sm font-medium text-gray-800">{{ label }}</span>
         <slot />
-        <span v-if="error" class="mt-1 block text-sm text-red-600">{{ error }}</span>
-        <span v-else-if="hint" class="mt-1 block text-xs text-slate-500">{{ hint }}</span>
+        <span v-if="error" class="text-xs text-danger-strong">{{ error }}</span>
+        <span v-else-if="hint" class="text-xs text-gray-600">{{ hint }}</span>
     </label>
 </template>

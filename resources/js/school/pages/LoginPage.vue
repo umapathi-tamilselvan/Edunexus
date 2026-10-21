@@ -13,5 +13,5 @@ async function signIn(credentials) {
 </script>
 
 <template>
-    <LoginCard :title="school.name" subtitle="Sign in to EduNexus" :submit="signIn" />
+    <LoginCard :title="school.name" subtitle="Enter the email and password your administrator gave you." :submit="signIn" />
 </template>

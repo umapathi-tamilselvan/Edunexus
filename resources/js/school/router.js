@@ -8,10 +8,8 @@ import StudentDetailPage from './pages/StudentDetailPage.vue';
 import StudentsPage from './pages/StudentsPage.vue';
 import TimetablePage from './pages/TimetablePage.vue';
 import UsersPage from './pages/UsersPage.vue';
+import { STUDENT_VIEW } from './navigation';
 import { session } from './session';
-
-/** Any of these lets a user open the students pages. */
-export const STUDENT_VIEW = ['student.view', 'student.view_assigned', 'student.manage'];
 
 export const router = createRouter({
     history: createWebHistory(),

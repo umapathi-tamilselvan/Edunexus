@@ -7,9 +7,10 @@
         <script>
             window.EduNexus = @json($config);
         </script>
+        @fonts
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
-    <body class="h-full bg-slate-50 font-sans text-slate-900 antialiased">
+    <body class="min-h-full bg-page font-sans text-sm text-gray-800 antialiased">
         <div id="app"></div>
     </body>
 </html>

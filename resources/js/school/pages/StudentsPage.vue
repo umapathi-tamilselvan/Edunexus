@@ -1,7 +1,14 @@
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import AlertMessage from '../../components/AlertMessage.vue';
+import AppIcon from '../../components/AppIcon.vue';
+import EmptyState from '../../components/EmptyState.vue';
 import FormField from '../../components/FormField.vue';
+import InitialsAvatar from '../../components/InitialsAvatar.vue';
+import LoadingState from '../../components/LoadingState.vue';
+import PageHeader from '../../components/PageHeader.vue';
+import SearchField from '../../components/SearchField.vue';
+import TablePagination from '../../components/TablePagination.vue';
 import { parseError } from '../../lib/errors';
 import { http } from '../../lib/http';
 import { loadAcademicYears, loadYearStructure, sectionOptions } from '../academic';
@@ -122,129 +129,149 @@ onMounted(async () => {
 </script>
 
 <template>
-    <div class="space-y-6">
-        <div class="flex flex-wrap items-end justify-between gap-4">
-            <div>
-                <h1 class="text-xl font-semibold">Students</h1>
-                <p class="text-sm text-slate-500">{{ year ? `Placement shown for ${year.name}.` : 'Students you can see.' }}</p>
-            </div>
-            <button v-if="canManage && !showCreate" type="button" class="btn-primary" @click="openCreate">Add student</button>
-        </div>
+    <div class="flex flex-col gap-5 lg:gap-7.5">
+        <PageHeader title="Students" :description="year ? `Placement shown for ${year.name}.` : 'Students you can see.'">
+            <button v-if="canManage && !showCreate" type="button" class="btn-primary" @click="openCreate">
+                <AppIcon name="plus" class="size-4" />
+                Add student
+            </button>
+        </PageHeader>
 
         <AlertMessage v-if="notice" tone="success">{{ notice }}</AlertMessage>
 
-        <form v-if="showCreate" class="card space-y-5 p-5" @submit.prevent="createStudent">
-            <h2 class="font-semibold">Add student</h2>
-            <AlertMessage v-if="formError.message">{{ formError.message }}</AlertMessage>
-
-            <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <FormField label="Admission no." :error="formError.fields.admission_no">
-                    <input v-model="form.admission_no" required class="input" />
-                </FormField>
-                <FormField label="Full name" :error="formError.fields.name">
-                    <input v-model="form.name" required class="input" />
-                </FormField>
-                <FormField label="Date of birth" :error="formError.fields.date_of_birth">
-                    <input v-model="form.date_of_birth" type="date" required class="input" />
-                </FormField>
-                <FormField label="Gender" :error="formError.fields.gender">
-                    <select v-model="form.gender" class="input">
-                        <option value="male">Male</option>
-                        <option value="female">Female</option>
-                        <option value="other">Other</option>
-                    </select>
-                </FormField>
+        <form v-if="showCreate" class="card" @submit.prevent="createStudent">
+            <div class="card-header">
+                <h2 class="card-title">Add student</h2>
+                <button type="button" class="btn-icon btn-sm" aria-label="Close" :disabled="saving" @click="showCreate = false">
+                    <AppIcon name="x" class="size-4.5" />
+                </button>
             </div>
 
-            <fieldset class="space-y-3 border-t border-slate-200 pt-4">
-                <legend class="text-sm font-semibold">Guardians</legend>
-                <p class="text-xs text-slate-500">The first guardian is the primary contact. A guardian already on record (same phone) is linked, not duplicated.</p>
-                <div v-for="(guardian, index) in form.guardians" :key="index" class="grid gap-3 sm:grid-cols-[1fr_1fr_1fr_10rem_auto] sm:items-end">
-                    <FormField label="Name" :error="formError.fields[`guardians.${index}.name`]">
-                        <input v-model="guardian.name" required class="input" />
+            <div class="card-body flex flex-col gap-6">
+                <AlertMessage v-if="formError.message">{{ formError.message }}</AlertMessage>
+
+                <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+                    <FormField label="Admission no." :error="formError.fields.admission_no">
+                        <input v-model="form.admission_no" required class="input" />
                     </FormField>
-                    <FormField label="Mobile" :error="formError.fields[`guardians.${index}.phone`]">
-                        <input v-model="guardian.phone" required inputmode="tel" class="input" placeholder="98765 43210" />
+                    <FormField label="Full name" :error="formError.fields.name">
+                        <input v-model="form.name" required class="input" />
                     </FormField>
-                    <FormField label="Email (optional)" :error="formError.fields[`guardians.${index}.email`]">
-                        <input v-model="guardian.email" type="email" class="input" />
+                    <FormField label="Date of birth" :error="formError.fields.date_of_birth">
+                        <input v-model="form.date_of_birth" type="date" required class="input" />
                     </FormField>
-                    <FormField label="Relation" :error="formError.fields[`guardians.${index}.relation`]">
-                        <select v-model="guardian.relation" class="input capitalize">
-                            <option v-for="relation in relations" :key="relation" :value="relation">{{ relation }}</option>
+                    <FormField label="Gender" :error="formError.fields.gender">
+                        <select v-model="form.gender" class="input">
+                            <option value="male">Male</option>
+                            <option value="female">Female</option>
+                            <option value="other">Other</option>
                         </select>
                     </FormField>
-                    <button v-if="form.guardians.length > 1" type="button" class="btn-secondary" @click="form.guardians.splice(index, 1)">Remove</button>
                 </div>
-                <button v-if="form.guardians.length < 4" type="button" class="text-sm font-medium text-indigo-600 hover:underline" @click="form.guardians.push(emptyGuardian())">Add another guardian</button>
-            </fieldset>
 
-            <div v-if="year" class="border-t border-slate-200 pt-4">
-                <FormField :label="`${terms.class} and ${terms.section.toLowerCase()} in ${year.name} (optional)`" :error="formError.fields.section_id || formError.fields['enrollment.section_id']" class="max-w-sm">
-                    <select v-model="form.section_id" class="input">
-                        <option value="">Enroll later</option>
-                        <option v-for="section in sections" :key="section.id" :value="section.id" :disabled="section.full">{{ section.label }}{{ section.full ? ' (full)' : '' }}</option>
-                    </select>
-                </FormField>
+                <div class="border-t border-gray-200 pt-6">
+                    <fieldset class="flex flex-col gap-4">
+                        <legend class="mb-1 text-sm font-semibold text-gray-900">Guardians</legend>
+                        <p class="text-2sm text-gray-600">The first guardian is the primary contact. A guardian already on record (same phone) is linked, not duplicated.</p>
+
+                        <div
+                            v-for="(guardian, index) in form.guardians"
+                            :key="index"
+                            class="grid gap-4 rounded-lg border border-gray-200 bg-gray-50 p-4 sm:grid-cols-[1fr_1fr_1fr_10rem_auto] sm:items-end"
+                        >
+                            <FormField :label="index === 0 ? 'Name (primary)' : 'Name'" :error="formError.fields[`guardians.${index}.name`]">
+                                <input v-model="guardian.name" required class="input" />
+                            </FormField>
+                            <FormField label="Mobile" :error="formError.fields[`guardians.${index}.phone`]">
+                                <input v-model="guardian.phone" required inputmode="tel" class="input" placeholder="98765 43210" />
+                            </FormField>
+                            <FormField label="Email (optional)" :error="formError.fields[`guardians.${index}.email`]">
+                                <input v-model="guardian.email" type="email" class="input" />
+                            </FormField>
+                            <FormField label="Relation" :error="formError.fields[`guardians.${index}.relation`]">
+                                <select v-model="guardian.relation" class="input capitalize">
+                                    <option v-for="relation in relations" :key="relation" :value="relation">{{ relation }}</option>
+                                </select>
+                            </FormField>
+                            <button v-if="form.guardians.length > 1" type="button" class="btn-icon text-danger-strong hover:bg-danger-light hover:text-danger-strong" aria-label="Remove guardian" @click="form.guardians.splice(index, 1)">
+                                <AppIcon name="trash" class="size-4.5" />
+                            </button>
+                        </div>
+
+                        <button v-if="form.guardians.length < 4" type="button" class="btn-link w-fit" @click="form.guardians.push(emptyGuardian())">
+                            <AppIcon name="plus" class="size-4" />
+                            Add another guardian
+                        </button>
+                    </fieldset>
+                </div>
+
+                <div v-if="year" class="border-t border-gray-200 pt-6">
+                    <FormField :label="`${terms.class} and ${terms.section.toLowerCase()} in ${year.name} (optional)`" :error="formError.fields.section_id || formError.fields['enrollment.section_id']" class="max-w-sm">
+                        <select v-model="form.section_id" class="input">
+                            <option value="">Enroll later</option>
+                            <option v-for="section in sections" :key="section.id" :value="section.id" :disabled="section.full">{{ section.label }}{{ section.full ? ' (full)' : '' }}</option>
+                        </select>
+                    </FormField>
+                </div>
             </div>
 
-            <div class="flex justify-end gap-2">
+            <div class="card-footer">
                 <button type="button" class="btn-secondary" :disabled="saving" @click="showCreate = false">Cancel</button>
                 <button type="submit" class="btn-primary" :disabled="saving">{{ saving ? 'Saving…' : 'Add student' }}</button>
             </div>
         </form>
 
-        <div class="flex flex-wrap gap-3">
-            <input v-model="filters.search" type="search" class="input max-w-xs" placeholder="Search name or admission no." aria-label="Search students" />
-            <template v-if="year">
-                <select v-model="filters.class_id" class="input w-auto" :aria-label="terms.class" @change="applyFilters">
-                    <option value="">All {{ terms.classes.toLowerCase() }}</option>
-                    <option v-for="schoolClass in year.classes" :key="schoolClass.id" :value="schoolClass.id">{{ schoolClass.name }}</option>
-                </select>
-                <select v-model="filters.section_id" class="input w-auto" :aria-label="terms.section" @change="applyFilters">
-                    <option value="">All {{ terms.sections.toLowerCase() }}</option>
-                    <option v-for="section in filteredSections" :key="section.id" :value="section.id">{{ section.label }}</option>
-                </select>
-            </template>
-        </div>
-
         <AlertMessage v-if="loadError">{{ loadError }}</AlertMessage>
 
-        <div class="card overflow-x-auto">
-            <table class="w-full text-left text-sm">
-                <thead class="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
-                    <tr>
-                        <th class="px-4 py-3 font-medium">Admission no.</th>
-                        <th class="px-4 py-3 font-medium">Name</th>
-                        <th class="px-4 py-3 font-medium">{{ terms.class }} / {{ terms.section }}</th>
-                        <th class="px-4 py-3 font-medium">Roll no.</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100">
-                    <tr v-if="loading">
-                        <td colspan="4" class="px-4 py-6 text-center text-slate-500">Loading…</td>
-                    </tr>
-                    <tr v-else-if="!students.length">
-                        <td colspan="4" class="px-4 py-6 text-center text-slate-500">No students found.</td>
-                    </tr>
-                    <tr v-for="student in students" v-else :key="student.id" class="hover:bg-slate-50">
-                        <td class="px-4 py-3 font-mono text-slate-600">{{ student.admission_no }}</td>
-                        <td class="px-4 py-3">
-                            <RouterLink :to="`/students/${student.id}`" class="font-medium text-indigo-600 hover:underline">{{ student.name }}</RouterLink>
-                        </td>
-                        <td class="px-4 py-3" :class="student.enrollments?.length ? '' : 'text-slate-400'">{{ placement(student) }}</td>
-                        <td class="px-4 py-3">{{ student.enrollments?.[0]?.roll_no ?? '—' }}</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-
-        <div v-if="meta && meta.last_page > 1" class="flex items-center justify-between text-sm">
-            <span class="text-slate-500">Page {{ meta.current_page }} of {{ meta.last_page }} · {{ meta.total }} students</span>
-            <div class="flex gap-2">
-                <button type="button" class="btn-secondary" :disabled="meta.current_page === 1" @click="goTo(meta.current_page - 1)">Previous</button>
-                <button type="button" class="btn-secondary" :disabled="meta.current_page === meta.last_page" @click="goTo(meta.current_page + 1)">Next</button>
+        <section class="card">
+            <div class="card-header">
+                <SearchField v-model="filters.search" label="Search students" placeholder="Search name or admission no." />
+                <div v-if="year" class="flex flex-wrap gap-2.5">
+                    <select v-model="filters.class_id" class="input w-auto" :aria-label="terms.class" @change="applyFilters">
+                        <option value="">All {{ terms.classes.toLowerCase() }}</option>
+                        <option v-for="schoolClass in year.classes" :key="schoolClass.id" :value="schoolClass.id">{{ schoolClass.name }}</option>
+                    </select>
+                    <select v-model="filters.section_id" class="input w-auto" :aria-label="terms.section" @change="applyFilters">
+                        <option value="">All {{ terms.sections.toLowerCase() }}</option>
+                        <option v-for="section in filteredSections" :key="section.id" :value="section.id">{{ section.label }}</option>
+                    </select>
+                </div>
             </div>
-        </div>
+
+            <LoadingState v-if="loading" />
+
+            <EmptyState v-else-if="!students.length" icon="students" title="No students found" description="Try a different search or filter." />
+
+            <div v-else class="overflow-x-auto">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Student</th>
+                            <th>Admission no.</th>
+                            <th>{{ terms.class }} / {{ terms.section }}</th>
+                            <th>Roll no.</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="student in students" :key="student.id" class="hover:bg-gray-50">
+                            <td>
+                                <div class="flex items-center gap-3 whitespace-nowrap">
+                                    <InitialsAvatar :name="student.name" size="sm" />
+                                    <RouterLink :to="`/students/${student.id}`" class="font-medium text-gray-900 hover:text-primary">{{ student.name }}</RouterLink>
+                                </div>
+                            </td>
+                            <td class="font-mono text-gray-600">{{ student.admission_no }}</td>
+                            <td>
+                                <span v-if="student.enrollments?.length">{{ placement(student) }}</span>
+                                <span v-else class="badge-neutral">Not enrolled</span>
+                            </td>
+                            <td>{{ student.enrollments?.[0]?.roll_no ?? '—' }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <TablePagination :meta="meta" noun="students" @go="goTo" />
+        </section>
     </div>
 </template>

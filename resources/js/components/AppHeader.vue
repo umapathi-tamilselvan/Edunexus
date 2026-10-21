@@ -1,45 +1,37 @@
 <script setup>
+import AppIcon from './AppIcon.vue';
+import AppLogo from './AppLogo.vue';
+import UserMenu from './UserMenu.vue';
+
 defineProps({
-    title: { type: String, required: true },
-    subtitle: { type: String, default: '' },
-    userName: { type: String, default: '' },
-    links: { type: Array, default: () => [] },
+    institution: { type: String, required: true },
+    user: { type: Object, required: true },
+    sidebarOpen: { type: Boolean, default: false },
 });
 
-defineEmits(['sign-out']);
+defineEmits(['toggle-sidebar', 'sign-out']);
 </script>
 
 <template>
-    <header class="border-b border-slate-200 bg-white">
-        <div class="mx-auto flex max-w-6xl flex-wrap items-center gap-x-8 gap-y-3 px-4 py-3 sm:px-6">
-            <div class="flex items-center gap-3">
-                <div class="flex size-9 items-center justify-center rounded-lg bg-indigo-600 text-sm font-semibold text-white">
-                    {{ title.slice(0, 1) }}
-                </div>
-                <div class="leading-tight">
-                    <p class="font-semibold">{{ title }}</p>
-                    <p v-if="subtitle" class="text-xs text-slate-500">{{ subtitle }}</p>
-                </div>
-            </div>
+    <header class="fixed inset-x-0 top-0 z-40 flex h-17.5 items-center border-b border-gray-200 bg-white">
+        <div class="flex h-full min-w-0 flex-1 items-center gap-1 pl-2 lg:w-65 lg:flex-none lg:border-r lg:border-gray-200 lg:px-6">
+            <button
+                type="button"
+                class="btn-icon lg:hidden"
+                aria-controls="app-sidebar"
+                :aria-expanded="sidebarOpen"
+                :aria-label="sidebarOpen ? 'Close menu' : 'Open menu'"
+                @click="$emit('toggle-sidebar')"
+            >
+                <AppIcon :name="sidebarOpen ? 'x' : 'menu'" class="size-5" />
+            </button>
+            <RouterLink to="/dashboard" class="min-w-0 rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary">
+                <AppLogo :caption="institution" />
+            </RouterLink>
+        </div>
 
-            <nav class="flex gap-1">
-                <RouterLink
-                    v-for="link in links"
-                    :key="link.to"
-                    :to="link.to"
-                    class="rounded-md px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                    active-class="bg-slate-100 font-medium text-slate-900"
-                >
-                    {{ link.label }}
-                </RouterLink>
-            </nav>
-
-            <div class="ml-auto flex items-center gap-3 text-sm">
-                <span class="hidden text-slate-600 sm:inline">{{ userName }}</span>
-                <button type="button" class="rounded-md border border-slate-300 px-3 py-1.5 font-medium hover:bg-slate-50" @click="$emit('sign-out')">
-                    Sign out
-                </button>
-            </div>
+        <div class="flex shrink-0 items-center px-3 sm:px-4 lg:flex-1 lg:justify-end lg:px-7.5">
+            <UserMenu :user="user" @sign-out="$emit('sign-out')" />
         </div>
     </header>
 </template>
