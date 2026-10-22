@@ -2,6 +2,7 @@
 
 namespace App\Domain\Academic\Models;
 
+use App\Domain\Examination\Models\Exam;
 use Database\Factories\AcademicYearFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Scope;
@@ -53,6 +54,14 @@ class AcademicYear extends Model
     public function classes(): HasMany
     {
         return $this->hasMany(SchoolClass::class)->orderBy('sort_order')->orderBy('name');
+    }
+
+    /**
+     * @return HasMany<Exam, $this>
+     */
+    public function exams(): HasMany
+    {
+        return $this->hasMany(Exam::class)->orderByRaw('starts_on IS NULL')->orderBy('starts_on')->orderBy('name');
     }
 
     /**

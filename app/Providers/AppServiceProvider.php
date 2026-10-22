@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Domain\Examination\Models\Exam;
+use App\Domain\Examination\Policies\ExamPolicy;
 use App\Domain\Identity\Models\User;
 use App\Domain\Identity\Policies\UserPolicy;
 use App\Domain\Student\Models\Student;
@@ -31,6 +33,7 @@ class AppServiceProvider extends ServiceProvider
         // Policies live in their domain modules, outside the discovery path.
         Gate::policy(User::class, UserPolicy::class);
         Gate::policy(Student::class, StudentPolicy::class);
+        Gate::policy(Exam::class, ExamPolicy::class);
 
         $this->configureRateLimiting();
     }

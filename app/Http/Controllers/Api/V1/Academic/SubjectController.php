@@ -11,9 +11,12 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class SubjectController extends Controller
 {
+    /**
+     * Subjects with the teachers linked to each.
+     */
     public function index(): AnonymousResourceCollection
     {
-        return SubjectResource::collection(Subject::query()->orderBy('name')->get());
+        return SubjectResource::collection(Subject::query()->with('teachers:id,name,subject_id')->orderBy('name')->get());
     }
 
     public function store(StoreSubjectRequest $request): JsonResponse

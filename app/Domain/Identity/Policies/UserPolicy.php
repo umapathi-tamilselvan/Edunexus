@@ -40,6 +40,14 @@ class UserPolicy
     }
 
     /**
+     * Linking a teacher to the subject they teach.
+     */
+    public function updateSubject(User $actor, User $user): bool
+    {
+        return $actor->can(Permission::UserManage->value);
+    }
+
+    /**
      * Super Admin can only be granted by a Super Admin.
      *
      * @param  list<string>  $roles

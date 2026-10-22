@@ -64,6 +64,16 @@ class Section extends Model
     }
 
     /**
+     * Who teaches each of the class's subjects to this section.
+     *
+     * @return HasMany<SectionSubjectTeacher, $this>
+     */
+    public function subjectTeachers(): HasMany
+    {
+        return $this->hasMany(SectionSubjectTeacher::class);
+    }
+
+    /**
      * @return HasMany<StudentEnrollment, $this>
      */
     public function enrollments(): HasMany

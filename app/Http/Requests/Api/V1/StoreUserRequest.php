@@ -25,6 +25,7 @@ class StoreUserRequest extends FormRequest
             'password' => ['required', 'string', Password::min(8)],
             'roles' => ['required', 'array', 'min:1'],
             'roles.*' => ['required', 'string', 'distinct', Rule::exists('roles', 'name')->where('guard_name', 'web')],
+            'subject_id' => ['nullable', 'integer', Rule::exists('subjects', 'id')],
         ];
     }
 }

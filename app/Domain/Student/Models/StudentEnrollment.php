@@ -4,6 +4,7 @@ namespace App\Domain\Student\Models;
 
 use App\Domain\Academic\Models\AcademicYear;
 use App\Domain\Academic\Models\Section;
+use App\Domain\Examination\Models\ExamMark;
 use App\Domain\Student\Enums\EnrollmentStatus;
 use Database\Factories\StudentEnrollmentFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -11,6 +12,7 @@ use Illuminate\Database\Eloquent\Attributes\UseFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use OwenIt\Auditing\Auditable;
 use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
 
@@ -65,5 +67,13 @@ class StudentEnrollment extends Model implements AuditableContract
     public function section(): BelongsTo
     {
         return $this->belongsTo(Section::class);
+    }
+
+    /**
+     * @return HasMany<ExamMark, $this>
+     */
+    public function examMarks(): HasMany
+    {
+        return $this->hasMany(ExamMark::class, 'enrollment_id');
     }
 }

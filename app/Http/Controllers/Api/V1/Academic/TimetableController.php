@@ -6,6 +6,7 @@ use App\Domain\Academic\Actions\SetTimetableSlot;
 use App\Domain\Academic\Enums\Weekday;
 use App\Domain\Academic\Models\Period;
 use App\Domain\Academic\Models\Section;
+use App\Domain\Academic\Models\SectionSubjectTeacher;
 use App\Domain\Academic\Models\Subject;
 use App\Domain\Academic\Models\TimetableEntry;
 use App\Domain\Identity\Models\User;
@@ -20,17 +21,22 @@ use Illuminate\Http\Response;
 class TimetableController extends Controller
 {
     /**
-     * A section's weekly timetable with its year's periods.
+     * A section's weekly timetable with its year's periods, and who teaches
+     * each subject to the section.
      */
     public function section(Section $section): JsonResponse
     {
-        $section->load('schoolClass.academicYear');
+        $section->load(['schoolClass.academicYear', 'subjectTeachers.teacher']);
 
         return response()->json([
             'data' => [
                 'section' => ['id' => $section->id, 'name' => $section->name, 'class' => $section->schoolClass->name],
                 'periods' => PeriodResource::collection($section->schoolClass->academicYear->periods()->get()),
                 'entries' => TimetableEntryResource::collection($section->timetableEntries()->with(['subject', 'teacher'])->get()),
+                'subject_teachers' => $section->subjectTeachers->map(fn (SectionSubjectTeacher $assignment): array => [
+                    'subject_id' => $assignment->subject_id,
+                    'teacher' => ['id' => $assignment->teacher->id, 'name' => $assignment->teacher->name],
+                ])->values(),
             ],
         ]);
     }

@@ -2,11 +2,15 @@
 
 namespace App\Domain\Identity\Models;
 
+use App\Domain\Academic\Models\SectionSubjectTeacher;
+use App\Domain\Academic\Models\Subject;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Attributes\UseFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
@@ -20,8 +24,9 @@ use Spatie\Permission\Traits\HasRoles;
  * @property int $id
  * @property string $name
  * @property string $email
+ * @property int|null $subject_id The one subject a teacher teaches.
  */
-#[Fillable(['name', 'email', 'password'])]
+#[Fillable(['name', 'email', 'password', 'subject_id'])]
 #[Hidden(['password', 'remember_token'])]
 #[UseFactory(UserFactory::class)]
 class User extends Authenticatable implements AuditableContract
@@ -55,5 +60,23 @@ class User extends Authenticatable implements AuditableContract
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    /**
+     * @return BelongsTo<Subject, $this>
+     */
+    public function subject(): BelongsTo
+    {
+        return $this->belongsTo(Subject::class);
+    }
+
+    /**
+     * The sections and subjects this user teaches.
+     *
+     * @return HasMany<SectionSubjectTeacher, $this>
+     */
+    public function subjectTeaching(): HasMany
+    {
+        return $this->hasMany(SectionSubjectTeacher::class, 'teacher_id');
     }
 }

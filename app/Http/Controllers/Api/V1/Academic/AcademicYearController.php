@@ -20,12 +20,13 @@ class AcademicYearController extends Controller
     }
 
     /**
-     * A year with its full structure: classes, sections and subjects.
+     * A year with its full structure: classes, sections and subjects, and
+     * how many of each section's subjects have a teacher.
      */
     public function show(AcademicYear $academicYear): AcademicYearResource
     {
         return new AcademicYearResource($academicYear->load([
-            'classes.sections' => fn ($sections) => $sections->withCount('enrollments')->with('classTeacher'),
+            'classes.sections' => fn ($sections) => $sections->withCount(['enrollments', 'subjectTeachers'])->with('classTeacher'),
             'classes.subjects',
         ]));
     }
