@@ -164,7 +164,7 @@ class StudentTest extends TestCase
         $section = Section::factory()->create();
         $enrolled = Student::factory()->create(['name' => 'Zara Khan', 'admission_no' => 'ADM900']);
         $enrolled->enrollments()->create(['academic_year_id' => $section->schoolClass->academic_year_id, 'section_id' => $section->id, 'roll_no' => 1]);
-        Student::factory()->create(['name' => 'Anil Rao']);
+        Student::factory()->create(['name' => 'Anil Rao', 'admission_no' => 'ADM100']);
 
         $this->withToken($this->adminToken)->getJson('/api/v1/students?search=zara')
             ->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.admission_no', 'ADM900');
