@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Domain\Examination\Models\Exam;
 use App\Domain\Examination\Policies\ExamPolicy;
+use App\Domain\Identity\Listeners\RecordTokenUse;
 use App\Domain\Identity\Models\User;
 use App\Domain\Identity\Policies\UserPolicy;
 use App\Domain\Student\Models\Student;
@@ -12,9 +13,11 @@ use App\Support\OrganizationContext;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
+use Laravel\Sanctum\Events\TokenAuthenticated;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -40,17 +43,24 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(Student::class, StudentPolicy::class);
         Gate::policy(Exam::class, ExamPolicy::class);
 
+        Event::listen(TokenAuthenticated::class, RecordTokenUse::class);
+
         $this->configureRateLimiting();
     }
 
+    /**
+     * A school's users usually share one public IP, so per-IP limits are
+     * set for a whole school; per-account limits do the real work.
+     */
     private function configureRateLimiting(): void
     {
-        RateLimiter::for('api', fn (Request $request): Limit => Limit::perMinute(120)
-            ->by((string) ($request->user()?->getAuthIdentifier() ?? $request->ip())));
+        RateLimiter::for('api', fn (Request $request): Limit => $request->user()
+            ? Limit::perMinute(120)->by('user:'.$request->user()->getAuthIdentifier())
+            : Limit::perMinute(600)->by('ip:'.$request->ip()));
 
         RateLimiter::for('login', fn (Request $request): array => [
             Limit::perMinute(5)->by(strtolower((string) $request->input('email')).'|'.$request->ip()),
-            Limit::perMinute(30)->by((string) $request->ip()),
+            Limit::perMinute(300)->by((string) $request->ip()),
         ]);
     }
 }

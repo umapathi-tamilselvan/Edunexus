@@ -13,7 +13,7 @@ v3.2 prepares EduNexus for 10,000–15,000 concurrent users across all clients, 
 | # | Change | Where | Status |
 | --- | --- | --- | --- |
 | 1 | Strict Eloquent models outside production; query-count tests for every list endpoint | [Performance and scale](#performance-and-scale) | built |
-| 2 | Redis for sessions, cache, queues (Horizon) and rate limiting, with a per-client key prefix and Redis user; throttled token `last_used_at` | [Queues](#queues-notifications-storage-and-audit), [Security](#security-and-compliance) | planned |
+| 2 | Redis for sessions, cache, queues (Horizon) and rate limiting, with a per-client key prefix and Redis user; throttled token `last_used_at` | [Queues](#queues-notifications-storage-and-audit), [Security](#security-and-compliance) | built |
 | 3 | Academic year as context: start-month setting, automatic first year, next year with copy-forward, year switcher; the year create and edit endpoints are retired | [Core data model](#core-data-model) | planned |
 | 4 | A teacher teaches one or more subjects; class-level subject teachers; timetable slots default to the subject teacher; workload matrix; Subjects and Subject teachers pages | [Core data model](#core-data-model) | planned |
 | 5 | Minimal attendance (section-day sheets) and fee (dues, payments, receipts) modules | [Core data model](#core-data-model), [Fees](#fees-and-finance-ledger) | planned |
@@ -98,7 +98,7 @@ php artisan edunexus:client:create abc \
 | 4. Provision the database | Creates database `edunexus_abc` and MySQL user `edunexus_abc` with rights on that database only, through the `provisioning` connection (`DB_PROVISION_USERNAME`) |
 | 5. Migrate and seed | Connected as the new client user: runs all migrations, then `DatabaseSeeder`: the institution-type seeder, and the sample school only when `APP_ENV=local` (see [Development data](#development-data)) |
 | 6. Create the admin | A Super Admin; the password is printed once, or asked for with `--ask-password` |
-| 7. Summary | Prints the client code, institution, database, login URL and Super Admin email |
+| 7. Summary | Prints the client code, institution, database, login URL and Super Admin email; for a non-local client also its Redis user and the access string to create it with (v3.2) |
 
 Other options: `--admin-name` (default "Super Admin") and `--url` (default `EDUNEXUS_CLIENT_URL`, `http://localhost:8000`). If any step from 2 to 6 fails, the database, MySQL user and files are removed again.
 
@@ -134,7 +134,7 @@ Without `EDUNEXUS_CLIENT`, the root `.env` is used as the development client (`E
 
 `EDUNEXUS_DEPLOYMENTS_PATH` overrides where client directories are looked up (default `deployments/`).
 
-**Storage.** Each client gets its own storage directory, `storage/clients/<code>/` (files, logs, compiled views), created on first boot. `EDUNEXUS_STORAGE_PATH` overrides it, e.g. to point at a mounted volume. There is no Docker setup; run each client with `EDUNEXUS_CLIENT=<code> php artisan serve`, on its own port and `APP_URL`, and set `SESSION_COOKIE` per client when several run on `localhost`.
+**Storage.** Each client gets its own storage directory, `storage/clients/<code>/` (files, logs, compiled views), created on first boot. `EDUNEXUS_STORAGE_PATH` overrides it, e.g. to point at a mounted volume. There is no Docker setup; run each client with `EDUNEXUS_CLIENT=<code> php artisan serve`, on its own port and `APP_URL`. Since v3.2 the session cookie is named after the client (`edunexus_<code>_session`), so clients running side by side on `localhost` keep separate sessions without setting `SESSION_COOKIE`.
 
 ### Development data
 
@@ -372,7 +372,7 @@ Exams the student was absent for are left out rather than counted as zero. For e
 - Only a Super Admin can grant the Super Admin role or change another Super Admin's roles.
 - A client can never lose its last Super Admin; the request fails validation.
 
-**Web (Vue 3 SPA).** Served by the same deployment at every non-API path, so auth is same-origin and needs no CORS. Sanctum cookie auth: `GET /sanctum/csrf-cookie`, then `POST /api/v1/auth/login`. Sessions are stored in the client database; cookies are host-only (`SESSION_DOMAIN=null`). Branding (name, type, terminology, logo, theme) comes from the public `GET /api/v1/branding`.
+**Web (Vue 3 SPA).** Served by the same deployment at every non-API path, so auth is same-origin and needs no CORS. Sanctum cookie auth: `GET /sanctum/csrf-cookie`, then `POST /api/v1/auth/login`. Sessions are stored in Redis for deployed clients and in the client database locally; cookies are host-only (`SESSION_DOMAIN=null`). Branding (name, type, terminology, logo, theme) comes from the public `GET /api/v1/branding`.
 
 **SPA design system.** The SPA follows the Metronic admin look, rebuilt in Tailwind CSS v4 rather than installed as the paid Metronic package, so it adds no dependency.
 
@@ -408,11 +408,21 @@ Module overrides are comma-separated module codes, e.g. `EDUNEXUS_MODULES_ENABLE
 
 ## Queues, notifications, storage and audit
 
-Every client has its own queue tables, cache and workers, because they live in its own database and deployment.
+Every client has its own queues, cache and workers.
 
-**v3.2 · planned.** Sessions, cache, queues and rate limiting move to one shared Redis. Each client's keys carry its own prefix and each client connects as its own Redis ACL user that can reach only that prefix, keeping isolation at the data layer as with MySQL. Local development and tests keep the database drivers.
+**Redis (v3.2 · built).** Deployed clients keep sessions, cache, queues and rate-limiter state in one shared Redis. Local clients and tests keep the database drivers (array and sync in tests).
 
-**Queues.** Separate queues by priority: `critical` (OTP, payment receipts), `default` (notifications), `bulk` (fee reminders, imports, report PDFs). Run Horizon or `queue:work` per client deployment. Nothing is queued yet in v3.1.
+- **Keys.** Every key starts with `edunexus:<code>:` (the default `REDIS_PREFIX`), including Horizon's (`edunexus:<code>:horizon:`).
+- **Redis user.** For any environment other than local, `edunexus:client:create` writes `SESSION_DRIVER`, `CACHE_STORE` and `QUEUE_CONNECTION=redis`, `REDIS_HOST`, `REDIS_PORT` and `REDIS_USERNAME` (named like the MySQL user) to `<code>.env`, and a random `REDIS_PASSWORD` to `<code>.env.secure`.
+- **Access string.** The command prints the access string the client's Redis user must be created with: `on ~edunexus:<code>:* &edunexus:<code>:* +@all -@dangerous`. That keeps isolation at the data layer, as MySQL does. Creating the user is an operations step: ElastiCache manages users through the AWS API, not `ACL SETUSER`.
+- **No shared commands.** `-@dangerous` blocks `FLUSHDB`, so `cache:clear` fails for a deployed client instead of wiping every client's cache. Clear a client's keys by forgetting them, not flushing.
+- **Not yet validated.** The access string has not been checked against a real Redis yet; check it on staging during load testing.
+
+**Queues.** Separate queues by priority: `critical` (OTP, payment receipts), `default` (notifications, audits, recomputes), `bulk` (fee reminders, imports, report PDFs).
+
+- **Horizon (v3.2 · built).** Each client deployment runs its own Horizon: one supervisor works all three queues with auto-balancing, 3 tries with 5 s and 30 s backoff, and a 60 s timeout (under the connection's 90 s `retry_after`). Production defaults to 4 processes per client (`HORIZON_MAX_PROCESSES`).
+- **Dashboard.** `/horizon` opens only for a Super Admin outside local development, because job payloads can hold students' personal data.
+- **Locally,** run `queue:work --queue=critical,default,bulk` on the database queue.
 
 **URLs in background work.** Mails, WhatsApp messages and PDFs build links from the client's `APP_URL`.
 
@@ -434,7 +444,13 @@ EduNexus holds minors' personal data, so India's DPDP Act requirements for child
 - **Retention:** define how long records of students who left are kept, then anonymise. Document it in the client contract.
 - **Isolation:** each client's MySQL user is granted rights on its own database only. An automated test checks that the user cannot read another database.
 - **Secrets:** `<code>.env.secure` holds the APP_KEY and DB credentials, is created with mode `0600`, and is never committed here. The provisioning credentials stay out of client deployments.
-- **Rate limits:** sign-in is limited per email and IP (5 per minute) and per IP (30 per minute); the API is limited per user or IP. In v3.1 only sign-in is limited; **v3.2 · planned:** the API limit is applied and limiter state moves to Redis.
+- **Rate limits (v3.2 · built):**
+  - Sign-in is limited to 5 per minute per email and IP, and 300 per minute per IP.
+  - Every API route is limited to 120 per minute per signed-in user, or 600 per minute per IP for guests (branding and sign-in).
+  - A school's users usually share one public IP, so the per-IP limits are sized for a whole school and the per-account limits do the real work.
+  - Limiter state lives in the cache store: Redis for deployed clients.
+  - In v3.1 only sign-in was limited, at 30 per minute per IP.
+- **Token use:** a mobile token's `last_used_at` is written at most every 5 minutes (`sanctum.last_used_at_every`) by `RecordTokenUse`, instead of on every request (v3.2 · built). Tokens still never expire.
 - **Tests:** the suite refuses to run unless the database name ends in `_test` and the client prefix contains `test`, because it resets the database and drops test client databases and users.
 
 Confirm the exact DPDP obligations with a lawyer before launch; the rules were still being phased in as of mid-2026.
@@ -452,7 +468,7 @@ Confirm the exact DPDP obligations with a lawyer before launch; the rules were s
 | Attendance sheet save | Not built | **planned:** one bulk upsert per section-day |
 | Score out of 5 | Recomputed from every mark on each request | **planned:** `student_subject_scores` projection, recomputed by a job, checked nightly |
 | Fee balance | Not built | **planned:** `fee_balances` projection, recomputed by a job, checked nightly |
-| Fixed cost of each request | 5–6 queries, including a session or token `last_used_at` write | **planned:** sessions, cache and limiter in Redis; `last_used_at` written at most every few minutes |
+| Fixed cost of each request | 5–6 queries, including a session or token `last_used_at` write | **built:** sessions, cache (including Spatie's permission map) and limiter in Redis for deployed clients; `last_used_at` written at most every 5 minutes, leaving the token or session lookup, the user, and the user's roles and permissions |
 
 **Safety net (v3.2 · built).**
 
@@ -474,9 +490,10 @@ Run on AWS ap-south-1 (Mumbai) with managed data stores; no databases in contain
 | --- | --- | --- |
 | Edge / TLS | ALB or Cloudflare | One hostname per client, e.g. `abc.edunexus.in` |
 | Web/API | One ECS service per client, PHP-FPM + Nginx, same image | `EDUNEXUS_CLIENT=<code>`; client files from the deployment repo or a secrets manager |
-| Workers | One worker service per client | Queues in the client database |
+| Workers | One Horizon service per client | Queues in the shared Redis, under the client's prefix |
 | Scheduler | One `schedule:run` task per client | |
 | Database | RDS MySQL, one instance, one database and user per client | Move a client to another instance by changing its `DB_HOST` |
+| Cache, sessions, queues | ElastiCache Redis, one instance shared by every client | One Redis user per client, limited to `edunexus:<code>:*` |
 | Files | S3 | Per-client bucket or prefix |
 
 **Onboarding a client.** Run `edunexus:client:create` with the provisioning credentials, commit the generated files to the deployment repository, add the client's service and hostname, and deploy.

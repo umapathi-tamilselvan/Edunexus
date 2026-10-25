@@ -323,11 +323,12 @@ class ClientCommandsTest extends TestCase
         $this->createClient('xyz');
         $keys = fn (string $code): array => json_decode($this->runAsClient($code, 'echo json_encode(['
             .'"redis" => config("database.redis.options.prefix"),'
+            .'"horizon" => config("horizon.prefix"),'
             .'"cookie" => config("session.cookie"),'
             .']);'), true);
 
-        $this->assertSame(['redis' => 'edunexus:abc:', 'cookie' => 'edunexus_abc_session'], $keys('abc'));
-        $this->assertSame(['redis' => 'edunexus:xyz:', 'cookie' => 'edunexus_xyz_session'], $keys('xyz'));
+        $this->assertSame(['redis' => 'edunexus:abc:', 'horizon' => 'edunexus:abc:horizon:', 'cookie' => 'edunexus_abc_session'], $keys('abc'));
+        $this->assertSame(['redis' => 'edunexus:xyz:', 'horizon' => 'edunexus:xyz:horizon:', 'cookie' => 'edunexus_xyz_session'], $keys('xyz'));
     }
 
     public function test_each_client_caches_its_config_separately(): void

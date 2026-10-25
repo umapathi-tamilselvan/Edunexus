@@ -34,6 +34,12 @@ Oct 25, 2026 · Analysis only; no application code was changed.
 | Attendance and fees don't exist. | Build minimal modules inside v3.2. | Two new steps before step 5 (see [section 4](#4-proposed-order-of-work)), so attendance upserts, `fee_balances` and both load tests have something to target. |
 | Redis isolation? | One shared Redis, a per-client prefix and a per-client ACL user. | Step 2 writes `REDIS_USERNAME` and a prefix per client. |
 | Approve Stage 2? | Yes, on `feature/UI_upgrade`. | One commit per sub-step below. |
+| Sign-in limit per IP? | Raise it from 30 to 300 a minute. | 5 a minute per email + IP stays. |
+| API limit? | 120 a minute per signed-in user, 600 a minute per guest IP. | Applied in step 2.4. |
+| Default year start month? | June for schools, July for colleges, April for coaching. | Step 3. |
+| Year name format? | `2026-27`. | Step 3; also what application numbers show. |
+| What does `academic-years/next` copy? | Classes, sections with capacity, class subjects and periods. | Teachers and the timetable are not copied. |
+| What follows the selected year? | Everything a user browses, including teacher visibility. | Step 3. |
 | New dependencies? | Keep the current ones; add one only when a step needs it. | **Horizon** is added in step 2.3, because the brief names it. **No Redis client package**: production uses the phpredis extension in the server image (the config already defaults to it), while local and tests keep the database drivers. **Octane is not added**: the worker test reproduces Octane's per-request reset itself. **k6** is installed on the machine that runs load tests, not added to the project. |
 
 ### What the overall target means
@@ -476,6 +482,9 @@ Steps 1 and 2 don't depend on open questions. Steps 3, 4 and 5 each start by set
 4. ~~Attendance and fees?~~ Build minimal modules inside v3.2.
 5. ~~New dependencies?~~ Keep the current ones; add one only when a step needs it.
 6. ~~Redis isolation?~~ One shared Redis, a per-client prefix and a per-client ACL user.
+8. ~~Academic year defaults?~~ Start months June / July / April; names like `2026-27`; copy-forward copies classes, sections, class subjects and periods; everything follows the selected year.
+13. ~~Login rate limit?~~ 300 a minute per IP; 5 a minute per email + IP.
+14. ~~General API limit?~~ 120 a minute per user, 600 a minute per guest IP.
 7. **Existing clients' `.env` files need new keys.** Should ops edit them by hand, or should I add a command, for example `edunexus:client:env abc --set=…`?
 
 **Needed before the step they affect:**

@@ -78,6 +78,21 @@ class AuthenticationTest extends TestCase
         $this->assertSame(0, PersonalAccessToken::query()->count());
     }
 
+    public function test_a_tokens_last_use_is_written_at_most_every_five_minutes(): void
+    {
+        $this->travelTo('2026-10-25 09:00:00');
+        $token = $this->issueToken($this->teacher->email);
+        $this->withToken($token)->getJson('/api/v1/me')->assertOk();
+
+        $this->travelTo('2026-10-25 09:04:59');
+        $this->withToken($token)->getJson('/api/v1/me')->assertOk();
+        $this->assertSame('2026-10-25 09:00:00', PersonalAccessToken::query()->sole()->last_used_at->toDateTimeString());
+
+        $this->travelTo('2026-10-25 09:05:00');
+        $this->withToken($token)->getJson('/api/v1/me')->assertOk();
+        $this->assertSame('2026-10-25 09:05:00', PersonalAccessToken::query()->sole()->last_used_at->toDateTimeString());
+    }
+
     public function test_the_spa_signs_in_with_a_session_cookie_on_its_own_domain(): void
     {
         $this->withHeader('Referer', 'http://localhost/')
