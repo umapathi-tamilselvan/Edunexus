@@ -55,12 +55,22 @@ class ClientCreateCommand extends Command
         $this->components->twoColumnDetail('Client code', $client->code);
         $this->components->twoColumnDetail('Institution', "{$client->name} ({$client->type->label()})");
         $this->components->twoColumnDetail('Database', $client->database);
+
+        if ($result['redis_access'] !== null) {
+            $this->components->twoColumnDetail('Redis user', "{$client->username} (password: REDIS_PASSWORD in {$client->code}.env.secure)");
+            $this->components->twoColumnDetail('Redis access', $result['redis_access']);
+        }
+
         $this->components->twoColumnDetail('Login URL', $client->url.'/login');
         $this->components->twoColumnDetail('Super Admin', $result['admin_email']);
 
         if ($adminPassword === null) {
             $this->components->twoColumnDetail('Password', $result['admin_password']);
             $this->components->warn('This password is shown only once. Store it safely.');
+        }
+
+        if ($result['redis_access'] !== null) {
+            $this->components->warn("Create the Redis user {$client->username} with this access before deploying.");
         }
 
         $this->newLine();

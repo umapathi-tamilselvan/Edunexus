@@ -26,7 +26,7 @@ class CreateClient
     ) {}
 
     /**
-     * @return array{client: Client, admin_email: string, admin_password: string}
+     * @return array{client: Client, admin_email: string, admin_password: string, redis_access: string|null}
      */
     public function handle(
         string $code,
@@ -86,7 +86,22 @@ class CreateClient
             throw $exception;
         }
 
-        return ['client' => $client, 'admin_email' => $adminEmail, 'admin_password' => $adminPassword];
+        return [
+            'client' => $client,
+            'admin_email' => $adminEmail,
+            'admin_password' => $adminPassword,
+            'redis_access' => $this->usesRedis() ? self::redisAccess($code) : null,
+        ];
+    }
+
+    /**
+     * The access string for the client's Redis user: its own key prefix
+     * (the default REDIS_PREFIX) and nothing that could reach other
+     * clients' keys, such as FLUSHDB or KEYS.
+     */
+    public static function redisAccess(string $code): string
+    {
+        return "on ~edunexus:{$code}:* &edunexus:{$code}:* +@all -@dangerous";
     }
 
     private function validate(string $code, string $name, string $type, string $adminEmail): InstitutionType
@@ -148,14 +163,33 @@ class CreateClient
     }
 
     /**
+     * The client's environment: the one creating it, with tests creating
+     * local clients.
+     */
+    private function environment(): string
+    {
+        return app()->environment('testing') ? 'local' : (string) app()->environment();
+    }
+
+    /**
+     * Local clients keep sessions, cache and queues in their database;
+     * every other client uses the shared Redis.
+     */
+    private function usesRedis(): bool
+    {
+        return $this->environment() !== 'local';
+    }
+
+    /**
      * Non-secret settings: a complete environment for the client deployment.
      *
      * @return array<string, string>
      */
     private function settings(Client $client): array
     {
-        $environment = app()->environment('testing') ? 'local' : (string) app()->environment();
+        $environment = $this->environment();
         $local = $environment === 'local';
+        $driver = $this->usesRedis() ? 'redis' : 'database';
 
         return [
             'APP_NAME' => 'EduNexus',
@@ -180,13 +214,18 @@ class CreateClient
             'DB_CONNECTION' => 'mysql',
             'DB_HOST' => (string) config('database.connections.provisioning.host'),
             'DB_PORT' => (string) config('database.connections.provisioning.port'),
-            'SESSION_DRIVER' => 'database',
+            'SESSION_DRIVER' => $driver,
             'SESSION_LIFETIME' => '120',
             'SESSION_ENCRYPT' => 'false',
             'SESSION_PATH' => '/',
             'SESSION_DOMAIN' => 'null',
-            'CACHE_STORE' => 'database',
-            'QUEUE_CONNECTION' => 'database',
+            'CACHE_STORE' => $driver,
+            'QUEUE_CONNECTION' => $driver,
+            ...($this->usesRedis() ? [
+                'REDIS_HOST' => (string) config('database.redis.default.host'),
+                'REDIS_PORT' => (string) config('database.redis.default.port'),
+                'REDIS_USERNAME' => $client->username,
+            ] : []),
             'FILESYSTEM_DISK' => 'local',
             'BROADCAST_CONNECTION' => 'log',
             'MAIL_MAILER' => 'log',
@@ -205,6 +244,7 @@ class CreateClient
             'DB_DATABASE' => $client->database,
             'DB_USERNAME' => $client->username,
             'DB_PASSWORD' => $client->password,
+            ...($this->usesRedis() ? ['REDIS_PASSWORD' => Str::password(32, symbols: false)] : []),
         ];
     }
 }
