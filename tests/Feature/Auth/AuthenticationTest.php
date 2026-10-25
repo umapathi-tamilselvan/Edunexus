@@ -103,6 +103,17 @@ class AuthenticationTest extends TestCase
         $this->assertDatabaseHas('sessions', ['user_id' => $this->teacher->id]);
     }
 
+    public function test_signing_out_of_the_spa_ends_the_session_and_returns_204(): void
+    {
+        $spa = $this->withHeader('Referer', 'http://localhost/');
+        $spa->postJson('/api/v1/auth/login', ['email' => $this->teacher->email, 'password' => self::PASSWORD])->assertOk();
+        $this->assertAuthenticatedAs($this->teacher, 'web');
+
+        $spa->postJson('/api/v1/auth/logout')->assertNoContent();
+
+        $this->assertGuest('web');
+    }
+
     public function test_cookie_sign_in_is_refused_for_requests_not_from_the_web_app(): void
     {
         $this->withHeader('Referer', 'https://evil.example.com/')

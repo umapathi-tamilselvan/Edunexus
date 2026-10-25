@@ -250,6 +250,27 @@ class AdmissionTest extends TestCase
             ->assertJsonCount(1, 'data')->assertJsonPath('data.0.student_name', 'Ishaan');
     }
 
+    public function test_an_application_is_shown_with_its_class_year_and_decision(): void
+    {
+        $application = AdmissionApplication::factory()->create([
+            'class_id' => $this->class->id,
+            'status' => ApplicationStatus::Rejected,
+            'decision_reason' => 'Class is full.',
+            'decided_by' => $this->createUser(Role::Principal, ['name' => 'Principal Rao'])->id,
+            'decided_at' => now(),
+        ]);
+
+        $this->withToken($this->token)->getJson("/api/v1/admissions/{$application->id}")
+            ->assertOk()
+            ->assertJsonPath('data.status', 'rejected')
+            ->assertJsonPath('data.is_open', false)
+            ->assertJsonPath('data.class.name', 'Class 1')
+            ->assertJsonPath('data.academic_year.name', '2026-27')
+            ->assertJsonPath('data.decision_reason', 'Class is full.')
+            ->assertJsonPath('data.decided_by.name', 'Principal Rao')
+            ->assertJsonPath('data.student', null);
+    }
+
     #[TestWith([Role::Teacher])]
     #[TestWith([Role::Accountant])]
     #[TestWith([Role::Guardian])]
