@@ -10,6 +10,7 @@ use App\Domain\Student\Models\Student;
 use App\Domain\Student\Policies\StudentPolicy;
 use App\Support\OrganizationContext;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
@@ -30,6 +31,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Outside production, lazy loading (N+1 queries) and reading or
+        // filling attributes that don't exist throw instead of passing silently.
+        Model::shouldBeStrict(! $this->app->isProduction());
+
         // Policies live in their domain modules, outside the discovery path.
         Gate::policy(User::class, UserPolicy::class);
         Gate::policy(Student::class, StudentPolicy::class);
