@@ -79,6 +79,7 @@ Route::middleware(['auth:sanctum', 'entitled:academic'])->group(function () {
         Route::patch('classes/{schoolClass}', [SchoolClassController::class, 'update'])->name('classes.update');
         Route::delete('classes/{schoolClass}', [SchoolClassController::class, 'destroy'])->name('classes.destroy');
         Route::put('classes/{schoolClass}/subjects', [SchoolClassController::class, 'syncSubjects'])->name('classes.subjects.sync');
+        Route::put('classes/{schoolClass}/subjects/{subject}/teacher', [SectionSubjectTeacherController::class, 'updateClass'])->name('classes.subjects.teacher.update');
 
         Route::post('classes/{schoolClass}/sections', [SectionController::class, 'store'])->name('sections.store');
         Route::patch('sections/{section}', [SectionController::class, 'update'])->name('sections.update');

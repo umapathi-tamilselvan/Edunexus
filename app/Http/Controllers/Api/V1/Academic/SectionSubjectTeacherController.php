@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers\Api\V1\Academic;
 
+use App\Domain\Academic\Actions\AssignClassSubjectTeacher;
 use App\Domain\Academic\Actions\AssignSubjectTeacher;
+use App\Domain\Academic\Models\SchoolClass;
 use App\Domain\Academic\Models\Section;
 use App\Domain\Academic\Models\SectionSubjectTeacher;
 use App\Domain\Academic\Models\Subject;
@@ -32,6 +34,25 @@ class SectionSubjectTeacherController extends Controller
             'data' => [
                 'subject_id' => $subject->id,
                 'teacher' => $teacher ? ['id' => $teacher->id, 'name' => $teacher->name] : null,
+            ],
+        ]);
+    }
+
+    /**
+     * Sets or clears the teacher of one subject in every section of a class.
+     */
+    public function updateClass(AssignSubjectTeacherRequest $request, SchoolClass $schoolClass, Subject $subject, AssignClassSubjectTeacher $assignClassSubjectTeacher): JsonResponse
+    {
+        $teacherId = $request->validated('teacher_id');
+        $teacher = $teacherId === null ? null : User::query()->findOrFail($teacherId);
+
+        $sections = $assignClassSubjectTeacher->handle($schoolClass, $subject, $teacher);
+
+        return response()->json([
+            'data' => [
+                'subject_id' => $subject->id,
+                'teacher' => $teacher ? ['id' => $teacher->id, 'name' => $teacher->name] : null,
+                'section_ids' => $sections->modelKeys(),
             ],
         ]);
     }

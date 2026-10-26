@@ -97,10 +97,45 @@ class SubjectTeacherTest extends TestCase
             ->assertJsonValidationErrors(['subject_id' => 'Art is not offered to Class 1. Add it to the class\'s subjects first.']);
     }
 
+    public function test_a_class_gives_every_section_the_same_subject_teacher_replacing_their_own(): void
+    {
+        $sectionB = Section::factory()->for($this->class, 'schoolClass')->create(['name' => 'B']);
+        $this->assign($sectionB, $this->maths, $this->createTeacher('Karthik', $this->maths))->assertOk();
+
+        $this->withToken($this->adminToken)->putJson("/api/v1/classes/{$this->class->id}/subjects/{$this->maths->id}/teacher", ['teacher_id' => $this->teacher->id])
+            ->assertOk()
+            ->assertJsonPath('data.teacher.name', 'Satheesh')
+            ->assertJsonPath('data.section_ids', [$this->section->id, $sectionB->id]);
+
+        $this->assertSame(
+            [$this->section->id => $this->teacher->id, $sectionB->id => $this->teacher->id],
+            SectionSubjectTeacher::query()->orderBy('section_id')->pluck('teacher_id', 'section_id')->all(),
+        );
+
+        $this->withToken($this->adminToken)->putJson("/api/v1/classes/{$this->class->id}/subjects/{$this->maths->id}/teacher", ['teacher_id' => null])->assertOk();
+        $this->assertDatabaseCount('section_subject_teachers', 0);
+    }
+
+    public function test_a_class_wide_assignment_changes_no_section_when_the_teacher_does_not_teach_the_subject(): void
+    {
+        $this->assign($this->section, $this->maths, $this->teacher)->assertOk();
+        Section::factory()->for($this->class, 'schoolClass')->create(['name' => 'B']);
+
+        $this->withToken($this->adminToken)->putJson("/api/v1/classes/{$this->class->id}/subjects/{$this->maths->id}/teacher", ['teacher_id' => $this->createTeacher('Srini')->id])
+            ->assertJsonValidationErrors(['teacher_id' => 'Srini is not linked to a subject. Link them to Mathematics first.']);
+
+        $this->assertSame([$this->section->id => $this->teacher->id], SectionSubjectTeacher::query()->pluck('teacher_id', 'section_id')->all());
+    }
+
     public function test_teachers_cannot_assign_subject_teachers(): void
     {
-        $this->withToken($this->issueToken($this->teacher->email))
+        $token = $this->issueToken($this->teacher->email);
+
+        $this->withToken($token)
             ->putJson("/api/v1/sections/{$this->section->id}/subjects/{$this->maths->id}/teacher", ['teacher_id' => $this->teacher->id])
+            ->assertForbidden();
+        $this->withToken($token)
+            ->putJson("/api/v1/classes/{$this->class->id}/subjects/{$this->maths->id}/teacher", ['teacher_id' => $this->teacher->id])
             ->assertForbidden();
     }
 
