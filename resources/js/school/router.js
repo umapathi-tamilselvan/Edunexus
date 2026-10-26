@@ -3,6 +3,7 @@ import { http } from '../lib/http';
 import { academicYear } from './academicYear';
 import AcademicPage from './pages/AcademicPage.vue';
 import AdmissionsPage from './pages/AdmissionsPage.vue';
+import AttendancePage from './pages/AttendancePage.vue';
 import DashboardPage from './pages/DashboardPage.vue';
 import LoginPage from './pages/LoginPage.vue';
 import StudentDetailPage from './pages/StudentDetailPage.vue';
@@ -22,6 +23,7 @@ export const router = createRouter({
         { path: '/dashboard', name: 'dashboard', component: DashboardPage },
         { path: '/users', name: 'users', component: UsersPage, meta: { permission: 'user.manage' } },
         { path: '/admissions', name: 'admissions', component: AdmissionsPage, meta: { permission: 'admission.manage', module: 'admission' } },
+        { path: '/attendance', name: 'attendance', component: AttendancePage, meta: { permission: 'attendance.view', module: 'attendance' } },
         { path: '/timetable', name: 'timetable', component: TimetablePage, meta: { permission: 'academic.view', module: 'academic' } },
         { path: '/academic', name: 'academic', component: AcademicPage, meta: { permission: 'academic.view', module: 'academic' } },
         { path: '/subjects', name: 'subjects', component: SubjectsPage, meta: { permission: 'academic.view', module: 'academic' } },

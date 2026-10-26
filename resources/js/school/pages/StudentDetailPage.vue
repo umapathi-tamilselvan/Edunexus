@@ -37,6 +37,10 @@ const guardianForm = reactive({ name: '', phone: '', email: '', relation: 'mothe
 const detailsForm = reactive({ admission_no: '', name: '', date_of_birth: '', gender: 'male' });
 const placementForm = reactive({ section_id: '', roll_no: '' });
 
+const attendance = ref(null);
+const canSeeAttendance = computed(() => session.hasModule('attendance') && session.can('attendance.view'));
+const attendanceTone = { absent: 'badge-danger', half_day: 'badge-info', leave: 'badge-neutral' };
+
 const sections = computed(() => sectionOptions(year.value));
 const yearEnrollment = computed(() => student.value?.enrollments.find((enrollment) => enrollment.academic_year.id === year.value?.id) ?? null);
 
@@ -49,6 +53,10 @@ async function load() {
 
         if (canManage.value && session.can('academic.view') && academicYear.selectedId) {
             year.value = await loadYearStructure(academicYear.selectedId);
+        }
+
+        if (canSeeAttendance.value) {
+            attendance.value = (await http.get(`/api/v1/students/${route.params.id}/attendance`)).data.data;
         }
     } catch (error) {
         loadError.value = error.response?.status === 403 ? 'You can only view students of the sections you teach in the selected academic year.' : parseError(error).message;
@@ -292,6 +300,33 @@ onMounted(load);
                     </form>
                 </section>
             </div>
+
+            <section v-if="canSeeAttendance" class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Attendance{{ attendance ? ` in ${attendance.academic_year.name}` : '' }}</h2>
+                    <span v-if="attendance && attendance.percentage !== null" class="text-2sm font-semibold" :class="attendance.percentage < 75 ? 'text-danger-strong' : 'text-success-strong'">
+                        {{ attendance.percentage }}% of {{ attendance.days_marked }} days
+                    </span>
+                </div>
+                <EmptyState v-if="!attendance" icon="calendar" title="Not enrolled this year" description="Pick another year at the top to see that year's attendance." />
+                <EmptyState v-else-if="!attendance.days_marked" icon="calendar" title="No attendance taken yet" />
+                <div v-else class="card-body flex flex-col gap-4">
+                    <div class="flex flex-wrap gap-1.5 text-xs">
+                        <span class="badge-success">Present {{ attendance.by_status.present }}</span>
+                        <span class="badge-warning">Late {{ attendance.by_status.late }}</span>
+                        <span class="badge-info">Half day {{ attendance.by_status.half_day }}</span>
+                        <span class="badge-neutral">Leave {{ attendance.by_status.leave }}</span>
+                        <span class="badge-danger">Absent {{ attendance.by_status.absent }}</span>
+                    </div>
+                    <ul v-if="attendance.missed.length" class="flex flex-col gap-1.5 text-2sm">
+                        <li v-for="day in attendance.missed" :key="day.date" class="flex flex-wrap items-center gap-2">
+                            <span class="w-24 text-gray-600 tabular-nums">{{ day.date }}</span>
+                            <span class="capitalize" :class="attendanceTone[day.status]">{{ day.status.replace('_', ' ') }}</span>
+                            <span v-if="day.remark" class="text-gray-600">{{ day.remark }}</span>
+                        </li>
+                    </ul>
+                </div>
+            </section>
         </template>
     </div>
 </template>

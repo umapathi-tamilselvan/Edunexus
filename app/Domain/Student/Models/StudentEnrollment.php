@@ -4,6 +4,7 @@ namespace App\Domain\Student\Models;
 
 use App\Domain\Academic\Models\AcademicYear;
 use App\Domain\Academic\Models\Section;
+use App\Domain\Attendance\Models\AttendanceRecord;
 use App\Domain\Examination\Models\ExamMark;
 use App\Domain\Student\Enums\EnrollmentStatus;
 use Database\Factories\StudentEnrollmentFactory;
@@ -75,5 +76,13 @@ class StudentEnrollment extends Model implements AuditableContract
     public function examMarks(): HasMany
     {
         return $this->hasMany(ExamMark::class, 'enrollment_id');
+    }
+
+    /**
+     * @return HasMany<AttendanceRecord, $this>
+     */
+    public function attendance(): HasMany
+    {
+        return $this->hasMany(AttendanceRecord::class, 'enrollment_id');
     }
 }

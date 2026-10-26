@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\V1\Academic\AcademicYearController;
+use App\Http\Controllers\Api\V1\Academic\HolidayController;
 use App\Http\Controllers\Api\V1\Academic\PeriodController;
 use App\Http\Controllers\Api\V1\Academic\SchoolClassController;
 use App\Http\Controllers\Api\V1\Academic\SectionController;
@@ -9,6 +10,7 @@ use App\Http\Controllers\Api\V1\Academic\SubjectController;
 use App\Http\Controllers\Api\V1\Academic\TeacherController;
 use App\Http\Controllers\Api\V1\Academic\TimetableController;
 use App\Http\Controllers\Api\V1\Admission\AdmissionController;
+use App\Http\Controllers\Api\V1\Attendance\AttendanceController;
 use App\Http\Controllers\Api\V1\Auth\SessionController;
 use App\Http\Controllers\Api\V1\Auth\TokenController;
 use App\Http\Controllers\Api\V1\BrandingController;
@@ -69,6 +71,7 @@ Route::middleware(['auth:sanctum', 'entitled:academic'])->group(function () {
         Route::get('sections/{section}/timetable', [TimetableController::class, 'section'])->name('timetable.section');
         Route::get('teachers', [TeacherController::class, 'index'])->name('teachers.index');
         Route::get('teachers/workload', [TeacherController::class, 'workload'])->name('teachers.workload');
+        Route::get('academic-years/{academicYear}/holidays', [HolidayController::class, 'index'])->name('holidays.index');
     });
 
     Route::get('me/timetable', [TimetableController::class, 'mine'])->name('timetable.mine');
@@ -92,6 +95,9 @@ Route::middleware(['auth:sanctum', 'entitled:academic'])->group(function () {
         Route::post('subjects', [SubjectController::class, 'store'])->name('subjects.store');
         Route::patch('subjects/{subject}', [SubjectController::class, 'update'])->name('subjects.update');
         Route::put('subjects/{subject}/teachers', [SubjectController::class, 'syncTeachers'])->name('subjects.teachers.sync');
+
+        Route::post('academic-years/{academicYear}/holidays', [HolidayController::class, 'store'])->name('holidays.store');
+        Route::delete('holidays/{holiday}', [HolidayController::class, 'destroy'])->name('holidays.destroy');
 
         Route::post('academic-years/{academicYear}/periods', [PeriodController::class, 'store'])->name('periods.store');
         Route::patch('periods/{period}', [PeriodController::class, 'update'])->name('periods.update');
@@ -120,6 +126,19 @@ Route::middleware(['auth:sanctum', 'entitled:student'])->group(function () {
         Route::post('students/{student}/enrollments', [EnrollmentController::class, 'store'])->name('students.enrollments.store');
         Route::patch('enrollments/{enrollment}', [EnrollmentController::class, 'update'])->name('enrollments.update');
     });
+});
+
+/*
+| Attendance: a section's sheet for one day. Its teachers mark it within
+| the edit window; attendance.edit_late changes any day (AttendancePolicy).
+*/
+Route::middleware(['auth:sanctum', 'entitled:attendance'])->group(function () {
+    Route::middleware('can:attendance.view')->group(function () {
+        Route::get('sections/{section}/attendance', [AttendanceController::class, 'show'])->name('attendance.show');
+        Route::get('students/{student}/attendance', [AttendanceController::class, 'student'])->middleware('entitled:student')->name('students.attendance');
+    });
+
+    Route::put('sections/{section}/attendance', [AttendanceController::class, 'update'])->name('attendance.update');
 });
 
 /*

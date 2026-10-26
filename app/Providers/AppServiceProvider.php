@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Domain\Attendance\Models\AttendanceRecord;
+use App\Domain\Attendance\Policies\AttendancePolicy;
 use App\Domain\Examination\Models\Exam;
 use App\Domain\Examination\Policies\ExamPolicy;
 use App\Domain\Identity\Listeners\RecordTokenUse;
@@ -44,6 +46,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(User::class, UserPolicy::class);
         Gate::policy(Student::class, StudentPolicy::class);
         Gate::policy(Exam::class, ExamPolicy::class);
+        Gate::policy(AttendanceRecord::class, AttendancePolicy::class);
 
         Event::listen(TokenAuthenticated::class, RecordTokenUse::class);
 

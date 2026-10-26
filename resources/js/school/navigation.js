@@ -33,6 +33,14 @@ export const navigation = computed(() =>
             visible: session.hasModule('admission') && session.can('admission.manage'),
         },
         {
+            to: '/attendance',
+            label: 'Attendance',
+            icon: 'circle-check',
+            section: 'Academics',
+            description: 'Mark and review daily attendance by section.',
+            visible: session.hasModule('attendance') && session.can('attendance.view'),
+        },
+        {
             to: '/timetable',
             label: 'Timetable',
             icon: 'timetable',

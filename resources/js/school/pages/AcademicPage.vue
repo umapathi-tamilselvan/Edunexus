@@ -30,10 +30,16 @@ const formError = ref(emptyError());
 const classForm = reactive({ name: '', sort_order: 0 });
 const sectionForm = reactive({ name: '', capacity: 40, class_teacher_id: '' });
 const classSubjectIds = ref([]);
+const holidays = ref([]);
+const holidayForm = reactive({ date: '', name: '' });
 
 /** The year picked in the header. */
 async function loadYear() {
     year.value = academicYear.selectedId ? await loadYearStructure(academicYear.selectedId) : null;
+}
+
+async function loadHolidays() {
+    holidays.value = academicYear.selectedId ? (await http.get(`/api/v1/academic-years/${academicYear.selectedId}/holidays`)).data.data : [];
 }
 
 async function load() {
@@ -41,7 +47,7 @@ async function load() {
     pageError.value = '';
 
     try {
-        await Promise.all([terms.load(), loadYear(), loadSubjects(), loadTeacherOptions()]);
+        await Promise.all([terms.load(), loadYear(), loadSubjects(), loadTeacherOptions(), loadHolidays()]);
     } catch (error) {
         pageError.value = parseError(error).message;
     } finally {
@@ -71,6 +77,25 @@ function open(key, values = {}) {
         Object.assign(sectionForm, { name: '', capacity: 40, class_teacher_id: '' });
     } else if (key.startsWith('subjects:')) {
         classSubjectIds.value = values.subjectIds ?? [];
+    } else if (key === 'holiday') {
+        Object.assign(holidayForm, { date: '', name: '' });
+    }
+}
+
+function createHoliday() {
+    submit(() => http.post(`/api/v1/academic-years/${year.value.id}/holidays`, holidayForm), `${holidayForm.name} added as a holiday.`, loadHolidays);
+}
+
+async function removeHoliday(holiday) {
+    notice.value = '';
+    pageError.value = '';
+
+    try {
+        await http.delete(`/api/v1/holidays/${holiday.id}`);
+        notice.value = `${holiday.name} is no longer a holiday.`;
+        await loadHolidays();
+    } catch (error) {
+        pageError.value = parseError(error).message;
     }
 }
 
@@ -291,6 +316,38 @@ onMounted(load);
                         </div>
                     </form>
                 </article>
+            </section>
+
+            <section class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Holidays in {{ year.name }}</h2>
+                    <button v-if="canManage && openForm !== 'holiday'" type="button" class="btn-link" @click="open('holiday')">
+                        <AppIcon name="plus" class="size-4" />
+                        Add holiday
+                    </button>
+                </div>
+
+                <form v-if="openForm === 'holiday'" class="flex flex-wrap items-end gap-3 border-b border-gray-200 bg-gray-50 px-5 py-4 lg:px-7.5" @submit.prevent="createHoliday">
+                    <FormField label="Day" :error="formError.fields.date" class="w-44">
+                        <input v-model="holidayForm.date" type="date" required class="input" :min="year.starts_on" :max="year.ends_on" />
+                    </FormField>
+                    <FormField label="Name" :error="formError.fields.name" class="min-w-48 flex-1">
+                        <input v-model="holidayForm.name" required class="input" placeholder="Diwali" maxlength="100" />
+                    </FormField>
+                    <button type="button" class="btn-secondary" :disabled="busy" @click="openForm = null">Cancel</button>
+                    <button type="submit" class="btn-primary" :disabled="busy">Add</button>
+                </form>
+
+                <ul v-if="holidays.length" class="divide-y divide-gray-200">
+                    <li v-for="holiday in holidays" :key="holiday.id" class="flex items-center justify-between gap-3 px-5 py-3 text-2sm lg:px-7.5">
+                        <span>
+                            <span class="font-medium text-gray-900">{{ holiday.name }}</span>
+                            <span class="ml-2 text-gray-600">{{ holiday.date }}</span>
+                        </span>
+                        <button v-if="canManage" type="button" class="btn-link-danger" @click="removeHoliday(holiday)">Remove</button>
+                    </li>
+                </ul>
+                <EmptyState v-else icon="calendar" title="No holidays yet" description="No attendance is taken on a holiday, so it never counts against a student." />
             </section>
         </template>
     </div>

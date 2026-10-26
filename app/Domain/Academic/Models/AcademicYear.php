@@ -4,6 +4,7 @@ namespace App\Domain\Academic\Models;
 
 use App\Domain\Examination\Models\Exam;
 use App\Support\AcademicYearContext;
+use Carbon\CarbonInterface;
 use Database\Factories\AcademicYearFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Scope;
@@ -70,6 +71,22 @@ class AcademicYear extends Model
     public function exams(): HasMany
     {
         return $this->hasMany(Exam::class)->orderByRaw('starts_on IS NULL')->orderBy('starts_on')->orderBy('name');
+    }
+
+    /**
+     * @return HasMany<Holiday, $this>
+     */
+    public function holidays(): HasMany
+    {
+        return $this->hasMany(Holiday::class)->orderBy('date');
+    }
+
+    /**
+     * Whether the date falls within this year.
+     */
+    public function includes(CarbonInterface $date): bool
+    {
+        return $date->betweenIncluded($this->starts_on, $this->ends_on);
     }
 
     /**
