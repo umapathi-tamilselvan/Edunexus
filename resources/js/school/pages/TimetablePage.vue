@@ -49,6 +49,8 @@ const showPeriodForm = ref(false);
 const periodForm = reactive({ name: '', starts_at: '', ends_at: '', is_break: false, sort_order: 1 });
 
 const sections = computed(() => sectionOptions(year.value));
+/** The section's subject teacher for the subject picked in the slot form. */
+const slotSubjectTeacher = computed(() => timetable.value?.subject_teachers.find((assignment) => assignment.subject_id === slotForm.subject_id)?.teacher ?? null);
 const selectedClass = computed(() => year.value?.classes.find((schoolClass) => schoolClass.sections.some((section) => section.id === sectionId.value)));
 const periods = computed(() => (mode.value === 'mine' ? mine.value?.periods : timetable.value?.periods) ?? []);
 const entries = computed(() => (mode.value === 'mine' ? mine.value?.entries : timetable.value?.entries) ?? []);
@@ -100,7 +102,8 @@ function edit(weekday, period) {
 
     const entry = entryAt(weekday, period.id);
     editing.value = { weekday, period };
-    Object.assign(slotForm, { subject_id: entry?.subject.id ?? '', teacher_id: entry?.teacher?.id ?? '' });
+    // A slot following the subject teacher keeps following it.
+    Object.assign(slotForm, { subject_id: entry?.subject.id ?? '', teacher_id: entry?.is_override ? (entry.teacher?.id ?? '') : '' });
     formError.value = { message: '', fields: {} };
     notice.value = '';
 }
@@ -265,8 +268,16 @@ onMounted(async () => {
                                     >
                                         <template v-if="entryAt(day.value, period.id)">
                                             <span class="block truncate text-2sm font-semibold text-gray-900">{{ entryAt(day.value, period.id).subject.name }}</span>
-                                            <span class="block truncate text-xs text-gray-600">
-                                                {{ mode === 'mine' ? `${entryAt(day.value, period.id).section.class} ${entryAt(day.value, period.id).section.name}` : entryAt(day.value, period.id).teacher?.name ?? 'No teacher' }}
+                                            <span v-if="mode === 'mine'" class="block truncate text-xs text-gray-600">
+                                                {{ entryAt(day.value, period.id).section.class }} {{ entryAt(day.value, period.id).section.name }}
+                                            </span>
+                                            <span
+                                                v-else
+                                                class="block truncate text-xs"
+                                                :class="entryAt(day.value, period.id).is_override ? 'font-medium text-warning-strong' : 'text-gray-600'"
+                                                :title="entryAt(day.value, period.id).is_override ? `Set by hand: not the ${terms.section.toLowerCase()}'s subject ${terms.teacher.toLowerCase()}` : null"
+                                            >
+                                                {{ entryAt(day.value, period.id).teacher?.name ?? 'No teacher' }}{{ entryAt(day.value, period.id).is_override ? ' *' : '' }}
                                             </span>
                                         </template>
                                         <span v-else-if="canManage && mode === 'section'" class="flex items-center gap-1 text-xs text-gray-500">
@@ -299,9 +310,9 @@ onMounted(async () => {
                             <option v-for="subject in selectedClass?.subjects ?? []" :key="subject.id" :value="subject.id">{{ subject.name }}</option>
                         </select>
                     </FormField>
-                    <FormField :label="terms.teacher" :error="formError.fields.teacher_id">
+                    <FormField :label="terms.teacher" :error="formError.fields.teacher_id" hint="Anyone else stays here when the subject teacher changes.">
                         <select v-model="slotForm.teacher_id" class="input">
-                            <option value="">None</option>
+                            <option value="">Subject {{ terms.teacher.toLowerCase() }}{{ slotSubjectTeacher ? ` (${slotSubjectTeacher.name})` : ' (none yet)' }}</option>
                             <option v-for="teacher in teachers" :key="teacher.id" :value="teacher.id">{{ teacher.name }}</option>
                         </select>
                     </FormField>

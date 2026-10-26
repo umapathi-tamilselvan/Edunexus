@@ -12,7 +12,9 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * What a section studies, and with whom, in one period of one weekday.
+ * What a section studies, and with whom, in one period of one weekday. The
+ * teacher is the section's subject teacher for the subject, and follows
+ * it when it changes, unless someone else was set by hand (is_override).
  *
  * @property int $id
  * @property int $section_id
@@ -20,13 +22,21 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $period_id
  * @property int $subject_id
  * @property int|null $teacher_id
+ * @property bool $is_override
  */
-#[Fillable(['section_id', 'weekday', 'period_id', 'subject_id', 'teacher_id'])]
+#[Fillable(['section_id', 'weekday', 'period_id', 'subject_id', 'teacher_id', 'is_override'])]
 #[UseFactory(TimetableEntryFactory::class)]
 class TimetableEntry extends Model
 {
     /** @use HasFactory<TimetableEntryFactory> */
     use HasFactory;
+
+    /**
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'is_override' => false,
+    ];
 
     /**
      * @return array<string, string>
@@ -35,6 +45,7 @@ class TimetableEntry extends Model
     {
         return [
             'weekday' => Weekday::class,
+            'is_override' => 'boolean',
         ];
     }
 
