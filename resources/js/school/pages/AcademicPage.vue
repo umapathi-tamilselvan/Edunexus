@@ -109,6 +109,29 @@ function makeCurrent() {
     });
 }
 
+/** Years are listed newest first, so only the current year can be followed by a new one. */
+const canOpenNextYear = computed(() => canManage.value && years.value[0]?.is_current === true);
+
+async function openNextYear() {
+    const current = years.value[0];
+    busy.value = true;
+    notice.value = '';
+    pageError.value = '';
+
+    try {
+        const { data } = await http.post('/api/v1/academic-years/next');
+        selectedYearId.value = data.data.id;
+        notice.value = `${data.data.name} is open with the ${terms.classes.toLowerCase()}, ${terms.sections.toLowerCase()}, subjects and bell schedule of ${current.name}. Assign its teachers, and make it current when it starts.`;
+        await loadYears();
+        await loadYear();
+    } catch (error) {
+        const parsed = parseError(error);
+        pageError.value = Object.values(parsed.fields)[0] ?? parsed.message;
+    } finally {
+        busy.value = false;
+    }
+}
+
 function createClass() {
     submit(() => http.post(`/api/v1/academic-years/${selectedYearId.value}/classes`, classForm), `${terms.class} ${classForm.name} added.`, loadYear);
 }
@@ -155,6 +178,10 @@ onMounted(load);
                 <option v-for="item in years" :key="item.id" :value="item.id">{{ item.name }}{{ item.is_current ? ' (current)' : '' }}</option>
             </select>
             <button v-if="canManage && year && !year.is_current" type="button" class="btn-secondary" :disabled="busy" @click="makeCurrent">Make current</button>
+            <button v-if="canOpenNextYear" type="button" class="btn-primary" :disabled="busy" @click="openNextYear">
+                <AppIcon name="plus" class="size-4" />
+                Open next year
+            </button>
         </PageHeader>
 
         <AlertMessage v-if="notice" tone="success">{{ notice }}</AlertMessage>

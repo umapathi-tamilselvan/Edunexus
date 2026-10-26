@@ -72,6 +72,7 @@ Route::middleware(['auth:sanctum', 'entitled:academic'])->group(function () {
     Route::get('me/teaching', [SectionSubjectTeacherController::class, 'mine'])->name('teaching.mine');
 
     Route::middleware('can:academic.manage')->group(function () {
+        Route::post('academic-years/next', [AcademicYearController::class, 'next'])->name('academic-years.next');
         Route::post('academic-years/{academicYear}/make-current', [AcademicYearController::class, 'makeCurrent'])->name('academic-years.make-current');
 
         Route::post('academic-years/{academicYear}/classes', [SchoolClassController::class, 'store'])->name('classes.store');

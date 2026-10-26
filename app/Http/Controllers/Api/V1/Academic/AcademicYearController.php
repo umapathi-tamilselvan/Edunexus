@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers\Api\V1\Academic;
 
+use App\Domain\Academic\Actions\CopyAcademicYearForward;
 use App\Domain\Academic\Actions\MakeAcademicYearCurrent;
 use App\Domain\Academic\Models\AcademicYear;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Api\V1\AcademicYearResource;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 /**
@@ -29,6 +31,15 @@ class AcademicYearController extends Controller
             'classes.sections' => fn ($sections) => $sections->withCount(['enrollments', 'subjectTeachers'])->with('classTeacher'),
             'classes.subjects',
         ]));
+    }
+
+    /**
+     * Opens the year after the current one with the current year's
+     * structure copied forward.
+     */
+    public function next(CopyAcademicYearForward $copyAcademicYearForward): JsonResponse
+    {
+        return (new AcademicYearResource($copyAcademicYearForward->handle()))->response()->setStatusCode(201);
     }
 
     public function makeCurrent(AcademicYear $academicYear, MakeAcademicYearCurrent $makeCurrent): AcademicYearResource

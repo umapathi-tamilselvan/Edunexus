@@ -4,6 +4,12 @@ namespace Tests\Feature\Academic;
 
 use App\Domain\Academic\Actions\CreateAcademicYear;
 use App\Domain\Academic\Models\AcademicYear;
+use App\Domain\Academic\Models\Period;
+use App\Domain\Academic\Models\SchoolClass;
+use App\Domain\Academic\Models\Section;
+use App\Domain\Academic\Models\SectionSubjectTeacher;
+use App\Domain\Academic\Models\Subject;
+use App\Domain\Academic\Models\TimetableEntry;
 use App\Domain\Identity\Enums\Role;
 use App\Support\OrganizationContext;
 use App\Support\Settings\Setting;
@@ -93,15 +99,74 @@ class AcademicYearTest extends TestCase
         app(CreateAcademicYear::class)->handle(2026);
     }
 
+    public function test_the_next_year_copies_the_current_years_classes_sections_subjects_and_bell_schedule(): void
+    {
+        $current = AcademicYear::factory()->current()->create(['name' => '2026-27', 'starts_on' => '2026-06-01', 'ends_on' => '2027-05-31']);
+        $class = SchoolClass::factory()->for($current)->create(['name' => 'Class 1', 'sort_order' => 1]);
+        $class->subjects()->attach($maths = Subject::factory()->create());
+        $section = Section::factory()->for($class, 'schoolClass')->create(['name' => 'A', 'capacity' => 35, 'class_teacher_id' => $this->createUser()->id]);
+        SectionSubjectTeacher::factory()->for($section)->for($maths)->create();
+        $period = Period::factory()->for($current)->create(['name' => 'Period 1', 'starts_at' => '08:45', 'ends_at' => '09:30', 'sort_order' => 1]);
+        Period::factory()->for($current)->create(['name' => 'Lunch', 'starts_at' => '12:30', 'ends_at' => '13:00', 'is_break' => true, 'sort_order' => 5]);
+        TimetableEntry::factory()->for($section)->for($maths)->create(['period_id' => $period->id]);
+
+        $this->withToken($this->adminToken())->postJson('/api/v1/academic-years/next')
+            ->assertCreated()
+            ->assertJsonPath('data.name', '2027-28')
+            ->assertJsonPath('data.starts_on', '2027-06-01')
+            ->assertJsonPath('data.ends_on', '2028-05-31')
+            ->assertJsonPath('data.is_current', false);
+
+        $next = AcademicYear::query()->where('name', '2027-28')->sole();
+        $copiedClass = $next->classes()->with(['sections.subjectTeachers', 'sections.timetableEntries', 'subjects'])->sole();
+        $this->assertSame(['Class 1', 1], [$copiedClass->name, $copiedClass->sort_order]);
+        $this->assertSame([$maths->id], $copiedClass->subjects->modelKeys());
+        $copiedSection = $copiedClass->sections->sole();
+        $this->assertSame(['A', 35, null], [$copiedSection->name, $copiedSection->capacity, $copiedSection->class_teacher_id]);
+        $this->assertTrue($copiedSection->subjectTeachers->isEmpty());
+        $this->assertTrue($copiedSection->timetableEntries->isEmpty());
+        $this->assertSame(
+            [['Period 1', '08:45:00', '09:30:00', false], ['Lunch', '12:30:00', '13:00:00', true]],
+            $next->periods()->get()->map(fn (Period $period): array => [$period->name, $period->starts_at, $period->ends_at, $period->is_break])->all(),
+        );
+        $this->assertTrue($current->fresh()->is_current);
+    }
+
+    public function test_only_one_year_can_be_opened_ahead_of_the_current_one(): void
+    {
+        $current = AcademicYear::factory()->current()->create(['name' => '2026-27', 'starts_on' => '2026-06-01', 'ends_on' => '2027-05-31']);
+        AcademicYear::factory()->create(['name' => '2027-28', 'starts_on' => '2027-06-01', 'ends_on' => '2028-05-31']);
+
+        $this->withToken($this->adminToken())->postJson('/api/v1/academic-years/next')
+            ->assertJsonValidationErrors(['academic_year' => 'The next academic year, 2027-28, already exists.']);
+
+        $this->assertDatabaseCount('academic_years', 2);
+        $this->assertTrue($current->fresh()->is_current);
+    }
+
+    public function test_teachers_cannot_open_the_next_year(): void
+    {
+        AcademicYear::factory()->current()->create();
+
+        $this->withToken($this->issueToken($this->createUser(Role::Teacher)->email))->postJson('/api/v1/academic-years/next')->assertForbidden();
+
+        $this->assertDatabaseCount('academic_years', 1);
+    }
+
     public function test_years_are_no_longer_created_or_edited_through_the_api(): void
     {
         $year = AcademicYear::factory()->current()->create(['name' => '2026-27']);
-        $token = $this->issueToken($this->createUser(Role::Admin)->email);
+        $token = $this->adminToken();
 
         $this->withToken($token)->postJson('/api/v1/academic-years', ['name' => '2027-28', 'starts_on' => '2027-06-01', 'ends_on' => '2028-05-31'])->assertMethodNotAllowed();
         $this->withToken($token)->patchJson("/api/v1/academic-years/{$year->id}", ['name' => 'Renamed'])->assertMethodNotAllowed();
 
         $this->assertSame(['2026-27'], AcademicYear::query()->pluck('name')->all());
+    }
+
+    private function adminToken(): string
+    {
+        return $this->issueToken($this->createUser(Role::Admin)->email);
     }
 
     private function setYearStartMonth(int $month): void
