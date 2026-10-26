@@ -24,9 +24,9 @@ use Illuminate\Validation\ValidationException;
 class ExamMarkController extends Controller
 {
     /**
-     * The sheet: the section's students the user may see, in roll-number
-     * order with any marks entered, the paper's maximum marks and what the
-     * user may change.
+     * The sheet: the section's students the user may see in the exam's
+     * year, in roll-number order with any marks entered, the paper's
+     * maximum marks and what the user may change.
      */
     public function index(Request $request, Exam $exam): JsonResponse
     {
@@ -44,7 +44,7 @@ class ExamMarkController extends Controller
         }
 
         $enrollments = $section->enrollments()
-            ->whereHas('student', fn (Builder $students) => $students->visibleTo($user))
+            ->whereHas('student', fn (Builder $students) => $students->visibleTo($user, $exam->academic_year_id))
             ->with('student:id,name,admission_no')
             ->orderBy('roll_no')
             ->get();

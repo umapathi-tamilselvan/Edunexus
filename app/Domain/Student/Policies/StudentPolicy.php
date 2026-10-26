@@ -15,7 +15,7 @@ class StudentPolicy
 
     /**
      * Teachers with only student.view_assigned see students of the sections
-     * they are class teacher of; the same rule as Student::visibleTo().
+     * they teach in the selected year; the same rule as Student::visibleTo().
      */
     public function view(User $user, Student $student): bool
     {

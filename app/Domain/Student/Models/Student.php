@@ -5,6 +5,7 @@ namespace App\Domain\Student\Models;
 use App\Domain\Identity\Enums\Permission;
 use App\Domain\Identity\Models\User;
 use App\Domain\Student\Enums\Gender;
+use App\Support\AcademicYearContext;
 use Database\Factories\StudentFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Scope;
@@ -76,13 +77,14 @@ class Student extends Model implements AuditableContract
 
     /**
      * Students the user may see: everyone with student.view, otherwise only
-     * students in current-year sections the user is class teacher of,
-     * subject teacher of, or teaches in the timetable.
+     * students enrolled, in the academic year (default: the request's
+     * selected year), in sections the user is class teacher of, subject
+     * teacher of, or teaches in the timetable.
      *
      * @param  Builder<self>  $query
      */
     #[Scope]
-    protected function visibleTo(Builder $query, User $user): void
+    protected function visibleTo(Builder $query, User $user, ?int $academicYearId = null): void
     {
         if ($user->can(Permission::StudentView->value) || $user->can(Permission::StudentManage->value)) {
             return;
@@ -94,9 +96,11 @@ class Student extends Model implements AuditableContract
             return;
         }
 
-        $query->whereHas('enrollments', function (Builder $enrollments) use ($user): void {
+        $academicYearId ??= app(AcademicYearContext::class)->id();
+
+        $query->whereHas('enrollments', function (Builder $enrollments) use ($user, $academicYearId): void {
             $enrollments
-                ->whereHas('academicYear', fn (Builder $year) => $year->where('is_current', true))
+                ->where('academic_year_id', $academicYearId)
                 ->whereHas('section', fn (Builder $section) => $section->where(fn (Builder $taught) => $taught
                     ->where('class_teacher_id', $user->id)
                     ->orWhereHas('subjectTeachers', fn (Builder $teachers) => $teachers->where('teacher_id', $user->id))

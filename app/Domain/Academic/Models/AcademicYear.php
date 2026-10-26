@@ -3,6 +3,7 @@
 namespace App\Domain\Academic\Models;
 
 use App\Domain\Examination\Models\Exam;
+use App\Support\AcademicYearContext;
 use Database\Factories\AcademicYearFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Scope;
@@ -35,6 +36,13 @@ class AcademicYear extends Model
     protected $attributes = [
         'is_current' => false,
     ];
+
+    protected static function booted(): void
+    {
+        // AcademicYearContext caches every year.
+        static::saved(fn () => app(AcademicYearContext::class)->forgetYears());
+        static::deleted(fn () => app(AcademicYearContext::class)->forgetYears());
+    }
 
     /**
      * @return array<string, string>

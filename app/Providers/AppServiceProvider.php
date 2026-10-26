@@ -9,6 +9,7 @@ use App\Domain\Identity\Models\User;
 use App\Domain\Identity\Policies\UserPolicy;
 use App\Domain\Student\Models\Student;
 use App\Domain\Student\Policies\StudentPolicy;
+use App\Support\AcademicYearContext;
 use App\Support\OrganizationContext;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
@@ -27,6 +28,7 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->scoped(OrganizationContext::class);
+        $this->app->scoped(AcademicYearContext::class);
     }
 
     /**

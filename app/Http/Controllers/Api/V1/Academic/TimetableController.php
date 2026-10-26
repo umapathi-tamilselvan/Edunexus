@@ -14,6 +14,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Academic\SetTimetableSlotRequest;
 use App\Http\Resources\Api\V1\PeriodResource;
 use App\Http\Resources\Api\V1\TimetableEntryResource;
+use App\Support\AcademicYearContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -42,13 +43,13 @@ class TimetableController extends Controller
     }
 
     /**
-     * The signed-in user's teaching timetable in the current year.
+     * The signed-in user's teaching timetable in the selected year.
      */
-    public function mine(Request $request): JsonResponse
+    public function mine(Request $request, AcademicYearContext $academicYear): JsonResponse
     {
         $entries = TimetableEntry::query()
             ->where('teacher_id', $request->user()->id)
-            ->whereHas('period.academicYear', fn ($year) => $year->where('is_current', true))
+            ->whereHas('period', fn ($periods) => $periods->where('academic_year_id', $academicYear->id()))
             ->with(['period', 'subject', 'section.schoolClass'])
             ->get();
 

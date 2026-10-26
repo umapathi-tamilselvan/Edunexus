@@ -9,6 +9,7 @@ use App\Domain\Academic\Models\Subject;
 use App\Domain\Identity\Models\User;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Academic\AssignSubjectTeacherRequest;
+use App\Support\AcademicYearContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -36,12 +37,12 @@ class SectionSubjectTeacherController extends Controller
     }
 
     /**
-     * The sections and subjects the signed-in user teaches in the current year.
+     * The sections and subjects the signed-in user teaches in the selected year.
      */
-    public function mine(Request $request): JsonResponse
+    public function mine(Request $request, AcademicYearContext $academicYear): JsonResponse
     {
         $assignments = $request->user()->subjectTeaching()
-            ->whereHas('section.schoolClass.academicYear', fn ($year) => $year->where('is_current', true))
+            ->whereHas('section.schoolClass', fn ($classes) => $classes->where('academic_year_id', $academicYear->id()))
             ->with(['subject', 'section.schoolClass'])
             ->get()
             ->sortBy(fn (SectionSubjectTeacher $assignment): string => sprintf('%05d%s%s', $assignment->section->schoolClass->sort_order, $assignment->section->schoolClass->name, $assignment->section->name))

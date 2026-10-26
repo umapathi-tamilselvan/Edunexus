@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Api\V1\Student;
 
-use App\Domain\Academic\Models\AcademicYear;
 use App\Domain\Academic\Models\SchoolClass;
 use App\Domain\Academic\Models\Section;
 use App\Domain\Student\Actions\CreateStudent;
@@ -12,6 +11,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Student\StoreStudentRequest;
 use App\Http\Requests\Api\V1\Student\UpdateStudentRequest;
 use App\Http\Resources\Api\V1\StudentResource;
+use App\Support\AcademicYearContext;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -22,12 +22,12 @@ use Illuminate\Support\Facades\Gate;
 class StudentController extends Controller
 {
     /**
-     * Students the user may see, with their enrollment in the selected year.
-     * The year is academic_year_id, else the filtered section's or class's
-     * year, else the current year. Filters: academic_year_id, class_id,
-     * section_id, search (name or admission number).
+     * Students the user may see, with their enrollment in one year: the
+     * academic_year_id filter, else the filtered section's or class's year,
+     * else the request's selected year. Filters: academic_year_id,
+     * class_id, section_id, search (name or admission number).
      */
-    public function index(Request $request): AnonymousResourceCollection
+    public function index(Request $request, AcademicYearContext $academicYear): AnonymousResourceCollection
     {
         Gate::authorize('viewAny', Student::class);
 
@@ -41,10 +41,10 @@ class StudentController extends Controller
         $yearId = $filters['academic_year_id']
             ?? (isset($filters['section_id']) ? Section::query()->join('classes', 'classes.id', '=', 'sections.class_id')->whereKey($filters['section_id'])->value('classes.academic_year_id') : null)
             ?? (isset($filters['class_id']) ? SchoolClass::query()->whereKey($filters['class_id'])->value('academic_year_id') : null)
-            ?? AcademicYear::query()->current()->value('id');
+            ?? $academicYear->id();
 
         $students = Student::query()
-            ->visibleTo($request->user())
+            ->visibleTo($request->user(), $yearId)
             ->when($filters['search'] ?? null, fn (Builder $query, string $search) => $query->where(
                 fn (Builder $query) => $query->where('name', 'like', "%{$search}%")->orWhere('admission_no', 'like', "{$search}%"),
             ))

@@ -160,7 +160,7 @@ class ListQueryCountTest extends TestCase
         $year = AcademicYear::factory()->current()->create();
         $this->enrollIn($this->sectionIn($year));
 
-        $this->assertQueryBudget(11, $this->adminToken(), '/api/v1/students', function () use ($year): void {
+        $this->assertQueryBudget(10, $this->adminToken(), '/api/v1/students', function () use ($year): void {
             $this->enrollIn($this->sectionIn($year));
             $this->enrollIn($this->sectionIn($year));
         });
@@ -172,7 +172,7 @@ class ListQueryCountTest extends TestCase
         $teacher = $this->createUser();
         $this->enrollIn($this->sectionIn($year, $teacher));
 
-        $this->assertQueryBudget(11, $this->issueToken($teacher->email), '/api/v1/students', function () use ($year, $teacher): void {
+        $this->assertQueryBudget(10, $this->issueToken($teacher->email), '/api/v1/students', function () use ($year, $teacher): void {
             $this->enrollIn($this->sectionIn($year, $teacher));
             $this->enrollIn($this->sectionIn($year, $teacher));
         });
@@ -194,7 +194,7 @@ class ListQueryCountTest extends TestCase
         $class = SchoolClass::factory()->for(AcademicYear::factory()->current())->create();
         AdmissionApplication::factory()->for($class, 'schoolClass')->create();
 
-        $this->assertQueryBudget(9, $this->adminToken(), '/api/v1/admissions', fn () => AdmissionApplication::factory()->count(2)->for($class, 'schoolClass')->create());
+        $this->assertQueryBudget(8, $this->adminToken(), '/api/v1/admissions', fn () => AdmissionApplication::factory()->count(2)->for($class, 'schoolClass')->create());
     }
 
     public function test_a_years_exams_run_a_fixed_number_of_queries(): void
