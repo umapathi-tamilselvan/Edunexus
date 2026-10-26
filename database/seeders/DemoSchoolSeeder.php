@@ -6,6 +6,7 @@ use App\Domain\Academic\Actions\CreateAcademicYear;
 use App\Domain\Academic\Actions\MakeAcademicYearCurrent;
 use App\Domain\Academic\Models\AcademicYear;
 use App\Domain\Academic\Models\Section;
+use App\Domain\Academic\Models\SectionSubjectTeacher;
 use App\Domain\Academic\Models\Subject;
 use App\Domain\Identity\Actions\CreateUser;
 use App\Domain\Identity\Enums\Role;
@@ -36,11 +37,13 @@ use RuntimeException;
  * - the academic year today falls in, current, and the year before it
  *   (e.g. 2025-26 and 2026-27), from the client's start month;
  * - Class 1 to Class 10 in each year, each with sections A, B and C;
- * - subjects, offered to the classes that study them;
+ * - subjects, offered to the classes that study them, and each year's bell
+ *   schedule of eight periods with a short break and lunch;
  * - 30 teachers, teacher01@<client code>.test to teacher30@…, all with the
  *   password "password". Each is class teacher of the same section in both
  *   years: teacher01 of Class 1 A, teacher02 of Class 1 B, … teacher30 of
- *   Class 10 C;
+ *   Class 10 C. Each teaches one subject, every other one a second, and
+ *   every section has a subject teacher for each of its class's subjects;
  * - 50 students per class, each with a father and a mother as guardians.
  *   Last year's students move up a class this year, its Class 10 leaves,
  *   and a new Class 1 joins.
@@ -48,8 +51,10 @@ use RuntimeException;
  * Students, guardians and enrollments are inserted in bulk, a class at a
  * time: CreateStudent and EnrollStudent row by row took about 25 seconds.
  *
- * Safe to rerun: existing years, classes, sections, subjects and teachers
- * are reused, and classes are only topped up to 50 students.
+ * Safe to rerun: existing years, classes, sections, subjects, periods,
+ * teachers and subject teachers are reused, and classes are only topped up
+ * to 50 students. There is no timetable: 30 teachers are too few to give
+ * 30 sections a full week without clashes.
  */
 class DemoSchoolSeeder extends Seeder
 {
@@ -79,6 +84,24 @@ class DemoSchoolSeeder extends Seeder
         'CSC' => ['Computer Science', 1, 10],
     ];
 
+    /**
+     * The bell schedule: name, starts at, ends at. Anything but a period is a break.
+     *
+     * @var list<array{string, string, string}>
+     */
+    private const PERIODS = [
+        ['Period 1', '08:45', '09:30'],
+        ['Period 2', '09:30', '10:15'],
+        ['Short break', '10:15', '10:30'],
+        ['Period 3', '10:30', '11:15'],
+        ['Period 4', '11:15', '12:00'],
+        ['Lunch', '12:00', '12:40'],
+        ['Period 5', '12:40', '13:25'],
+        ['Period 6', '13:25', '14:10'],
+        ['Period 7', '14:10', '14:55'],
+        ['Period 8', '14:55', '15:40'],
+    ];
+
     private Generator $faker;
 
     public function __construct(
@@ -101,6 +124,7 @@ class DemoSchoolSeeder extends Seeder
         Student::withoutAuditing(fn () => DB::transaction(function (): void {
             $teachers = $this->teachers();
             $subjectIds = $this->subjectIdsByClass();
+            $teachersBySubject = $this->teachSubjects($teachers);
             $currentStartYear = $this->createAcademicYear->startYearOf(today());
             $previousSections = [];
 
@@ -110,6 +134,8 @@ class DemoSchoolSeeder extends Seeder
                     ?? $this->createAcademicYear->handle($startYear);
 
                 $sections = $this->classes($year, $teachers, $subjectIds);
+                $this->assignSubjectTeachers($sections, $subjectIds, $teachersBySubject);
+                $this->bellSchedule($year);
                 $this->fillClasses($year, $sections, $previousSections);
                 $previousSections = $sections;
             }
@@ -157,6 +183,88 @@ class DemoSchoolSeeder extends Seeder
         }
 
         return $subjectIds;
+    }
+
+    /**
+     * Gives every teacher one subject, in subject order, and every other
+     * teacher a second one, so each subject has several teachers.
+     *
+     * @param  list<User>  $teachers
+     * @return array<int, list<User>> teachers by subject id
+     */
+    private function teachSubjects(array $teachers): array
+    {
+        $subjectIds = Subject::query()->whereIn('code', array_keys(self::SUBJECTS))->pluck('id', 'code');
+        $codes = array_keys(self::SUBJECTS);
+        $teachersBySubject = [];
+
+        foreach ($teachers as $index => $teacher) {
+            $taught = [$subjectIds[$codes[$index % count($codes)]]];
+
+            if ($index % 2 === 1) {
+                $taught[] = $subjectIds[$codes[($index + 3) % count($codes)]];
+            }
+
+            $teacher->subjects()->syncWithoutDetaching($taught);
+            // Kept for the previous release, which reads one subject per teacher.
+            $teacher->subject_id ??= $taught[0];
+            $teacher->save();
+
+            foreach ($taught as $subjectId) {
+                $teachersBySubject[$subjectId][] = $teacher;
+            }
+        }
+
+        return $teachersBySubject;
+    }
+
+    /**
+     * Gives each section a teacher for every subject its class studies,
+     * spreading a subject's sections evenly over the teachers who teach it.
+     * Teachers already assigned are kept.
+     *
+     * @param  array<int, array<string, Section>>  $sections
+     * @param  array<int, list<int>>  $subjectIds
+     * @param  array<int, list<User>>  $teachersBySubject
+     */
+    private function assignSubjectTeachers(array $sections, array $subjectIds, array $teachersBySubject): void
+    {
+        $sectionIds = collect($sections)->flatten(1)->map(fn (Section $section): int => $section->id)->all();
+        $assigned = SectionSubjectTeacher::query()->whereIn('section_id', $sectionIds)->get(['section_id', 'subject_id', 'teacher_id']);
+        $load = $assigned->countBy('teacher_id')->all();
+        $taken = $assigned->map(fn (SectionSubjectTeacher $assignment): string => "{$assignment->section_id}-{$assignment->subject_id}")->flip()->all();
+        $assignments = [];
+
+        foreach ($sections as $grade => $classSections) {
+            foreach ($classSections as $section) {
+                foreach ($subjectIds[$grade] as $subjectId) {
+                    if (isset($taken["{$section->id}-{$subjectId}"])) {
+                        continue;
+                    }
+
+                    $teacher = collect($teachersBySubject[$subjectId])->sortBy(fn (User $teacher): int => $load[$teacher->id] ?? 0)->first();
+                    $load[$teacher->id] = ($load[$teacher->id] ?? 0) + 1;
+                    $assignments[] = ['section_id' => $section->id, 'subject_id' => $subjectId, 'teacher_id' => $teacher->id];
+                }
+            }
+        }
+
+        SectionSubjectTeacher::query()->fillAndInsert($assignments);
+    }
+
+    /**
+     * A school day of eight periods with a short break and lunch.
+     */
+    private function bellSchedule(AcademicYear $year): void
+    {
+        foreach (self::PERIODS as $order => [$name, $startsAt, $endsAt]) {
+            $year->periods()->firstOrCreate(['name' => $name], [
+                'starts_at' => $startsAt,
+                'ends_at' => $endsAt,
+                'is_break' => ! str_starts_with($name, 'Period'),
+                'sort_order' => $order + 1,
+            ]);
+        }
     }
 
     /**

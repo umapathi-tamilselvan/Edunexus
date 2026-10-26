@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Domain\Academic\Models\AcademicYear;
+use App\Domain\Academic\Models\Period;
 use App\Domain\Academic\Models\Section;
 use App\Domain\Identity\Enums\Role;
 use App\Domain\Identity\Models\User;
@@ -62,6 +63,36 @@ class DemoSchoolSeederTest extends TestCase
         $this->assertSame(30, User::role(Role::Teacher->value)->count());
     }
 
+    public function test_teachers_teach_one_or_two_subjects_and_every_section_has_a_teacher_for_each_subject(): void
+    {
+        $this->seed(DemoSchoolSeeder::class);
+
+        $subjectsTaught = User::query()->withCount('subjects')->pluck('subjects_count');
+        $this->assertSame([1, 2], $subjectsTaught->unique()->sort()->values()->all());
+        $this->assertSame(45, $subjectsTaught->sum());
+
+        $sections = Section::query()->with(['schoolClass.subjects', 'subjectTeachers.teacher.subjects'])->get();
+        $this->assertCount(60, $sections);
+
+        foreach ($sections as $section) {
+            $this->assertEqualsCanonicalizing($section->schoolClass->subjects->modelKeys(), $section->subjectTeachers->pluck('subject_id')->all());
+
+            foreach ($section->subjectTeachers as $assignment) {
+                $this->assertContains($assignment->subject_id, $assignment->teacher->subjects->modelKeys());
+            }
+        }
+
+        // Spread out: in a year, no teacher has more than 12 of the 195 section subjects.
+        $loads = $sections->groupBy('schoolClass.academic_year_id')->map(fn ($yearSections) => $yearSections->flatMap->subjectTeachers->countBy('teacher_id'));
+        $this->assertLessThanOrEqual(12, $loads->flatten()->max());
+
+        $this->assertSame(
+            ['Period 1', 'Period 2', 'Short break', 'Period 3', 'Period 4', 'Lunch', 'Period 5', 'Period 6', 'Period 7', 'Period 8'],
+            AcademicYear::query()->current()->sole()->periods()->pluck('name')->all(),
+        );
+        $this->assertSame(16, Period::query()->where('is_break', false)->count());
+    }
+
     public function test_fills_every_class_with_fifty_students_who_move_up_a_class_the_next_year(): void
     {
         $this->seed(DemoSchoolSeeder::class);
@@ -117,9 +148,17 @@ class DemoSchoolSeederTest extends TestCase
             'device_name' => 'phpunit',
         ])->assertCreated()->json('token');
 
-        $listedIds = $this->withToken($token)->getJson('/api/v1/students')->assertOk()->json('data.*.id');
-        sort($listedIds);
-        $this->assertSame($this->studentIdsIn('2026-27', 'Class 1', 'A'), $listedIds);
+        // Class 1 A as class teacher, and every section they teach a subject to, this year.
+        $teacherId = User::query()->where('email', 'teacher01@test.test')->value('id');
+        $taughtSectionIds = Section::query()
+            ->whereHas('schoolClass.academicYear', fn (Builder $year) => $year->where('is_current', true))
+            ->where(fn (Builder $sections) => $sections->where('class_teacher_id', $teacherId)->orWhereHas('subjectTeachers', fn (Builder $teachers) => $teachers->where('teacher_id', $teacherId)))
+            ->pluck('id');
+        $this->assertContains($this->section('2026-27', 'Class 1', 'A')->id, $taughtSectionIds);
+
+        $listed = $this->withToken($token)->getJson('/api/v1/students')->assertOk();
+        $this->assertSame(StudentEnrollment::query()->whereIn('section_id', $taughtSectionIds)->count(), $listed->json('meta.total'));
+        $this->assertEmpty(array_diff($listed->json('data.*.id'), StudentEnrollment::query()->whereIn('section_id', $taughtSectionIds)->pluck('student_id')->all()));
     }
 
     public function test_rerunning_adds_no_duplicates(): void
@@ -136,6 +175,9 @@ class DemoSchoolSeederTest extends TestCase
         $this->assertDatabaseCount('students', 550);
         $this->assertDatabaseCount('guardians', 1100);
         $this->assertDatabaseCount('student_enrollments', 1000);
+        $this->assertDatabaseCount('subject_teacher', 45);
+        $this->assertDatabaseCount('section_subject_teachers', 390);
+        $this->assertDatabaseCount('periods', 20);
     }
 
     public function test_fills_an_existing_year_and_skips_admission_numbers_in_use(): void
