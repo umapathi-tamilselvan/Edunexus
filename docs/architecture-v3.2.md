@@ -479,7 +479,7 @@ Confirm the exact DPDP obligations with a lawyer before launch; the rules were s
 **Safety net (v3.2 · built).**
 
 - Outside production, Eloquent is strict (`Model::shouldBeStrict()` in `AppServiceProvider`): lazy loading a relation, reading an attribute that wasn't selected and filling one that isn't fillable all throw.
-- `tests/Feature/ListQueryCountTest.php` covers all 18 list endpoints. Each test counts one request's queries with one row, adds two more rows with all their relations, and fails if the count changes (an N+1) or exceeds the endpoint's budget, set to today's count. Tighten a budget when a change lowers it; never raise one to make a test pass.
+- `tests/Feature/ListQueryCountTest.php` covers all 20 list endpoints. Each test counts one request's queries with one row, adds two more rows with all their relations, and fails if the count changes (an N+1) or exceeds the endpoint's budget, set to today's count. Tighten a budget when a change lowers it; never raise one to make a test pass.
 - Every API route has a feature test, including exams, marks sheets, scores and subject teachers, which had none in v3.1.
 
 **Caching.** **v3.2 · planned:** branding (with ETag), `/me`, settings and terminology, timetables and a teacher's section IDs are cached per client and invalidated by model events.

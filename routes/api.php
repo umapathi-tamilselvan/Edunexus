@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\V1\Academic\SchoolClassController;
 use App\Http\Controllers\Api\V1\Academic\SectionController;
 use App\Http\Controllers\Api\V1\Academic\SectionSubjectTeacherController;
 use App\Http\Controllers\Api\V1\Academic\SubjectController;
+use App\Http\Controllers\Api\V1\Academic\TeacherController;
 use App\Http\Controllers\Api\V1\Academic\TimetableController;
 use App\Http\Controllers\Api\V1\Admission\AdmissionController;
 use App\Http\Controllers\Api\V1\Auth\SessionController;
@@ -66,6 +67,8 @@ Route::middleware(['auth:sanctum', 'entitled:academic'])->group(function () {
         Route::get('subjects', [SubjectController::class, 'index'])->name('subjects.index');
         Route::get('academic-years/{academicYear}/periods', [PeriodController::class, 'index'])->name('periods.index');
         Route::get('sections/{section}/timetable', [TimetableController::class, 'section'])->name('timetable.section');
+        Route::get('teachers', [TeacherController::class, 'index'])->name('teachers.index');
+        Route::get('teachers/workload', [TeacherController::class, 'workload'])->name('teachers.workload');
     });
 
     Route::get('me/timetable', [TimetableController::class, 'mine'])->name('timetable.mine');

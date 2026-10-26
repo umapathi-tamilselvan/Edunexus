@@ -145,6 +145,30 @@ class ListQueryCountTest extends TestCase
         });
     }
 
+    public function test_teachers_run_a_fixed_number_of_queries(): void
+    {
+        $this->addSubjectWithTeacher();
+
+        $this->assertQueryBudget(7, $this->adminToken(), '/api/v1/teachers', function (): void {
+            $this->addSubjectWithTeacher();
+            $this->addSubjectWithTeacher();
+        });
+    }
+
+    public function test_teacher_workload_runs_a_fixed_number_of_queries(): void
+    {
+        $year = AcademicYear::factory()->current()->create();
+        $section = $this->sectionIn($year);
+        $this->addTimetableSlot($section, $this->createUser());
+        $this->addSubjectTeacher($section);
+
+        $this->assertQueryBudget(10, $this->adminToken(), '/api/v1/teachers/workload', function () use ($section): void {
+            $this->addTimetableSlot($section, $this->createUser());
+            $this->addTimetableSlot($section, $this->createUser());
+            $this->addSubjectTeacher($section);
+        });
+    }
+
     public function test_roles_run_a_fixed_number_of_queries(): void
     {
         $token = $this->adminToken();
