@@ -15,7 +15,7 @@ v3.2 prepares EduNexus for 10,000–15,000 concurrent users across all clients, 
 | 1 | Strict Eloquent models outside production; query-count tests for every list endpoint | [Performance and scale](#performance-and-scale) | built |
 | 2 | Redis for sessions, cache, queues (Horizon) and rate limiting, with a per-client key prefix and Redis user; throttled token `last_used_at` | [Queues](#queues-notifications-storage-and-audit), [Security](#security-and-compliance) | built |
 | 3 | Academic year as context: start-month setting, automatic first year, next year with copy-forward, year switcher; the year create and edit endpoints are retired | [Core data model](#core-data-model) | built |
-| 4 | A teacher teaches one or more subjects; class-level subject teachers; timetable slots default to the subject teacher; workload matrix; Subjects and Subject teachers pages | [Core data model](#core-data-model) | planned |
+| 4 | A teacher teaches one or more subjects; class-level subject teachers; timetable slots default to the subject teacher; workload matrix; Subjects and Subject teachers pages | [Core data model](#core-data-model) | built |
 | 5 | Minimal attendance (section-day sheets) and fee (dues, payments, receipts) modules | [Core data model](#core-data-model), [Fees](#fees-and-finance-ledger) | planned |
 | 6 | Database: indexes for hot queries, bulk upserts for attendance and marks sheets, queued audits, score and fee-balance projections, cursor pagination | [Performance and scale](#performance-and-scale) | planned |
 | 7 | Caching invalidated by model events: branding (ETag), `/me`, settings and terminology, timetables, a teacher's sections | [Performance and scale](#performance-and-scale) | planned |
@@ -143,7 +143,7 @@ Without `EDUNEXUS_CLIENT`, the root `.env` is used as the development client (`E
 | Seeder | What it creates |
 | --- | --- |
 | `UserSeeder` | A Super Admin from `EDUNEXUS_SUPER_ADMIN_NAME`, `_EMAIL` and `_PASSWORD` in the root `.env`, to sign in to the development client. Skipped when no email is set. `edunexus:client:create` and `edunexus:client:migrate --seed` clear these values first, so the root credentials never reach a client database. |
-| `DemoSchoolSeeder` | The year today falls in (current) and the year before, from the start month, e.g. 2025-26 and 2026-27; Class 1 to Class 10 with sections A, B and C (capacity 40), 8 subjects, 30 teachers (`teacher01@<code>.test` to `teacher30@<code>.test`, password `password`, each a class teacher) and 50 students per class with two guardians each. Last year's students move up a class. Refuses to run in production; safe to rerun. Run it alone with `php artisan db:seed --class=DemoSchoolSeeder`. |
+| `DemoSchoolSeeder` | The year today falls in (current) and the year before, from the start month, e.g. 2025-26 and 2026-27; Class 1 to Class 10 with sections A, B and C (capacity 40), 8 subjects, a bell schedule of eight periods with two breaks, 30 teachers (`teacher01@<code>.test` to `teacher30@<code>.test`, password `password`, each a class teacher, teaching one subject or two) with a subject teacher for every section subject, and 50 students per class with two guardians each. No timetable. Last year's students move up a class. Refuses to run in production; safe to rerun. Run it alone with `php artisan db:seed --class=DemoSchoolSeeder`. |
 
 ## Institution types
 
@@ -212,8 +212,9 @@ app/
 | `academic_years` | name, starts_on, ends_on, is_current | Never overwritten; one current at a time |
 | `classes`, `sections` | academic_year_id, name, capacity, class_teacher_id | Recreated per year so history stays intact |
 | `subjects`, `class_subject` | code, name; class_id, subject_id | Subjects are shared across years; each class offers a set of them |
-| `users.subject_id` | subject_id | The one subject a teacher teaches; a subject has many teachers. **v3.2 · planned:** replaced by `subject_teacher` and dropped in v3.3 |
-| `subject_teacher` | subject_id, user_id | **v3.2 · planned.** The subjects a teacher teaches (one or more) |
+| `users.subject_id` | subject_id | v3.1's one subject per teacher. **v3.2 · built:** replaced by `subject_teacher`, kept in step for one release and dropped in v3.3 |
+| `subject_teacher` | subject_id, user_id | **v3.2 · built.** The subjects a teacher teaches (one or more); primary key on the pair, index on user_id |
+| `timetable_entries.is_override` | is_override | **v3.2 · built.** The slot's teacher was set by hand instead of following the subject teacher |
 | `section_subject_teachers` | section_id, subject_id, teacher_id | Who teaches each subject to a section; unique on (section_id, subject_id) |
 | `exams`, `exam_papers`, `exam_marks` | see [Examinations](#examinations) | Marks hang off the enrollment |
 | `students` | admission_no, name, dob, gender, photo | Identity only, no class column |
@@ -259,22 +260,18 @@ The academic year is a context every screen and endpoint works in, instead of so
 - A period in use cannot be deleted or turned into a break.
 - `GET /api/v1/me/timetable` gives a teacher their own week.
 - A section's timetable response also lists the section's subject teachers.
+- **v3.2 · built.** A slot set without a teacher gets the section's subject teacher for its subject and follows it: when the section's subject teacher changes, those slots move to the new teacher (or lose their teacher when it is cleared). A slot given anyone else is an override (`timetable_entries.is_override`, backfilled for existing slots whose teacher isn't the subject teacher) and stays put. If the new subject teacher is busy in one of the following slots, the change is refused and the error names the clash; nothing is changed.
 
-**Subject teachers.** Academic years and subjects are master data. Per year, each section of a class gets one teacher for each subject the class studies, e.g. 2026-2027, Class 1 A: Mathematics – Satheesh, English – Karthik, Tamil – Srini.
+**Subject teachers (v3.2 · built).** Academic years and subjects are master data. Per year, each section of a class gets one teacher for each subject the class studies, e.g. 2026-27, Class 1 A: Mathematics – Satheesh, English – Karthik, Tamil – Srini.
 
-- A teacher is linked to exactly one subject (`users.subject_id`), set when the user is created or with `PUT users/{id}/subject`. A subject has many teachers.
-- A section's subject teacher must be linked to that subject, and the subject must be offered to the section's class. Assigning no teacher clears the slot.
-- A teacher still assigned to sections cannot move to another subject until those sections get another teacher; the error names the sections.
+- A teacher teaches one or more subjects, held in `subject_teacher`. They are set when the user is created (`subject_ids`), with `PUT users/{id}/subjects`, or per subject with `PUT subjects/{id}/teachers`. A subject has many teachers.
+- The migration copied `users.subject_id` into `subject_teacher` and can run again safely. The column is kept in step (one of the teacher's subjects) for one release, so the previous release still works during a rollout, and is dropped in v3.3 after a final copy. `PUT users/{id}/subject` is removed.
+- A section's subject teacher must teach that subject, and the subject must be offered to the section's class. Assigning no teacher clears it.
+- `PUT classes/{id}/subjects/{subject}/teacher` gives every section of the class the same teacher for the subject, replacing their own, or clears it everywhere. It applies the section rules to each section in one transaction. Sections keep their own assignments, so one can differ afterwards.
+- A subject can't be taken from a teacher who teaches it to sections in the current year or a later one; the error names the sections. Earlier years are history and no longer block (in v3.1 every year did).
 - Taking a subject off a class (`PUT classes/{id}/subjects`) also removes its subject teachers in that class's sections.
 - Subject teachers see the students of their sections (see RBAC), and `GET me/teaching` lists their sections and subjects in the selected year.
-
-**v3.2 · planned.** Some teachers teach more than one subject.
-
-- A teacher's subjects live in `subject_teacher`, copied from `users.subject_id` by a migration. They are set with `PUT users/{id}/subjects` or, per subject, `PUT subjects/{id}/teachers`.
-- `PUT classes/{id}/subjects/{subject}/teacher` assigns a subject teacher at class level.
-- A timetable slot defaults to the section's subject teacher for its subject; a slot with a different teacher is marked `is_override`.
-- A workload matrix endpoint shows each teacher's periods per week.
-- The SPA gets Subjects and Subject teachers pages.
+- `GET teachers` lists everyone with the Teacher role or a subject they teach, with their subjects and without paging; every teacher picker uses it. `GET teachers/workload` gives each teacher's timetable periods per weekday and week and the section subjects they teach in the selected year, plus the teaching periods in a day.
 
 **API (academic, students, admissions).** All under `/api/v1`, behind `entitled:academic`, `entitled:student` or `entitled:admission`. Exam endpoints are under [Examinations](#examinations).
 
@@ -282,9 +279,10 @@ The academic year is a context every screen and endpoint works in, instead of so
 | --- | --- | --- |
 | Years | `GET academic-years`, `GET academic-years/{id}`, `POST academic-years/next`, `POST academic-years/{id}/make-current` | read `academic.view`, write `academic.manage` |
 | Classes, sections | `GET/POST academic-years/{id}/classes`, `PATCH/DELETE classes/{id}`, `PUT classes/{id}/subjects`, `POST classes/{id}/sections`, `GET/PATCH/DELETE sections/{id}` | read `academic.view`, write `academic.manage` |
-| Subjects | `GET/POST subjects` (the list includes each subject's teachers), `PATCH subjects/{id}` | read `academic.view`, write `academic.manage` |
-| Subject teachers | `PUT sections/{id}/subjects/{subject}/teacher` (`teacher_id`, or null to clear), `GET me/teaching` | write `academic.manage`; own list: any signed-in user |
-| Users | `GET/POST users` (`subject_id` optional), `PUT users/{id}/roles`, `PUT users/{id}/subject` | `user.manage` |
+| Subjects | `GET/POST subjects` (the list includes each subject's teachers), `PATCH subjects/{id}`, `PUT subjects/{id}/teachers` | read `academic.view`, write `academic.manage` |
+| Subject teachers | `PUT sections/{id}/subjects/{subject}/teacher` and `PUT classes/{id}/subjects/{subject}/teacher` (`teacher_id`, or null to clear), `GET me/teaching` | write `academic.manage`; own list: any signed-in user |
+| Teachers | `GET teachers`, `GET teachers/workload` | `academic.view` |
+| Users | `GET/POST users` (`subject_ids` optional), `PUT users/{id}/roles`, `PUT users/{id}/subjects` | `user.manage` |
 | Students | `GET students` (search, `class_id`, `section_id`, `academic_year_id`), `GET students/{id}`, `POST students` (with guardians and optional enrollment), `PATCH students/{id}` | read: see RBAC; write `student.manage` |
 | Guardians | `POST students/{id}/guardians`, `DELETE students/{id}/guardians/{guardian}` | `student.manage` |
 | Enrollments | `POST students/{id}/enrollments`, `PATCH enrollments/{id}` | `student.manage` |
@@ -366,7 +364,7 @@ Exams the student was absent for are left out rather than counted as zero. For e
 
 ## Auth, RBAC, users, frontend and mobile
 
-**No registration.** A client's first and only seeded user is its Super Admin, created by `edunexus:client:create`. Users with the `user.manage` permission create every other login, assign roles and link teachers to their subject through the API (`POST /api/v1/users`, `PUT /api/v1/users/{id}/roles`, `PUT /api/v1/users/{id}/subject`).
+**No registration.** A client's first and only seeded user is its Super Admin, created by `edunexus:client:create`. Users with the `user.manage` permission create every other login, assign roles and set the subjects teachers teach through the API (`POST /api/v1/users`, `PUT /api/v1/users/{id}/roles`, `PUT /api/v1/users/{id}/subjects`).
 
 **RBAC.** Spatie Permission in the client database, guard `web` for both cookie and token requests. Permissions are fixed in code (`App\Domain\Identity\Enums\Permission`, e.g. `attendance.mark`, `fee.collect`). Roles are seeded per institution type and editable by the client; reseeding never overwrites a client's edits. A teacher's access is further scoped by policy: the Teacher role holds `student.view_assigned`, which shows only students enrolled, in the selected year (current by default), in sections where they are class teacher, subject teacher, or teach a timetable period. `student.view` (Accountant, Principal, Admin) shows every student. Guardian phone numbers are masked except for users with `student.manage`. Roles of clients created before this permission existed keep their previous Teacher permissions until edited.
 
@@ -395,10 +393,12 @@ Exams the student was absent for are left out rather than counted as zero. For e
 | Students, student profile | `/students`, `/students/{id}` | `student.view`, `student.view_assigned` or `student.manage`; module `student` |
 | Admissions | `/admissions` | `admission.manage`; module `admission` |
 | Timetable | `/timetable` | `academic.view`; module `academic` |
-| Academic setup (years, classes, sections, subjects) | `/academic` | `academic.view`; module `academic` |
-| Users | `/users` | `user.manage` |
+| Subject teachers, with a Workload tab (v3.2) | `/subject-teachers` | `academic.view`; module `academic` (changes need `academic.manage`) |
+| Academic setup (years, classes, sections, class subjects) | `/academic` | `academic.view`; module `academic` |
+| Subjects and their teachers (v3.2) | `/subjects` | `academic.view`; module `academic` (changes need `academic.manage`) |
+| Users (with the subjects each teaches) | `/users` | `user.manage` |
 
-No screens exist yet for subject teachers, exams, marks entry or subject scores.
+No screens exist yet for exams, marks entry or subject scores.
 
 **Mobile (Flutter).** Signs in with `POST /api/v1/auth/tokens` and sends a Sanctum bearer token. Tokens live in the client database, so a token from one client never works on another. How the app finds a client's URL is an open question (see below), because there is no central school directory in this model.
 

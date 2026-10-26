@@ -44,6 +44,9 @@ Oct 25, 2026 · Analysis only; no application code was changed.
 | How is the selected year sent? *(Oct 26; to confirm)* | As an `X-Academic-Year` header (a year id) on every API request, so the SPA and the mobile app work the same way and no session state is needed. No header means the current year; an unknown year is a 422. | Step 3. |
 | What if today falls in no year? *(Oct 26)* | It can't: years are contiguous from the start month, and the current year is the `is_current` flag, not today's date. | Step 3. |
 | Retired endpoints (question 9)? *(Oct 26; to confirm)* | `POST`/`PATCH academic-years` are removed now (405). A mobile build that calls them would need `academic-years/next` instead. | Step 3. |
+| `PUT classes/{id}/subjects/{subject}/teacher` (question 10)? *(Oct 26, while building step 4; to confirm)* | It sets the teacher on every section of the class, replacing their own. No class-level default is stored, so `section_subject_teachers` stays the one source for visibility and marks entry. | Step 4. |
+| Timetable defaults (question 11)? *(Oct 26; to confirm)* | Slots following the subject teacher move with it. If the new teacher is busy in one of them, the whole change is refused with the clash named, so nothing is half-done. | Step 4. |
+| `users.subject_id` (question 16)? *(Oct 26)* | Kept in step with `subject_teacher` for one release and dropped in v3.3; `PUT users/{id}/subject` is removed. | Step 4. |
 | New dependencies? | Keep the current ones; add one only when a step needs it. | **Horizon** is added in step 2.3, because the brief names it. **No Redis client package**: production uses the phpredis extension in the server image (the config already defaults to it), while local and tests keep the database drivers. **Octane is not added**: the worker test reproduces Octane's per-request reset itself. **k6** is installed on the machine that runs load tests, not added to the project. |
 
 ### What the overall target means
