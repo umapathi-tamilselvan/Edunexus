@@ -10,14 +10,19 @@ use Illuminate\Database\Seeder;
 class DatabaseSeeder extends Seeder
 {
     /**
-     * Seed the application's database.
+     * Seed the application's database. Development clients also get the
+     * sample school; DemoSchoolSeeder refuses to run in production, and
+     * tests build their own data.
      */
     public function run(): void
     {
         $this->call([
             InstitutionTypeSeeder::class,
             UserSeeder::class,
-            DemoSchoolSeeder::class,
         ]);
+
+        if (app()->environment('local')) {
+            $this->call(DemoSchoolSeeder::class);
+        }
     }
 }

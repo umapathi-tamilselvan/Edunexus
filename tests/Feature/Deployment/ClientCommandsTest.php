@@ -55,6 +55,9 @@ class ClientCommandsTest extends TestCase
         $this->assertStringContainsString("EDUNEXUS_CLIENT_CODE=abc\n", $settings);
         $this->assertStringContainsString("EDUNEXUS_INSTITUTION_TYPE=school\n", $settings);
         $this->assertStringContainsString("RECEIPT_PREFIX=ABC\n", $settings);
+        $this->assertStringContainsString("SESSION_DRIVER=database\nSESSION_LIFETIME", $settings);
+        $this->assertStringContainsString("CACHE_STORE=database\nQUEUE_CONNECTION=database\n", $settings);
+        $this->assertStringNotContainsString('REDIS_', $settings.$secrets);
         $this->assertStringNotContainsString('DB_PASSWORD', $settings);
         $this->assertStringNotContainsString('APP_KEY', $settings);
         $this->assertMatchesRegularExpression('/^APP_KEY=base64:.{44}$/m', $secrets);
@@ -65,6 +68,26 @@ class ClientCommandsTest extends TestCase
             $this->assertSame(['owner@abc.test'], DB::table('users')->pluck('email')->all());
             $this->assertSame('Super Admin', DB::table('roles')->join('model_has_roles', 'roles.id', '=', 'model_has_roles.role_id')->value('roles.name'));
         });
+    }
+
+    public function test_a_production_client_uses_redis_as_its_own_user_limited_to_its_keys(): void
+    {
+        $this->app['env'] = 'production';
+
+        $this->artisan('edunexus:client:create', ['code' => 'abc', '--name' => 'ABC School', '--type' => 'school', '--admin-email' => 'owner@abc.test'])
+            ->expectsOutputToContain(self::PREFIX.'abc (password: REDIS_PASSWORD in abc.env.secure)')
+            ->expectsOutputToContain('on ~edunexus:abc:* &edunexus:abc:* +@all -@dangerous')
+            ->expectsOutputToContain('Create the Redis user '.self::PREFIX.'abc with this access before deploying.')
+            ->assertSuccessful();
+
+        $files = app(ClientFiles::class);
+        $settings = file_get_contents($files->settingsPath('abc'));
+        $secrets = file_get_contents($files->secretsPath('abc'));
+        $this->assertStringContainsString("SESSION_DRIVER=redis\n", $settings);
+        $this->assertStringContainsString("CACHE_STORE=redis\nQUEUE_CONNECTION=redis\n", $settings);
+        $this->assertStringContainsString('REDIS_USERNAME='.self::PREFIX."abc\n", $settings);
+        $this->assertStringNotContainsString('REDIS_PASSWORD', $settings);
+        $this->assertMatchesRegularExpression('/^REDIS_PASSWORD=[A-Za-z0-9]{32}$/m', $secrets);
     }
 
     public function test_the_client_user_cannot_read_other_databases(): void
@@ -292,6 +315,20 @@ class ClientCommandsTest extends TestCase
             'files' => $this->clientStorage().'/app/private/report.pdf',
         ], json_decode($output, true));
         $this->assertDirectoryExists($this->clientStorage().'/framework/views');
+    }
+
+    public function test_each_client_gets_its_own_redis_key_prefix_and_session_cookie(): void
+    {
+        $this->createClient('abc');
+        $this->createClient('xyz');
+        $keys = fn (string $code): array => json_decode($this->runAsClient($code, 'echo json_encode(['
+            .'"redis" => config("database.redis.options.prefix"),'
+            .'"horizon" => config("horizon.prefix"),'
+            .'"cookie" => config("session.cookie"),'
+            .']);'), true);
+
+        $this->assertSame(['redis' => 'edunexus:abc:', 'horizon' => 'edunexus:abc:horizon:', 'cookie' => 'edunexus_abc_session'], $keys('abc'));
+        $this->assertSame(['redis' => 'edunexus:xyz:', 'horizon' => 'edunexus:xyz:horizon:', 'cookie' => 'edunexus_xyz_session'], $keys('xyz'));
     }
 
     public function test_each_client_caches_its_config_separately(): void

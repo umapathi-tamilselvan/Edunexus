@@ -1,7 +1,5 @@
 <?php
 
-use Illuminate\Support\Str;
-
 return [
 
     /*
@@ -122,14 +120,14 @@ return [
     |--------------------------------------------------------------------------
     |
     | Here you may change the name of the session cookie that is created by
-    | the framework. Typically, you should not need to change this value
-    | since doing so does not grant a meaningful security improvement.
+    | the framework. It carries the client code, so clients running side by
+    | side on one host (e.g. localhost) never overwrite each other's cookie.
     |
     */
 
     'cookie' => env(
         'SESSION_COOKIE',
-        Str::slug((string) env('APP_NAME', 'laravel')).'-session'
+        'edunexus_'.env('EDUNEXUS_CLIENT_CODE', 'dev').'_session'
     ),
 
     /*

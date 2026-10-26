@@ -1,6 +1,5 @@
 <?php
 
-use Illuminate\Support\Str;
 use Pdo\Mysql;
 
 return [
@@ -160,6 +159,10 @@ return [
     | provides a richer body of commands than a typical key-value system
     | such as Memcached. You may define your connection settings here.
     |
+    | Every client shares one Redis, so every key (cache, sessions, queues)
+    | starts with "edunexus:<client code>:", and each client's Redis user
+    | may only touch keys with its own prefix.
+    |
     */
 
     'redis' => [
@@ -168,7 +171,7 @@ return [
 
         'options' => [
             'cluster' => env('REDIS_CLUSTER', 'redis'),
-            'prefix' => env('REDIS_PREFIX', Str::slug((string) env('APP_NAME', 'laravel')).'-database-'),
+            'prefix' => env('REDIS_PREFIX', 'edunexus:'.env('EDUNEXUS_CLIENT_CODE', 'dev').':'),
             'persistent' => env('REDIS_PERSISTENT', false),
         ],
 

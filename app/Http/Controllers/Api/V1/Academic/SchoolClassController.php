@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1\Academic;
 
+use App\Domain\Academic\Actions\SyncClassSubjects;
 use App\Domain\Academic\Models\AcademicYear;
 use App\Domain\Academic\Models\SchoolClass;
 use App\Http\Controllers\Controller;
@@ -45,10 +46,8 @@ class SchoolClassController extends Controller
         return response()->noContent();
     }
 
-    public function syncSubjects(SyncClassSubjectsRequest $request, SchoolClass $schoolClass): SchoolClassResource
+    public function syncSubjects(SyncClassSubjectsRequest $request, SchoolClass $schoolClass, SyncClassSubjects $syncClassSubjects): SchoolClassResource
     {
-        $schoolClass->subjects()->sync($request->validated('subject_ids'));
-
-        return new SchoolClassResource($schoolClass->load('subjects'));
+        return new SchoolClassResource($syncClassSubjects->handle($schoolClass, $request->validated('subject_ids')));
     }
 }

@@ -78,6 +78,21 @@ class AuthenticationTest extends TestCase
         $this->assertSame(0, PersonalAccessToken::query()->count());
     }
 
+    public function test_a_tokens_last_use_is_written_at_most_every_five_minutes(): void
+    {
+        $this->travelTo('2026-10-25 09:00:00');
+        $token = $this->issueToken($this->teacher->email);
+        $this->withToken($token)->getJson('/api/v1/me')->assertOk();
+
+        $this->travelTo('2026-10-25 09:04:59');
+        $this->withToken($token)->getJson('/api/v1/me')->assertOk();
+        $this->assertSame('2026-10-25 09:00:00', PersonalAccessToken::query()->sole()->last_used_at->toDateTimeString());
+
+        $this->travelTo('2026-10-25 09:05:00');
+        $this->withToken($token)->getJson('/api/v1/me')->assertOk();
+        $this->assertSame('2026-10-25 09:05:00', PersonalAccessToken::query()->sole()->last_used_at->toDateTimeString());
+    }
+
     public function test_the_spa_signs_in_with_a_session_cookie_on_its_own_domain(): void
     {
         $this->withHeader('Referer', 'http://localhost/')
@@ -101,6 +116,17 @@ class AuthenticationTest extends TestCase
             ->assertOk();
 
         $this->assertDatabaseHas('sessions', ['user_id' => $this->teacher->id]);
+    }
+
+    public function test_signing_out_of_the_spa_ends_the_session_and_returns_204(): void
+    {
+        $spa = $this->withHeader('Referer', 'http://localhost/');
+        $spa->postJson('/api/v1/auth/login', ['email' => $this->teacher->email, 'password' => self::PASSWORD])->assertOk();
+        $this->assertAuthenticatedAs($this->teacher, 'web');
+
+        $spa->postJson('/api/v1/auth/logout')->assertNoContent();
+
+        $this->assertGuest('web');
     }
 
     public function test_cookie_sign_in_is_refused_for_requests_not_from_the_web_app(): void

@@ -1,15 +1,25 @@
 <script setup>
-defineProps({
+import { computed } from 'vue';
+import AppIcon from './AppIcon.vue';
+
+const props = defineProps({
     tone: { type: String, default: 'error' },
 });
+
+const tones = {
+    error: { classes: 'border-danger/20 bg-danger-light text-danger-strong', icon: 'circle-alert' },
+    success: { classes: 'border-success/25 bg-success-light text-success-strong', icon: 'circle-check' },
+    warning: { classes: 'border-warning/30 bg-warning-light text-warning-strong', icon: 'triangle-alert' },
+};
+
+const style = computed(() => tones[props.tone] ?? tones.error);
 </script>
 
 <template>
-    <div
-        role="alert"
-        class="rounded-md border px-3 py-2 text-sm"
-        :class="tone === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-red-200 bg-red-50 text-red-700'"
-    >
-        <slot />
+    <div :role="tone === 'error' ? 'alert' : 'status'" class="flex items-start gap-2.5 rounded-lg border px-4 py-3 text-2sm" :class="style.classes">
+        <AppIcon :name="style.icon" class="size-4.5" />
+        <div class="min-w-0 flex-1">
+            <slot />
+        </div>
     </div>
 </template>

@@ -81,6 +81,63 @@ class AcademicStructureTest extends TestCase
             ->assertJsonPath('data.classes.0.subjects.0.code', 'MATH');
     }
 
+    public function test_a_years_classes_are_listed_with_their_sections_and_subjects(): void
+    {
+        $year = AcademicYear::factory()->current()->create();
+        $class = SchoolClass::factory()->for($year)->create(['name' => 'Class 5']);
+        Section::factory()->for($class, 'schoolClass')->create(['name' => 'A']);
+        $class->subjects()->attach(Subject::factory()->create(['name' => 'Mathematics']));
+
+        $this->withToken($this->adminToken)->getJson("/api/v1/academic-years/{$year->id}/classes")
+            ->assertOk()
+            ->assertJsonPath('data.0.name', 'Class 5')
+            ->assertJsonPath('data.0.sections.0.name', 'A')
+            ->assertJsonPath('data.0.subjects.0.name', 'Mathematics');
+    }
+
+    public function test_a_class_is_renamed_and_reordered_keeping_names_unique_within_its_year(): void
+    {
+        $class = SchoolClass::factory()->create(['name' => 'Class 5', 'sort_order' => 5]);
+        SchoolClass::factory()->for($class->academicYear)->create(['name' => 'Class 6']);
+
+        $this->withToken($this->adminToken)->patchJson("/api/v1/classes/{$class->id}", ['name' => 'Class 6'])
+            ->assertJsonValidationErrors(['name' => 'The name has already been taken.']);
+        $this->withToken($this->adminToken)->patchJson("/api/v1/classes/{$class->id}", ['name' => 'Class V', 'sort_order' => 15])
+            ->assertOk()
+            ->assertJsonPath('data.name', 'Class V')
+            ->assertJsonPath('data.sort_order', 15);
+    }
+
+    public function test_a_section_shows_its_class_year_class_teacher_and_the_classs_subjects(): void
+    {
+        $year = AcademicYear::factory()->current()->create(['name' => '2026-27']);
+        $class = SchoolClass::factory()->for($year)->create(['name' => 'Class 5']);
+        $class->subjects()->attach(Subject::factory()->create(['name' => 'Mathematics']));
+        $section = Section::factory()->for($class, 'schoolClass')->create(['name' => 'A', 'class_teacher_id' => $this->createUser(Role::Teacher, ['name' => 'Meena'])->id]);
+        StudentEnrollment::factory()->create(['section_id' => $section->id]);
+
+        $this->withToken($this->adminToken)->getJson("/api/v1/sections/{$section->id}")
+            ->assertOk()
+            ->assertJsonPath('data.enrolled_count', 1)
+            ->assertJsonPath('data.class_teacher.name', 'Meena')
+            ->assertJsonPath('data.class.name', 'Class 5')
+            ->assertJsonPath('data.class.academic_year.name', '2026-27')
+            ->assertJsonPath('data.class.academic_year.is_current', true)
+            ->assertJsonPath('data.class.subjects.0.name', 'Mathematics');
+    }
+
+    public function test_a_subject_is_renamed_keeping_its_code_unique(): void
+    {
+        Subject::factory()->create(['code' => 'ENG']);
+        $subject = Subject::factory()->create(['code' => 'MATH', 'name' => 'Maths']);
+
+        $this->withToken($this->adminToken)->patchJson("/api/v1/subjects/{$subject->id}", ['code' => 'eng', 'name' => 'Maths'])
+            ->assertJsonValidationErrors(['code' => 'The code has already been taken.']);
+        $this->withToken($this->adminToken)->patchJson("/api/v1/subjects/{$subject->id}", ['code' => 'MATH', 'name' => 'Mathematics'])
+            ->assertOk()
+            ->assertJsonPath('data.name', 'Mathematics');
+    }
+
     public function test_class_and_section_names_are_unique_only_within_their_parent(): void
     {
         $class = SchoolClass::factory()->create(['name' => 'Class 5']);

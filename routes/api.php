@@ -4,12 +4,16 @@ use App\Http\Controllers\Api\V1\Academic\AcademicYearController;
 use App\Http\Controllers\Api\V1\Academic\PeriodController;
 use App\Http\Controllers\Api\V1\Academic\SchoolClassController;
 use App\Http\Controllers\Api\V1\Academic\SectionController;
+use App\Http\Controllers\Api\V1\Academic\SectionSubjectTeacherController;
 use App\Http\Controllers\Api\V1\Academic\SubjectController;
 use App\Http\Controllers\Api\V1\Academic\TimetableController;
 use App\Http\Controllers\Api\V1\Admission\AdmissionController;
 use App\Http\Controllers\Api\V1\Auth\SessionController;
 use App\Http\Controllers\Api\V1\Auth\TokenController;
 use App\Http\Controllers\Api\V1\BrandingController;
+use App\Http\Controllers\Api\V1\Examination\ExamController;
+use App\Http\Controllers\Api\V1\Examination\ExamMarkController;
+use App\Http\Controllers\Api\V1\Examination\SubjectScoreController;
 use App\Http\Controllers\Api\V1\MeController;
 use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\Student\EnrollmentController;
@@ -46,22 +50,26 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('roles', [RoleController::class, 'index'])->name('roles.index');
     Route::apiResource('users', UserController::class)->only(['index', 'store']);
     Route::put('users/{user}/roles', [UserController::class, 'updateRoles'])->name('users.roles.update');
+    Route::put('users/{user}/subject', [UserController::class, 'updateSubject'])->name('users.subject.update');
 });
 
 /*
-| Academic structure: years, classes, sections and subjects.
+| Academic structure: years, classes, sections, subjects and who teaches
+| each subject to each section.
 */
 Route::middleware(['auth:sanctum', 'entitled:academic'])->group(function () {
     Route::middleware('can:academic.view')->group(function () {
         Route::get('academic-years', [AcademicYearController::class, 'index'])->name('academic-years.index');
         Route::get('academic-years/{academicYear}', [AcademicYearController::class, 'show'])->name('academic-years.show');
         Route::get('academic-years/{academicYear}/classes', [SchoolClassController::class, 'index'])->name('classes.index');
+        Route::get('sections/{section}', [SectionController::class, 'show'])->name('sections.show');
         Route::get('subjects', [SubjectController::class, 'index'])->name('subjects.index');
         Route::get('academic-years/{academicYear}/periods', [PeriodController::class, 'index'])->name('periods.index');
         Route::get('sections/{section}/timetable', [TimetableController::class, 'section'])->name('timetable.section');
     });
 
     Route::get('me/timetable', [TimetableController::class, 'mine'])->name('timetable.mine');
+    Route::get('me/teaching', [SectionSubjectTeacherController::class, 'mine'])->name('teaching.mine');
 
     Route::middleware('can:academic.manage')->group(function () {
         Route::post('academic-years', [AcademicYearController::class, 'store'])->name('academic-years.store');
@@ -76,6 +84,7 @@ Route::middleware(['auth:sanctum', 'entitled:academic'])->group(function () {
         Route::post('classes/{schoolClass}/sections', [SectionController::class, 'store'])->name('sections.store');
         Route::patch('sections/{section}', [SectionController::class, 'update'])->name('sections.update');
         Route::delete('sections/{section}', [SectionController::class, 'destroy'])->name('sections.destroy');
+        Route::put('sections/{section}/subjects/{subject}/teacher', [SectionSubjectTeacherController::class, 'update'])->name('sections.subjects.teacher.update');
 
         Route::post('subjects', [SubjectController::class, 'store'])->name('subjects.store');
         Route::patch('subjects/{subject}', [SubjectController::class, 'update'])->name('subjects.update');
@@ -121,4 +130,26 @@ Route::middleware(['auth:sanctum', 'entitled:admission', 'can:admission.manage']
     Route::patch('admissions/{admission}', [AdmissionController::class, 'update'])->name('admissions.update');
     Route::post('admissions/{admission}/decision', [AdmissionController::class, 'decide'])->name('admissions.decide');
     Route::post('admissions/{admission}/admit', [AdmissionController::class, 'admit'])->name('admissions.admit');
+});
+
+/*
+| Exams and marks. Marks are entered by anyone with exam.manage, or with
+| exam.enter_marks by the section's subject teacher (ExamPolicy).
+*/
+Route::middleware(['auth:sanctum', 'entitled:examination'])->group(function () {
+    Route::middleware('can:exam.view')->group(function () {
+        Route::get('academic-years/{academicYear}/exams', [ExamController::class, 'index'])->name('exams.index');
+        Route::get('exams/{exam}', [ExamController::class, 'show'])->name('exams.show');
+        Route::get('exams/{exam}/marks', [ExamMarkController::class, 'index'])->name('exams.marks.index');
+        Route::get('students/{student}/scores', SubjectScoreController::class)->middleware('entitled:student')->name('students.scores');
+    });
+
+    Route::put('exams/{exam}/marks', [ExamMarkController::class, 'update'])->name('exams.marks.update');
+
+    Route::middleware('can:exam.manage')->group(function () {
+        Route::post('academic-years/{academicYear}/exams', [ExamController::class, 'store'])->name('exams.store');
+        Route::patch('exams/{exam}', [ExamController::class, 'update'])->name('exams.update');
+        Route::delete('exams/{exam}', [ExamController::class, 'destroy'])->name('exams.destroy');
+        Route::put('exams/{exam}/classes/{schoolClass}/subjects/{subject}/max-marks', [ExamController::class, 'setMaxMarks'])->name('exams.max-marks.update');
+    });
 });

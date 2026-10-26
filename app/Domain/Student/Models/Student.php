@@ -76,8 +76,8 @@ class Student extends Model implements AuditableContract
 
     /**
      * Students the user may see: everyone with student.view, otherwise only
-     * students in current-year sections the user is class teacher of or
-     * teaches in the timetable.
+     * students in current-year sections the user is class teacher of,
+     * subject teacher of, or teaches in the timetable.
      *
      * @param  Builder<self>  $query
      */
@@ -99,6 +99,7 @@ class Student extends Model implements AuditableContract
                 ->whereHas('academicYear', fn (Builder $year) => $year->where('is_current', true))
                 ->whereHas('section', fn (Builder $section) => $section->where(fn (Builder $taught) => $taught
                     ->where('class_teacher_id', $user->id)
+                    ->orWhereHas('subjectTeachers', fn (Builder $teachers) => $teachers->where('teacher_id', $user->id))
                     ->orWhereHas('timetableEntries', fn (Builder $entries) => $entries->where('teacher_id', $user->id))));
         });
     }

@@ -2,7 +2,12 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import AlertMessage from '../../components/AlertMessage.vue';
+import AppIcon from '../../components/AppIcon.vue';
+import EmptyState from '../../components/EmptyState.vue';
 import FormField from '../../components/FormField.vue';
+import InitialsAvatar from '../../components/InitialsAvatar.vue';
+import LoadingState from '../../components/LoadingState.vue';
+import PageHeader from '../../components/PageHeader.vue';
 import { parseError } from '../../lib/errors';
 import { http } from '../../lib/http';
 import { loadAcademicYears, loadYearStructure, sectionOptions } from '../academic';
@@ -21,6 +26,12 @@ const formError = ref({ message: '', fields: {} });
 const openForm = ref(null);
 
 const relations = ['father', 'mother', 'guardian', 'grandparent', 'sibling', 'other'];
+const enrollmentTone = {
+    active: 'badge-success',
+    promoted: 'badge-primary',
+    detained: 'badge-warning',
+    left: 'badge-neutral',
+};
 const guardianForm = reactive({ name: '', phone: '', email: '', relation: 'mother', is_primary: false });
 const detailsForm = reactive({ admission_no: '', name: '', date_of_birth: '', gender: 'male' });
 const placementForm = reactive({ section_id: '', roll_no: '' });
@@ -115,138 +126,168 @@ onMounted(load);
 </script>
 
 <template>
-    <div class="space-y-6">
-        <RouterLink to="/students" class="text-sm text-indigo-600 hover:underline">← All students</RouterLink>
+    <div class="flex flex-col gap-5 lg:gap-7.5">
+        <PageHeader title="Student profile" :back="{ to: '/students', label: 'All students' }" />
 
         <AlertMessage v-if="loadError">{{ loadError }}</AlertMessage>
         <AlertMessage v-if="notice" tone="success">{{ notice }}</AlertMessage>
 
+        <LoadingState v-if="!student && !loadError" class="card" />
+
         <template v-if="student">
-            <section class="card p-5">
-                <div class="flex flex-wrap items-start justify-between gap-4">
-                    <div>
-                        <h1 class="text-xl font-semibold">{{ student.name }}</h1>
-                        <p class="text-sm text-slate-500">
-                            Admission no. <span class="font-mono">{{ student.admission_no }}</span> · Born {{ student.date_of_birth }} · <span class="capitalize">{{ student.gender }}</span>
-                        </p>
+            <section class="card">
+                <div class="card-body flex flex-wrap items-center gap-5">
+                    <InitialsAvatar :name="student.name" size="lg" />
+                    <div class="flex min-w-0 flex-1 flex-col gap-2">
+                        <h2 class="text-lg font-semibold text-gray-900">{{ student.name }}</h2>
+                        <div class="flex flex-wrap gap-x-5 gap-y-1.5 text-2sm text-gray-600">
+                            <span class="flex items-center gap-1.5">
+                                <AppIcon name="admissions" class="size-4 text-gray-500" />
+                                Admission no. <span class="font-mono text-gray-800">{{ student.admission_no }}</span>
+                            </span>
+                            <span class="flex items-center gap-1.5">
+                                <AppIcon name="calendar" class="size-4 text-gray-500" />
+                                Born {{ student.date_of_birth }}
+                            </span>
+                            <span class="flex items-center gap-1.5 capitalize">
+                                <AppIcon name="students" class="size-4 text-gray-500" />
+                                {{ student.gender }}
+                            </span>
+                        </div>
                     </div>
-                    <button v-if="canManage && openForm !== 'details'" type="button" class="btn-secondary" @click="open('details')">Edit details</button>
+                    <button v-if="canManage && openForm !== 'details'" type="button" class="btn-secondary" @click="open('details')">
+                        <AppIcon name="pencil" class="size-4" />
+                        Edit details
+                    </button>
                 </div>
 
-                <form v-if="openForm === 'details'" class="mt-5 space-y-4 border-t border-slate-200 pt-5" @submit.prevent="saveDetails">
-                    <AlertMessage v-if="formError.message">{{ formError.message }}</AlertMessage>
-                    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                        <FormField label="Admission no." :error="formError.fields.admission_no">
-                            <input v-model="detailsForm.admission_no" required class="input" />
-                        </FormField>
-                        <FormField label="Full name" :error="formError.fields.name">
-                            <input v-model="detailsForm.name" required class="input" />
-                        </FormField>
-                        <FormField label="Date of birth" :error="formError.fields.date_of_birth">
-                            <input v-model="detailsForm.date_of_birth" type="date" required class="input" />
-                        </FormField>
-                        <FormField label="Gender" :error="formError.fields.gender">
-                            <select v-model="detailsForm.gender" class="input">
-                                <option value="male">Male</option>
-                                <option value="female">Female</option>
-                                <option value="other">Other</option>
-                            </select>
-                        </FormField>
+                <form v-if="openForm === 'details'" class="border-t border-gray-200" @submit.prevent="saveDetails">
+                    <div class="card-body flex flex-col gap-5">
+                        <AlertMessage v-if="formError.message">{{ formError.message }}</AlertMessage>
+                        <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+                            <FormField label="Admission no." :error="formError.fields.admission_no">
+                                <input v-model="detailsForm.admission_no" required class="input" />
+                            </FormField>
+                            <FormField label="Full name" :error="formError.fields.name">
+                                <input v-model="detailsForm.name" required class="input" />
+                            </FormField>
+                            <FormField label="Date of birth" :error="formError.fields.date_of_birth">
+                                <input v-model="detailsForm.date_of_birth" type="date" required class="input" />
+                            </FormField>
+                            <FormField label="Gender" :error="formError.fields.gender">
+                                <select v-model="detailsForm.gender" class="input">
+                                    <option value="male">Male</option>
+                                    <option value="female">Female</option>
+                                    <option value="other">Other</option>
+                                </select>
+                            </FormField>
+                        </div>
                     </div>
-                    <div class="flex gap-2">
-                        <button type="submit" class="btn-primary" :disabled="busy">Save</button>
+                    <div class="card-footer">
                         <button type="button" class="btn-secondary" :disabled="busy" @click="openForm = null">Cancel</button>
+                        <button type="submit" class="btn-primary" :disabled="busy">Save</button>
                     </div>
                 </form>
             </section>
 
-            <div class="grid gap-6 lg:grid-cols-2">
-                <section class="card p-5">
-                    <div class="mb-3 flex items-center justify-between">
-                        <h2 class="font-semibold">Guardians</h2>
-                        <button v-if="canManage && openForm !== 'guardian'" type="button" class="text-sm font-medium text-indigo-600 hover:underline" @click="open('guardian')">Add guardian</button>
+            <div class="grid gap-5 lg:grid-cols-2 lg:gap-7.5">
+                <section class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Guardians</h2>
+                        <button v-if="canManage && openForm !== 'guardian'" type="button" class="btn-link" @click="open('guardian')">
+                            <AppIcon name="plus" class="size-4" />
+                            Add guardian
+                        </button>
                     </div>
 
-                    <ul class="divide-y divide-slate-100">
-                        <li v-for="guardian in student.guardians" :key="guardian.id" class="flex items-start justify-between gap-3 py-3">
-                            <div>
-                                <p class="font-medium">
-                                    {{ guardian.name }}
-                                    <span v-if="guardian.is_primary" class="ml-1 rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-800">Primary</span>
-                                </p>
-                                <p class="text-sm text-slate-500"><span class="capitalize">{{ guardian.relation }}</span> · {{ guardian.phone }}<template v-if="guardian.email"> · {{ guardian.email }}</template></p>
+                    <ul class="divide-y divide-gray-200">
+                        <li v-for="guardian in student.guardians" :key="guardian.id" class="flex items-start justify-between gap-3 px-5 py-4 lg:px-7.5">
+                            <div class="flex min-w-0 items-start gap-3">
+                                <InitialsAvatar :name="guardian.name" size="sm" />
+                                <div class="flex min-w-0 flex-col gap-0.5">
+                                    <p class="flex flex-wrap items-center gap-2 font-medium text-gray-900">
+                                        {{ guardian.name }}
+                                        <span v-if="guardian.is_primary" class="badge-primary">Primary</span>
+                                    </p>
+                                    <p class="text-2sm text-gray-600"><span class="capitalize">{{ guardian.relation }}</span> · {{ guardian.phone }}<template v-if="guardian.email"> · {{ guardian.email }}</template></p>
+                                </div>
                             </div>
-                            <button v-if="canManage && student.guardians.length > 1" type="button" class="text-sm font-medium text-red-600 hover:underline" :disabled="busy" @click="removeGuardian(guardian)">Unlink</button>
+                            <button v-if="canManage && student.guardians.length > 1" type="button" class="btn-link-danger" :disabled="busy" @click="removeGuardian(guardian)">Unlink</button>
                         </li>
                     </ul>
 
-                    <form v-if="openForm === 'guardian'" class="mt-3 space-y-3 border-t border-slate-200 pt-4" @submit.prevent="addGuardian">
-                        <AlertMessage v-if="formError.message">{{ formError.message }}</AlertMessage>
-                        <div class="grid gap-3 sm:grid-cols-2">
-                            <FormField label="Name" :error="formError.fields.name">
-                                <input v-model="guardianForm.name" required class="input" />
-                            </FormField>
-                            <FormField label="Mobile" :error="formError.fields.phone">
-                                <input v-model="guardianForm.phone" required inputmode="tel" class="input" />
-                            </FormField>
-                            <FormField label="Email (optional)" :error="formError.fields.email">
-                                <input v-model="guardianForm.email" type="email" class="input" />
-                            </FormField>
-                            <FormField label="Relation" :error="formError.fields.relation">
-                                <select v-model="guardianForm.relation" class="input capitalize">
-                                    <option v-for="relation in relations" :key="relation" :value="relation">{{ relation }}</option>
-                                </select>
-                            </FormField>
+                    <form v-if="openForm === 'guardian'" class="border-t border-gray-200" @submit.prevent="addGuardian">
+                        <div class="card-body flex flex-col gap-4">
+                            <AlertMessage v-if="formError.message">{{ formError.message }}</AlertMessage>
+                            <div class="grid gap-4 sm:grid-cols-2">
+                                <FormField label="Name" :error="formError.fields.name">
+                                    <input v-model="guardianForm.name" required class="input" />
+                                </FormField>
+                                <FormField label="Mobile" :error="formError.fields.phone">
+                                    <input v-model="guardianForm.phone" required inputmode="tel" class="input" />
+                                </FormField>
+                                <FormField label="Email (optional)" :error="formError.fields.email">
+                                    <input v-model="guardianForm.email" type="email" class="input" />
+                                </FormField>
+                                <FormField label="Relation" :error="formError.fields.relation">
+                                    <select v-model="guardianForm.relation" class="input capitalize">
+                                        <option v-for="relation in relations" :key="relation" :value="relation">{{ relation }}</option>
+                                    </select>
+                                </FormField>
+                            </div>
+                            <label class="flex items-center gap-2 text-2sm text-gray-700">
+                                <input v-model="guardianForm.is_primary" type="checkbox" class="checkbox" />
+                                Make primary contact
+                            </label>
                         </div>
-                        <label class="flex items-center gap-2 text-sm">
-                            <input v-model="guardianForm.is_primary" type="checkbox" class="accent-indigo-600" />
-                            Make primary contact
-                        </label>
-                        <div class="flex gap-2">
-                            <button type="submit" class="btn-primary" :disabled="busy">Link guardian</button>
+                        <div class="card-footer">
                             <button type="button" class="btn-secondary" :disabled="busy" @click="openForm = null">Cancel</button>
+                            <button type="submit" class="btn-primary" :disabled="busy">Link guardian</button>
                         </div>
                     </form>
                 </section>
 
-                <section class="card p-5">
-                    <div class="mb-3 flex items-center justify-between">
-                        <h2 class="font-semibold">Enrollment</h2>
-                        <button v-if="canManage && year && openForm !== 'placement'" type="button" class="text-sm font-medium text-indigo-600 hover:underline" @click="open('placement')">
+                <section class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Enrollment</h2>
+                        <button v-if="canManage && year && openForm !== 'placement'" type="button" class="btn-link" @click="open('placement')">
                             {{ currentEnrollment ? 'Change placement' : `Enroll in ${year.name}` }}
                         </button>
                     </div>
 
-                    <ul class="divide-y divide-slate-100">
-                        <li v-for="enrollment in student.enrollments" :key="enrollment.id" class="flex justify-between py-3 text-sm">
-                            <span>
-                                <span class="font-medium">{{ enrollment.academic_year.name }}</span> ·
-                                {{ enrollment.class.name }} {{ enrollment.section.name }}
-                                <template v-if="enrollment.roll_no"> · Roll {{ enrollment.roll_no }}</template>
-                            </span>
-                            <span class="capitalize text-slate-500">{{ enrollment.status }}</span>
+                    <ul v-if="student.enrollments.length" class="divide-y divide-gray-200">
+                        <li v-for="enrollment in student.enrollments" :key="enrollment.id" class="flex items-center justify-between gap-3 px-5 py-4 text-2sm lg:px-7.5">
+                            <div class="flex flex-col gap-0.5">
+                                <span class="font-medium text-gray-900">{{ enrollment.class.name }} {{ enrollment.section.name }}</span>
+                                <span class="text-gray-600">
+                                    {{ enrollment.academic_year.name }}<template v-if="enrollment.roll_no"> · Roll {{ enrollment.roll_no }}</template>
+                                </span>
+                            </div>
+                            <span class="capitalize" :class="enrollmentTone[enrollment.status] ?? 'badge-neutral'">{{ enrollment.status }}</span>
                         </li>
-                        <li v-if="!student.enrollments.length" class="py-3 text-sm text-slate-500">Not enrolled in any year yet.</li>
                     </ul>
+                    <EmptyState v-else icon="academic" title="Not enrolled" description="Not enrolled in any year yet." />
 
-                    <form v-if="openForm === 'placement'" class="mt-3 space-y-3 border-t border-slate-200 pt-4" @submit.prevent="savePlacement">
-                        <AlertMessage v-if="formError.message">{{ formError.message }}</AlertMessage>
-                        <div class="grid gap-3 sm:grid-cols-[1fr_8rem]">
-                            <FormField :label="`${terms.class} and ${terms.section.toLowerCase()} (${year.name})`" :error="fieldError('section_id')">
-                                <select v-model="placementForm.section_id" required class="input">
-                                    <option value="" disabled>Choose…</option>
-                                    <option v-for="section in sections" :key="section.id" :value="section.id" :disabled="section.full && section.id !== currentEnrollment?.section.id">
-                                        {{ section.label }}{{ section.full && section.id !== currentEnrollment?.section.id ? ' (full)' : '' }}
-                                    </option>
-                                </select>
-                            </FormField>
-                            <FormField label="Roll no." :error="fieldError('roll_no')" hint="Empty = next free">
-                                <input v-model="placementForm.roll_no" type="number" min="1" class="input" />
-                            </FormField>
+                    <form v-if="openForm === 'placement'" class="border-t border-gray-200" @submit.prevent="savePlacement">
+                        <div class="card-body flex flex-col gap-4">
+                            <AlertMessage v-if="formError.message">{{ formError.message }}</AlertMessage>
+                            <div class="grid gap-4 sm:grid-cols-[1fr_8rem]">
+                                <FormField :label="`${terms.class} and ${terms.section.toLowerCase()} (${year.name})`" :error="fieldError('section_id')">
+                                    <select v-model="placementForm.section_id" required class="input">
+                                        <option value="" disabled>Choose…</option>
+                                        <option v-for="section in sections" :key="section.id" :value="section.id" :disabled="section.full && section.id !== currentEnrollment?.section.id">
+                                            {{ section.label }}{{ section.full && section.id !== currentEnrollment?.section.id ? ' (full)' : '' }}
+                                        </option>
+                                    </select>
+                                </FormField>
+                                <FormField label="Roll no." :error="fieldError('roll_no')" hint="Empty = next free">
+                                    <input v-model="placementForm.roll_no" type="number" min="1" class="input" />
+                                </FormField>
+                            </div>
                         </div>
-                        <div class="flex gap-2">
-                            <button type="submit" class="btn-primary" :disabled="busy">Save</button>
+                        <div class="card-footer">
                             <button type="button" class="btn-secondary" :disabled="busy" @click="openForm = null">Cancel</button>
+                            <button type="submit" class="btn-primary" :disabled="busy">Save</button>
                         </div>
                     </form>
                 </section>

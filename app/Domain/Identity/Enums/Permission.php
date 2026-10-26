@@ -30,6 +30,7 @@ enum Permission: string
     case AttendanceEditLate = 'attendance.edit_late';
 
     case ExamView = 'exam.view';
+    case ExamManage = 'exam.manage';
     case ExamEnterMarks = 'exam.enter_marks';
     case ExamPublish = 'exam.publish';
     case ExamUnlock = 'exam.unlock';

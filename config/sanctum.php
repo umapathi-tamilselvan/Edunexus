@@ -53,6 +53,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Token Last Used
+    |--------------------------------------------------------------------------
+    |
+    | Sanctum writes a token's last_used_at on every request. That is turned
+    | off: RecordTokenUse writes it at most once every last_used_at_every
+    | seconds, saving a database write on almost every mobile request.
+    |
+    */
+
+    'last_used_at' => false,
+
+    'last_used_at_every' => (int) env('SANCTUM_LAST_USED_AT_EVERY', 300),
+
+    /*
+    |--------------------------------------------------------------------------
     | Token Prefix
     |--------------------------------------------------------------------------
     |

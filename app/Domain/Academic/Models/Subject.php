@@ -2,15 +2,18 @@
 
 namespace App\Domain\Academic\Models;
 
+use App\Domain\Identity\Models\User;
 use Database\Factories\SubjectFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\UseFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
- * A subject taught at the institution, offered to classes per year.
+ * A subject taught at the institution, offered to classes per year. Each
+ * teacher teaches one subject; a subject has many teachers.
  *
  * @property int $id
  * @property string $code
@@ -29,5 +32,13 @@ class Subject extends Model
     public function classes(): BelongsToMany
     {
         return $this->belongsToMany(SchoolClass::class, 'class_subject', 'subject_id', 'class_id');
+    }
+
+    /**
+     * @return HasMany<User, $this>
+     */
+    public function teachers(): HasMany
+    {
+        return $this->hasMany(User::class)->orderBy('name');
     }
 }

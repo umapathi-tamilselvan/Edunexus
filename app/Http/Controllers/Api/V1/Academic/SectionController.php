@@ -13,6 +13,17 @@ use Illuminate\Validation\ValidationException;
 
 class SectionController extends Controller
 {
+    /**
+     * A section with its class, year, class teacher, the class's subjects
+     * (with the teachers who can teach each) and who teaches them here.
+     */
+    public function show(Section $section): SectionResource
+    {
+        return new SectionResource($section
+            ->load(['schoolClass.academicYear', 'schoolClass.subjects.teachers', 'classTeacher', 'subjectTeachers.teacher'])
+            ->loadCount('enrollments'));
+    }
+
     public function store(StoreSectionRequest $request, SchoolClass $schoolClass): JsonResponse
     {
         $section = $schoolClass->sections()->create($request->validated());

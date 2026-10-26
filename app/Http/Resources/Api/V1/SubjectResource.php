@@ -20,6 +20,7 @@ class SubjectResource extends JsonResource
             'id' => $this->id,
             'code' => $this->code,
             'name' => $this->name,
+            'teachers' => $this->whenLoaded('teachers', fn () => $this->teachers->map(fn ($teacher): array => ['id' => $teacher->id, 'name' => $teacher->name])->values()),
         ];
     }
 }

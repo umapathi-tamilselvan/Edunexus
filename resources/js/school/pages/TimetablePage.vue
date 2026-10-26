@@ -1,7 +1,12 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue';
 import AlertMessage from '../../components/AlertMessage.vue';
+import AppIcon from '../../components/AppIcon.vue';
+import EmptyState from '../../components/EmptyState.vue';
 import FormField from '../../components/FormField.vue';
+import LoadingState from '../../components/LoadingState.vue';
+import PageHeader from '../../components/PageHeader.vue';
+import SegmentedTabs from '../../components/SegmentedTabs.vue';
 import { parseError } from '../../lib/errors';
 import { http } from '../../lib/http';
 import { loadAcademicYears, loadYearStructure, sectionOptions } from '../academic';
@@ -21,6 +26,10 @@ const canView = computed(() => session.can('academic.view'));
 const canManage = computed(() => session.can('academic.manage'));
 
 const mode = ref(canView.value ? 'section' : 'mine');
+const modes = computed(() => [
+    { value: 'section', label: `By ${terms.section.toLowerCase()}` },
+    { value: 'mine', label: 'My timetable' },
+]);
 const year = ref(null);
 const sectionId = ref('');
 const timetable = ref(null);
@@ -168,126 +177,143 @@ onMounted(async () => {
 </script>
 
 <template>
-    <div class="space-y-6">
-        <div class="flex flex-wrap items-end justify-between gap-4">
-            <div>
-                <h1 class="text-xl font-semibold">Timetable</h1>
-                <p class="text-sm text-slate-500">{{ year ? `Weekly timetable for ${year.name}.` : 'Your weekly teaching timetable.' }}</p>
-            </div>
-            <div v-if="canView" class="flex gap-1" role="tablist">
-                <button type="button" role="tab" :aria-selected="mode === 'section'" class="rounded-md px-3 py-1.5 text-sm" :class="mode === 'section' ? 'bg-slate-900 font-medium text-white' : 'text-slate-600 hover:bg-slate-100'" @click="switchMode('section')">
-                    By {{ terms.section.toLowerCase() }}
-                </button>
-                <button type="button" role="tab" :aria-selected="mode === 'mine'" class="rounded-md px-3 py-1.5 text-sm" :class="mode === 'mine' ? 'bg-slate-900 font-medium text-white' : 'text-slate-600 hover:bg-slate-100'" @click="switchMode('mine')">
-                    My timetable
-                </button>
-            </div>
-        </div>
+    <div class="flex flex-col gap-5 lg:gap-7.5">
+        <PageHeader title="Timetable" :description="year ? `Weekly timetable for ${year.name}.` : 'Your weekly teaching timetable.'">
+            <SegmentedTabs v-if="canView" :model-value="mode" :options="modes" label="Timetable view" @update:model-value="switchMode" />
+        </PageHeader>
 
         <AlertMessage v-if="notice" tone="success">{{ notice }}</AlertMessage>
         <AlertMessage v-if="pageError">{{ pageError }}</AlertMessage>
 
-        <div v-if="mode === 'section'" class="flex flex-wrap items-end gap-3">
-            <FormField :label="`${terms.class} and ${terms.section.toLowerCase()}`" class="w-60">
-                <select v-model="sectionId" class="input" @change="loadSection">
-                    <option v-if="!sections.length" value="">No {{ terms.sections.toLowerCase() }} yet</option>
-                    <option v-for="section in sections" :key="section.id" :value="section.id">{{ section.label }}</option>
-                </select>
-            </FormField>
-            <button v-if="canManage && year && !showPeriodForm" type="button" class="btn-secondary" @click="openPeriodForm">Add period</button>
-        </div>
-
-        <form v-if="showPeriodForm" class="card flex flex-wrap items-end gap-3 p-4" @submit.prevent="createPeriod">
-            <FormField label="Name" :error="formError.fields.name" class="w-40">
-                <input v-model="periodForm.name" required class="input" />
-            </FormField>
-            <FormField label="Starts" :error="formError.fields.starts_at" class="w-32">
-                <input v-model="periodForm.starts_at" type="time" required class="input" />
-            </FormField>
-            <FormField label="Ends" :error="formError.fields.ends_at" class="w-32">
-                <input v-model="periodForm.ends_at" type="time" required class="input" />
-            </FormField>
-            <FormField label="Order" :error="formError.fields.sort_order" class="w-20">
-                <input v-model.number="periodForm.sort_order" type="number" min="0" class="input" />
-            </FormField>
-            <label class="flex items-center gap-2 pb-2 text-sm">
-                <input v-model="periodForm.is_break" type="checkbox" class="accent-indigo-600" />
-                Break
-            </label>
-            <button type="button" class="btn-secondary" :disabled="busy" @click="showPeriodForm = false">Cancel</button>
-            <button type="submit" class="btn-primary" :disabled="busy">Add</button>
-        </form>
-
-        <p v-if="loading" class="text-sm text-slate-500">Loading…</p>
-
-        <div v-else-if="!periods.length" class="card p-8 text-center text-sm text-slate-500">
-            {{ mode === 'mine' ? 'You have no periods assigned in the current year.' : 'Add the periods of the school day (the bell schedule) to start the timetable.' }}
-        </div>
-
-        <div v-else class="card overflow-x-auto">
-            <table class="w-full min-w-[48rem] table-fixed text-sm">
-                <thead class="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
-                    <tr>
-                        <th class="w-32 px-3 py-2 text-left font-medium">Period</th>
-                        <th v-for="day in weekdays" :key="day.value" class="px-2 py-2 text-left font-medium">{{ day.label }}</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100">
-                    <tr v-for="period in periods" :key="period.id" :class="period.is_break ? 'bg-slate-50' : ''">
-                        <th scope="row" class="px-3 py-2 text-left align-top font-medium">
-                            {{ period.name }}
-                            <span class="block text-xs font-normal text-slate-500">{{ period.starts_at }}–{{ period.ends_at }}</span>
-                        </th>
-                        <td v-if="period.is_break" :colspan="weekdays.length" class="px-2 py-2 text-center text-xs uppercase tracking-wide text-slate-400">Break</td>
-                        <template v-else>
-                            <td v-for="day in weekdays" :key="day.value" class="p-1 align-top">
-                                <button
-                                    type="button"
-                                    class="h-full min-h-14 w-full rounded-md border px-2 py-1.5 text-left"
-                                    :class="[
-                                        editing?.weekday === day.value && editing?.period.id === period.id ? 'border-indigo-500 ring-2 ring-indigo-500/20' : 'border-slate-200',
-                                        entryAt(day.value, period.id) ? 'bg-indigo-50/50' : '',
-                                        canManage && mode === 'section' ? 'hover:border-indigo-300' : 'cursor-default',
-                                    ]"
-                                    @click="edit(day.value, period)"
-                                >
-                                    <template v-if="entryAt(day.value, period.id)">
-                                        <span class="block font-medium">{{ entryAt(day.value, period.id).subject.name }}</span>
-                                        <span class="block text-xs text-slate-500">
-                                            {{ mode === 'mine' ? `${entryAt(day.value, period.id).section.class} ${entryAt(day.value, period.id).section.name}` : entryAt(day.value, period.id).teacher?.name ?? 'No teacher' }}
-                                        </span>
-                                    </template>
-                                    <span v-else-if="canManage && mode === 'section'" class="text-xs text-slate-400">+ Add</span>
-                                </button>
-                            </td>
-                        </template>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-
-        <form v-if="editing" class="card space-y-3 p-4" @submit.prevent="saveSlot">
-            <h2 class="font-semibold">{{ weekdays.find((day) => day.value === editing.weekday).label }}, {{ editing.period.name }}</h2>
-            <AlertMessage v-if="formError.message && !Object.keys(formError.fields).length">{{ formError.message }}</AlertMessage>
-            <p v-if="!selectedClass?.subjects.length" class="text-sm text-slate-500">This {{ terms.class.toLowerCase() }} has no subjects yet. Add them in Academic setup.</p>
-            <div class="grid gap-3 sm:grid-cols-2">
-                <FormField label="Subject" :error="formError.fields.subject_id || formError.fields.period_id">
-                    <select v-model="slotForm.subject_id" required class="input">
-                        <option value="" disabled>Choose…</option>
-                        <option v-for="subject in selectedClass?.subjects ?? []" :key="subject.id" :value="subject.id">{{ subject.name }}</option>
+        <section class="card">
+            <div v-if="mode === 'section'" class="card-header items-end">
+                <FormField :label="`${terms.class} and ${terms.section.toLowerCase()}`" class="w-full sm:w-64">
+                    <select v-model="sectionId" class="input" @change="loadSection">
+                        <option v-if="!sections.length" value="">No {{ terms.sections.toLowerCase() }} yet</option>
+                        <option v-for="section in sections" :key="section.id" :value="section.id">{{ section.label }}</option>
                     </select>
                 </FormField>
-                <FormField :label="terms.teacher" :error="formError.fields.teacher_id">
-                    <select v-model="slotForm.teacher_id" class="input">
-                        <option value="">None</option>
-                        <option v-for="teacher in teachers" :key="teacher.id" :value="teacher.id">{{ teacher.name }}</option>
-                    </select>
-                </FormField>
+                <button v-if="canManage && year && !showPeriodForm" type="button" class="btn-secondary" @click="openPeriodForm">
+                    <AppIcon name="clock" class="size-4" />
+                    Add period
+                </button>
             </div>
-            <div class="flex flex-wrap gap-2">
-                <button type="submit" class="btn-primary" :disabled="busy">Save</button>
-                <button v-if="entryAt(editing.weekday, editing.period.id)" type="button" class="btn-secondary" :disabled="busy" @click="clearSlot">Clear slot</button>
+
+            <form v-if="showPeriodForm" class="flex flex-wrap items-end gap-3 border-b border-gray-200 bg-gray-50 px-5 py-4 lg:px-7.5" @submit.prevent="createPeriod">
+                <FormField label="Name" :error="formError.fields.name" class="w-40">
+                    <input v-model="periodForm.name" required class="input" />
+                </FormField>
+                <FormField label="Starts" :error="formError.fields.starts_at" class="w-32">
+                    <input v-model="periodForm.starts_at" type="time" required class="input" />
+                </FormField>
+                <FormField label="Ends" :error="formError.fields.ends_at" class="w-32">
+                    <input v-model="periodForm.ends_at" type="time" required class="input" />
+                </FormField>
+                <FormField label="Order" :error="formError.fields.sort_order" class="w-20">
+                    <input v-model.number="periodForm.sort_order" type="number" min="0" class="input" />
+                </FormField>
+                <label class="flex h-10 items-center gap-2 text-2sm text-gray-700">
+                    <input v-model="periodForm.is_break" type="checkbox" class="checkbox" />
+                    Break
+                </label>
+                <button type="button" class="btn-secondary" :disabled="busy" @click="showPeriodForm = false">Cancel</button>
+                <button type="submit" class="btn-primary" :disabled="busy">Add</button>
+            </form>
+
+            <LoadingState v-if="loading" />
+
+            <EmptyState
+                v-else-if="!periods.length"
+                icon="timetable"
+                title="No periods yet"
+                :description="mode === 'mine' ? 'You have no periods assigned in the current year.' : 'Add the periods of the school day (the bell schedule) to start the timetable.'"
+            />
+
+            <div v-else class="overflow-x-auto">
+                <table class="table min-w-[48rem] table-fixed">
+                    <thead>
+                        <tr>
+                            <th class="w-36">Period</th>
+                            <th v-for="day in weekdays" :key="day.value">{{ day.label }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="period in periods" :key="period.id" :class="period.is_break ? 'bg-gray-50' : ''">
+                            <th scope="row" class="text-left align-top font-medium text-gray-900">
+                                {{ period.name }}
+                                <span class="mt-0.5 flex items-center gap-1 text-xs font-normal text-gray-600">
+                                    <AppIcon name="clock" class="size-3.5" />
+                                    {{ period.starts_at }}–{{ period.ends_at }}
+                                </span>
+                            </th>
+                            <td v-if="period.is_break" :colspan="weekdays.length" class="text-center text-xs font-medium tracking-widest text-gray-500 uppercase">Break</td>
+                            <template v-else>
+                                <td v-for="day in weekdays" :key="day.value" class="px-1 py-1.5 align-top lg:last:pr-7.5">
+                                    <button
+                                        type="button"
+                                        class="flex h-full min-h-15 w-full flex-col justify-center rounded-lg border px-2.5 py-2 text-left transition-colors"
+                                        :class="[
+                                            editing?.weekday === day.value && editing?.period.id === period.id
+                                                ? 'border-primary ring-3 ring-primary/15'
+                                                : entryAt(day.value, period.id)
+                                                  ? 'border-primary/20'
+                                                  : 'border-dashed border-gray-300',
+                                            entryAt(day.value, period.id) ? 'bg-primary-light' : 'bg-white',
+                                            canManage && mode === 'section' ? 'cursor-pointer hover:border-primary/60' : 'cursor-default',
+                                        ]"
+                                        @click="edit(day.value, period)"
+                                    >
+                                        <template v-if="entryAt(day.value, period.id)">
+                                            <span class="block truncate text-2sm font-semibold text-gray-900">{{ entryAt(day.value, period.id).subject.name }}</span>
+                                            <span class="block truncate text-xs text-gray-600">
+                                                {{ mode === 'mine' ? `${entryAt(day.value, period.id).section.class} ${entryAt(day.value, period.id).section.name}` : entryAt(day.value, period.id).teacher?.name ?? 'No teacher' }}
+                                            </span>
+                                        </template>
+                                        <span v-else-if="canManage && mode === 'section'" class="flex items-center gap-1 text-xs text-gray-500">
+                                            <AppIcon name="plus" class="size-3.5" />
+                                            Add
+                                        </span>
+                                    </button>
+                                </td>
+                            </template>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <form v-if="editing" class="card" @submit.prevent="saveSlot">
+            <div class="card-header">
+                <h2 class="card-title">{{ weekdays.find((day) => day.value === editing.weekday).label }}, {{ editing.period.name }}</h2>
+                <button type="button" class="btn-icon btn-sm" aria-label="Close" :disabled="busy" @click="editing = null">
+                    <AppIcon name="x" class="size-4.5" />
+                </button>
+            </div>
+            <div class="card-body flex flex-col gap-4">
+                <AlertMessage v-if="formError.message && !Object.keys(formError.fields).length">{{ formError.message }}</AlertMessage>
+                <AlertMessage v-if="!selectedClass?.subjects.length" tone="warning">This {{ terms.class.toLowerCase() }} has no subjects yet. Add them in Academic setup.</AlertMessage>
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <FormField label="Subject" :error="formError.fields.subject_id || formError.fields.period_id">
+                        <select v-model="slotForm.subject_id" required class="input">
+                            <option value="" disabled>Choose…</option>
+                            <option v-for="subject in selectedClass?.subjects ?? []" :key="subject.id" :value="subject.id">{{ subject.name }}</option>
+                        </select>
+                    </FormField>
+                    <FormField :label="terms.teacher" :error="formError.fields.teacher_id">
+                        <select v-model="slotForm.teacher_id" class="input">
+                            <option value="">None</option>
+                            <option v-for="teacher in teachers" :key="teacher.id" :value="teacher.id">{{ teacher.name }}</option>
+                        </select>
+                    </FormField>
+                </div>
+            </div>
+            <div class="card-footer">
+                <button v-if="entryAt(editing.weekday, editing.period.id)" type="button" class="btn-secondary mr-auto text-danger-strong hover:text-danger-strong" :disabled="busy" @click="clearSlot">
+                    <AppIcon name="trash" class="size-4" />
+                    Clear slot
+                </button>
                 <button type="button" class="btn-secondary" :disabled="busy" @click="editing = null">Cancel</button>
+                <button type="submit" class="btn-primary" :disabled="busy">Save</button>
             </div>
         </form>
     </div>
