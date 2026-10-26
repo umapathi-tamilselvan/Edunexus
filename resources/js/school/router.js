@@ -7,6 +7,8 @@ import DashboardPage from './pages/DashboardPage.vue';
 import LoginPage from './pages/LoginPage.vue';
 import StudentDetailPage from './pages/StudentDetailPage.vue';
 import StudentsPage from './pages/StudentsPage.vue';
+import SubjectsPage from './pages/SubjectsPage.vue';
+import SubjectTeachersPage from './pages/SubjectTeachersPage.vue';
 import TimetablePage from './pages/TimetablePage.vue';
 import UsersPage from './pages/UsersPage.vue';
 import { STUDENT_VIEW } from './navigation';
@@ -22,6 +24,8 @@ export const router = createRouter({
         { path: '/admissions', name: 'admissions', component: AdmissionsPage, meta: { permission: 'admission.manage', module: 'admission' } },
         { path: '/timetable', name: 'timetable', component: TimetablePage, meta: { permission: 'academic.view', module: 'academic' } },
         { path: '/academic', name: 'academic', component: AcademicPage, meta: { permission: 'academic.view', module: 'academic' } },
+        { path: '/subjects', name: 'subjects', component: SubjectsPage, meta: { permission: 'academic.view', module: 'academic' } },
+        { path: '/subject-teachers', name: 'subject-teachers', component: SubjectTeachersPage, meta: { permission: 'academic.view', module: 'academic' } },
         { path: '/students', name: 'students', component: StudentsPage, meta: { permission: STUDENT_VIEW, module: 'student' } },
         { path: '/students/:id', name: 'student', component: StudentDetailPage, meta: { permission: STUDENT_VIEW, module: 'student' } },
         { path: '/:pathMatch(.*)*', redirect: '/dashboard' },

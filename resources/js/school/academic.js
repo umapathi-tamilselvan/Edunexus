@@ -11,6 +11,15 @@ export async function loadYearStructure(yearId) {
 }
 
 /**
+ * Every teacher with the subjects they teach: [{ id, name, subjects }].
+ */
+export async function loadTeachers() {
+    const { data } = await http.get('/api/v1/teachers');
+
+    return data.data;
+}
+
+/**
  * Flat list of sections for dropdowns: [{ id, label, classId }].
  */
 export function sectionOptions(year) {

@@ -41,11 +41,27 @@ export const navigation = computed(() =>
             visible: session.hasModule('academic') && session.can('academic.view'),
         },
         {
+            to: '/subject-teachers',
+            label: 'Subject teachers',
+            icon: 'presentation',
+            section: 'Academics',
+            description: 'Who teaches each subject to each section, and teacher workload.',
+            visible: session.hasModule('academic') && session.can('academic.view'),
+        },
+        {
             to: '/academic',
             label: 'Academic setup',
             icon: 'academic',
             section: 'Academics',
-            description: 'Academic years, structure and subjects.',
+            description: 'Academic years and their classes and sections.',
+            visible: session.hasModule('academic') && session.can('academic.view'),
+        },
+        {
+            to: '/subjects',
+            label: 'Subjects',
+            icon: 'book',
+            section: 'Academics',
+            description: 'Subjects and the teachers who teach them.',
             visible: session.hasModule('academic') && session.can('academic.view'),
         },
         {

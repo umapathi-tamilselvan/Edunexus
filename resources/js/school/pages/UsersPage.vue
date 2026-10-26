@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import AlertMessage from '../../components/AlertMessage.vue';
 import AppIcon from '../../components/AppIcon.vue';
 import EmptyState from '../../components/EmptyState.vue';
@@ -15,6 +15,7 @@ import { session } from '../session';
 
 const users = ref([]);
 const roles = ref([]);
+const subjects = ref([]);
 const meta = ref(null);
 const page = ref(1);
 const loading = ref(true);
@@ -24,12 +25,18 @@ const loadError = ref('');
 const showCreate = ref(false);
 const saving = ref(false);
 const createError = ref({ message: '', fields: {} });
-const emptyForm = () => ({ name: '', email: '', password: '', roles: [] });
+const emptyForm = () => ({ name: '', email: '', password: '', roles: [], subject_ids: [] });
 const form = reactive(emptyForm());
 
+// What is being edited: 'roles' or 'subjects' of one user.
 const editing = ref(null);
+const editField = ref('roles');
 const editRoles = ref([]);
+const editSubjectIds = ref([]);
 const editError = ref({ message: '', fields: {} });
+
+/** Subjects come from academic setup, so only users who can see it set them. */
+const canSetSubjects = computed(() => session.can('academic.view') && session.hasModule('academic'));
 
 /** Only a Super Admin may grant Super Admin. */
 const assignableRoles = () => roles.value.filter((role) => role.name !== 'Super Admin' || session.hasRole('Super Admin'));
@@ -39,14 +46,18 @@ async function load() {
     loadError.value = '';
 
     try {
-        const [usersResponse, rolesResponse] = await Promise.all([
+        const [usersResponse, rolesResponse, subjectsResponse] = await Promise.all([
             http.get('/api/v1/users', { params: { page: page.value } }),
             roles.value.length ? Promise.resolve(null) : http.get('/api/v1/roles'),
+            subjects.value.length || !canSetSubjects.value ? Promise.resolve(null) : http.get('/api/v1/subjects'),
         ]);
         users.value = usersResponse.data.data;
         meta.value = usersResponse.data.meta;
         if (rolesResponse) {
             roles.value = rolesResponse.data.data;
+        }
+        if (subjectsResponse) {
+            subjects.value = subjectsResponse.data.data;
         }
     } catch (error) {
         loadError.value = parseError(error).message;
@@ -78,20 +89,26 @@ async function createUser() {
     }
 }
 
-function startEdit(user) {
+function startEdit(user, field) {
     editing.value = user;
+    editField.value = field;
     editRoles.value = [...user.roles];
+    editSubjectIds.value = user.subjects.map((subject) => subject.id);
     editError.value = { message: '', fields: {} };
     notice.value = '';
 }
 
-async function saveRoles() {
+async function saveEdit() {
     saving.value = true;
     editError.value = { message: '', fields: {} };
 
     try {
-        await http.put(`/api/v1/users/${editing.value.id}/roles`, { roles: editRoles.value });
-        notice.value = `Updated roles for ${editing.value.name}.`;
+        if (editField.value === 'roles') {
+            await http.put(`/api/v1/users/${editing.value.id}/roles`, { roles: editRoles.value });
+        } else {
+            await http.put(`/api/v1/users/${editing.value.id}/subjects`, { subject_ids: editSubjectIds.value });
+        }
+        notice.value = `Updated ${editField.value} for ${editing.value.name}.`;
         editing.value = null;
         await load();
     } catch (error) {
@@ -155,6 +172,16 @@ onMounted(load);
                         {{ createError.fields.roles || createError.fields['roles.0'] }}
                     </p>
                 </fieldset>
+
+                <fieldset v-if="canSetSubjects && subjects.length" class="flex flex-col gap-2.5">
+                    <legend class="mb-2.5 text-2sm font-medium text-gray-800">Subjects taught (for teachers)</legend>
+                    <div class="flex flex-wrap gap-2">
+                        <label v-for="subject in subjects" :key="subject.id" class="choice">
+                            <input v-model="form.subject_ids" type="checkbox" :value="subject.id" class="checkbox" />
+                            {{ subject.name }}
+                        </label>
+                    </div>
+                </fieldset>
             </div>
 
             <div class="card-footer">
@@ -180,6 +207,7 @@ onMounted(load);
                         <tr>
                             <th>User</th>
                             <th>Roles</th>
+                            <th v-if="canSetSubjects">Subjects</th>
                             <th><span class="sr-only">Actions</span></th>
                         </tr>
                     </thead>
@@ -200,29 +228,32 @@ onMounted(load);
                                         <RoleBadge v-for="role in user.roles" :key="role" :role="role" />
                                     </div>
                                 </td>
+                                <td v-if="canSetSubjects" class="text-gray-700">{{ user.subjects.map((subject) => subject.name).join(', ') || '—' }}</td>
                                 <td class="text-right">
-                                    <button
-                                        v-if="(!user.roles.includes('Super Admin') || session.hasRole('Super Admin')) && editing?.id !== user.id"
-                                        type="button"
-                                        class="btn-link"
-                                        @click="startEdit(user)"
-                                    >
-                                        Edit roles
-                                    </button>
+                                    <div v-if="editing?.id !== user.id" class="flex justify-end gap-4">
+                                        <button v-if="canSetSubjects" type="button" class="btn-link" @click="startEdit(user, 'subjects')">Edit subjects</button>
+                                        <button v-if="!user.roles.includes('Super Admin') || session.hasRole('Super Admin')" type="button" class="btn-link" @click="startEdit(user, 'roles')">Edit roles</button>
+                                    </div>
                                 </td>
                             </tr>
                             <tr v-if="editing?.id === user.id" class="bg-gray-50">
-                                <td colspan="3">
-                                    <form class="flex flex-col gap-3" @submit.prevent="saveRoles">
-                                        <AlertMessage v-if="editError.message">{{ editError.fields.roles || editError.message }}</AlertMessage>
-                                        <div class="flex flex-wrap gap-2">
+                                <td :colspan="canSetSubjects ? 4 : 3">
+                                    <form class="flex flex-col gap-3" @submit.prevent="saveEdit">
+                                        <AlertMessage v-if="editError.message">{{ editError.fields.roles || editError.fields.subject_ids || editError.message }}</AlertMessage>
+                                        <div v-if="editField === 'roles'" class="flex flex-wrap gap-2">
                                             <label v-for="role in assignableRoles()" :key="role.name" class="choice">
                                                 <input v-model="editRoles" type="checkbox" :value="role.name" class="checkbox" />
                                                 {{ role.name }}
                                             </label>
                                         </div>
+                                        <div v-else class="flex flex-wrap gap-2">
+                                            <label v-for="subject in subjects" :key="subject.id" class="choice">
+                                                <input v-model="editSubjectIds" type="checkbox" :value="subject.id" class="checkbox" />
+                                                {{ subject.name }}
+                                            </label>
+                                        </div>
                                         <div class="flex gap-2.5">
-                                            <button type="submit" class="btn-primary btn-sm" :disabled="saving || !editRoles.length">Save roles</button>
+                                            <button type="submit" class="btn-primary btn-sm" :disabled="saving || (editField === 'roles' && !editRoles.length)">Save {{ editField }}</button>
                                             <button type="button" class="btn-secondary btn-sm" :disabled="saving" @click="editing = null">Cancel</button>
                                         </div>
                                     </form>

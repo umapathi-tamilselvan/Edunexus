@@ -9,7 +9,7 @@ import PageHeader from '../../components/PageHeader.vue';
 import SegmentedTabs from '../../components/SegmentedTabs.vue';
 import { parseError } from '../../lib/errors';
 import { http } from '../../lib/http';
-import { loadYearStructure, sectionOptions } from '../academic';
+import { loadTeachers, loadYearStructure, sectionOptions } from '../academic';
 import { academicYear } from '../academicYear';
 import { session } from '../session';
 import { terms } from '../terms';
@@ -170,8 +170,8 @@ onMounted(async () => {
         sectionId.value = sections.value[0]?.id ?? '';
         await loadSection();
 
-        if (canManage.value && session.can('user.manage')) {
-            teachers.value = (await http.get('/api/v1/users')).data.data.filter((user) => user.roles.includes('Teacher'));
+        if (canManage.value) {
+            teachers.value = await loadTeachers();
         }
     } catch (error) {
         pageError.value = parseError(error).message;

@@ -8,7 +8,7 @@ import LoadingState from '../../components/LoadingState.vue';
 import PageHeader from '../../components/PageHeader.vue';
 import { parseError } from '../../lib/errors';
 import { http } from '../../lib/http';
-import { loadYearStructure } from '../academic';
+import { loadTeachers, loadYearStructure } from '../academic';
 import { academicYear } from '../academicYear';
 import { session } from '../session';
 import { terms } from '../terms';
@@ -29,7 +29,6 @@ const busy = ref(false);
 const formError = ref(emptyError());
 const classForm = reactive({ name: '', sort_order: 0 });
 const sectionForm = reactive({ name: '', capacity: 40, class_teacher_id: '' });
-const subjectForm = reactive({ code: '', name: '' });
 const classSubjectIds = ref([]);
 
 /** The year picked in the header. */
@@ -42,7 +41,7 @@ async function load() {
     pageError.value = '';
 
     try {
-        await Promise.all([terms.load(), loadYear(), loadSubjects(), loadTeachers()]);
+        await Promise.all([terms.load(), loadYear(), loadSubjects(), loadTeacherOptions()]);
     } catch (error) {
         pageError.value = parseError(error).message;
     } finally {
@@ -54,14 +53,11 @@ async function loadSubjects() {
     subjects.value = (await http.get('/api/v1/subjects')).data.data;
 }
 
-/** Class teachers can be picked only by users who can list users. */
-async function loadTeachers() {
-    if (!canManage.value || !session.can('user.manage')) {
-        return;
+/** Class teachers are picked by those who change the structure. */
+async function loadTeacherOptions() {
+    if (canManage.value) {
+        teachers.value = await loadTeachers();
     }
-
-    const { data } = await http.get('/api/v1/users');
-    teachers.value = data.data.filter((user) => user.roles.includes('Teacher'));
 }
 
 function open(key, values = {}) {
@@ -73,8 +69,6 @@ function open(key, values = {}) {
         Object.assign(classForm, { name: '', sort_order: (year.value?.classes.length ?? 0) + 1 });
     } else if (key.startsWith('section:')) {
         Object.assign(sectionForm, { name: '', capacity: 40, class_teacher_id: '' });
-    } else if (key === 'subject') {
-        Object.assign(subjectForm, { code: '', name: '' });
     } else if (key.startsWith('subjects:')) {
         classSubjectIds.value = values.subjectIds ?? [];
     }
@@ -137,9 +131,6 @@ function saveClassSubjects(schoolClass) {
     submit(() => http.put(`/api/v1/classes/${schoolClass.id}/subjects`, { subject_ids: classSubjectIds.value }), `Subjects for ${schoolClass.name} saved.`, loadYear);
 }
 
-function createSubject() {
-    submit(() => http.post('/api/v1/subjects', subjectForm), `Subject ${subjectForm.name} added.`, loadSubjects);
-}
 
 async function remove(url, message) {
     notice.value = '';
@@ -285,7 +276,9 @@ onMounted(load);
                         class="flex flex-col gap-3 border-t border-gray-200 bg-gray-50 px-5 py-4 lg:px-7.5"
                         @submit.prevent="saveClassSubjects(schoolClass)"
                     >
-                        <p v-if="!subjects.length" class="text-2sm text-gray-600">Add subjects below first.</p>
+                        <p v-if="!subjects.length" class="text-2sm text-gray-600">
+                            Add subjects on the <RouterLink to="/subjects" class="btn-link">Subjects</RouterLink> page first.
+                        </p>
                         <div class="flex flex-wrap gap-2">
                             <label v-for="subject in subjects" :key="subject.id" class="choice">
                                 <input v-model="classSubjectIds" type="checkbox" :value="subject.id" class="checkbox" />
@@ -298,35 +291,6 @@ onMounted(load);
                         </div>
                     </form>
                 </article>
-            </section>
-
-            <section class="card">
-                <div class="card-header">
-                    <h2 class="card-title">Subjects</h2>
-                    <button v-if="canManage && openForm !== 'subject'" type="button" class="btn-link" @click="open('subject')">
-                        <AppIcon name="plus" class="size-4" />
-                        Add subject
-                    </button>
-                </div>
-
-                <form v-if="openForm === 'subject'" class="flex flex-wrap items-end gap-3 border-b border-gray-200 bg-gray-50 px-5 py-4 lg:px-7.5" @submit.prevent="createSubject">
-                    <FormField label="Code" :error="formError.fields.code" class="w-32">
-                        <input v-model="subjectForm.code" required class="input uppercase" placeholder="MATH" />
-                    </FormField>
-                    <FormField label="Name" :error="formError.fields.name" class="min-w-48 flex-1">
-                        <input v-model="subjectForm.name" required class="input" placeholder="Mathematics" />
-                    </FormField>
-                    <button type="button" class="btn-secondary" :disabled="busy" @click="openForm = null">Cancel</button>
-                    <button type="submit" class="btn-primary" :disabled="busy">Add</button>
-                </form>
-
-                <div v-if="subjects.length" class="card-body flex flex-wrap gap-2">
-                    <span v-for="subject in subjects" :key="subject.id" class="inline-flex h-8 items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-2.5 text-2sm text-gray-800">
-                        <span class="font-mono text-xs text-gray-600">{{ subject.code }}</span>
-                        {{ subject.name }}
-                    </span>
-                </div>
-                <EmptyState v-else icon="book" title="No subjects yet" />
             </section>
         </template>
     </div>
