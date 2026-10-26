@@ -11,6 +11,8 @@ use App\Support\Settings\Setting;
  */
 final class OrganizationContext
 {
+    public const YEAR_START_MONTH = 'academic_year.start_month';
+
     /** @var array<string, mixed>|null */
     private ?array $settings = null;
 
@@ -37,5 +39,13 @@ final class OrganizationContext
         $this->settings ??= Setting::query()->pluck('value', 'key')->all();
 
         return $this->settings[$key] ?? $default;
+    }
+
+    /**
+     * The month (1–12) the client's academic years start in.
+     */
+    public function yearStartMonth(): int
+    {
+        return (int) $this->setting(self::YEAR_START_MONTH, $this->type()->yearStartMonth());
     }
 }
