@@ -14,7 +14,7 @@ use Illuminate\Database\Eloquent\Factories\Factory;
 class SectionSubjectTeacherFactory extends Factory
 {
     /**
-     * Define the model's default state. The teacher is linked to the subject.
+     * Define the model's default state. The teacher teaches the subject.
      *
      * @return array<string, mixed>
      */
@@ -23,7 +23,7 @@ class SectionSubjectTeacherFactory extends Factory
         return [
             'section_id' => Section::factory(),
             'subject_id' => Subject::factory(),
-            'teacher_id' => fn (array $attributes): int => User::factory()->create(['subject_id' => $attributes['subject_id']])->id,
+            'teacher_id' => fn (array $attributes): int => tap(User::factory()->create(), fn (User $teacher) => $teacher->subjects()->attach($attributes['subject_id']))->id,
         ];
     }
 }

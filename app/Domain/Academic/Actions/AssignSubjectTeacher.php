@@ -13,7 +13,7 @@ use Illuminate\Validation\ValidationException;
  * Satheesh, or clears it when no teacher is given.
  *
  * Rules: the subject is offered to the section's class, and the teacher
- * is linked to that subject (each teacher teaches one subject).
+ * teaches that subject (one of theirs).
  */
 class AssignSubjectTeacher
 {
@@ -31,10 +31,12 @@ class AssignSubjectTeacher
             return null;
         }
 
-        if ($teacher->subject_id !== $subject->id) {
-            throw ValidationException::withMessages(['teacher_id' => $teacher->subject_id === null
-                ? "{$teacher->name} is not linked to a subject. Link them to {$subject->name} on the Users page first."
-                : "{$teacher->name} teaches {$teacher->subject->name}, not {$subject->name}."]);
+        $taught = $teacher->subjects()->pluck('name', 'subjects.id');
+
+        if (! $taught->has($subject->id)) {
+            throw ValidationException::withMessages(['teacher_id' => $taught->isEmpty()
+                ? "{$teacher->name} is not linked to a subject. Link them to {$subject->name} first."
+                : "{$teacher->name} teaches {$taught->join(', ', ' and ')}, not {$subject->name}."]);
         }
 
         return SectionSubjectTeacher::query()->updateOrCreate(

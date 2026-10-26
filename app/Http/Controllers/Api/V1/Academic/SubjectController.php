@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers\Api\V1\Academic;
 
+use App\Domain\Academic\Actions\SyncSubjectTeachers;
 use App\Domain\Academic\Models\Subject;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Academic\StoreSubjectRequest;
+use App\Http\Requests\Api\V1\Academic\SyncSubjectTeachersRequest;
 use App\Http\Resources\Api\V1\SubjectResource;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -12,11 +14,11 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 class SubjectController extends Controller
 {
     /**
-     * Subjects with the teachers linked to each.
+     * Subjects with the teachers who teach each.
      */
     public function index(): AnonymousResourceCollection
     {
-        return SubjectResource::collection(Subject::query()->with('teachers:id,name,subject_id')->orderBy('name')->get());
+        return SubjectResource::collection(Subject::query()->with('teachers:id,name')->orderBy('name')->get());
     }
 
     public function store(StoreSubjectRequest $request): JsonResponse
@@ -29,5 +31,13 @@ class SubjectController extends Controller
         $subject->update($request->validated());
 
         return new SubjectResource($subject);
+    }
+
+    /**
+     * Sets the teachers who teach the subject.
+     */
+    public function syncTeachers(SyncSubjectTeachersRequest $request, Subject $subject, SyncSubjectTeachers $syncSubjectTeachers): SubjectResource
+    {
+        return new SubjectResource($syncSubjectTeachers->handle($subject, array_map('intval', $request->validated('teacher_ids'))));
     }
 }

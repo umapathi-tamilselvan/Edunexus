@@ -137,10 +137,10 @@ class ListQueryCountTest extends TestCase
     public function test_users_run_a_fixed_number_of_queries(): void
     {
         $token = $this->adminToken();
-        $this->createUser(Role::Teacher, ['subject_id' => Subject::factory()->create()->id]);
+        $this->addSubjectWithTeacher();
 
         $this->assertQueryBudget(8, $token, '/api/v1/users', function (): void {
-            $this->createUser(Role::Teacher, ['subject_id' => Subject::factory()->create()->id]);
+            $this->addSubjectWithTeacher();
             $this->createUser(Role::Accountant);
         });
     }
@@ -292,7 +292,7 @@ class ListQueryCountTest extends TestCase
 
     private function addSubjectWithTeacher(): void
     {
-        $this->createUser(Role::Teacher, ['subject_id' => Subject::factory()->create()->id]);
+        $this->createUser(Role::Teacher)->subjects()->attach(Subject::factory()->create());
     }
 
     private function addSubjectTeacher(Section $section, ?User $teacher = null): void
@@ -300,7 +300,7 @@ class ListQueryCountTest extends TestCase
         $subject = Subject::factory()->create();
         $section->schoolClass->subjects()->attach($subject);
         $teacher ??= $this->createUser();
-        $teacher->update(['subject_id' => $subject->id]);
+        $teacher->subjects()->attach($subject);
 
         SectionSubjectTeacher::factory()->for($section)->for($subject)->create(['teacher_id' => $teacher->id]);
     }

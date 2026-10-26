@@ -40,9 +40,9 @@ class UserPolicy
     }
 
     /**
-     * Linking a teacher to the subject they teach.
+     * Setting the subjects a teacher teaches.
      */
-    public function updateSubject(User $actor, User $user): bool
+    public function updateSubjects(User $actor, User $user): bool
     {
         return $actor->can(Permission::UserManage->value);
     }

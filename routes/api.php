@@ -50,7 +50,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('roles', [RoleController::class, 'index'])->name('roles.index');
     Route::apiResource('users', UserController::class)->only(['index', 'store']);
     Route::put('users/{user}/roles', [UserController::class, 'updateRoles'])->name('users.roles.update');
-    Route::put('users/{user}/subject', [UserController::class, 'updateSubject'])->name('users.subject.update');
+    Route::put('users/{user}/subjects', [UserController::class, 'updateSubjects'])->name('users.subjects.update');
 });
 
 /*
@@ -87,6 +87,7 @@ Route::middleware(['auth:sanctum', 'entitled:academic'])->group(function () {
 
         Route::post('subjects', [SubjectController::class, 'store'])->name('subjects.store');
         Route::patch('subjects/{subject}', [SubjectController::class, 'update'])->name('subjects.update');
+        Route::put('subjects/{subject}/teachers', [SubjectController::class, 'syncTeachers'])->name('subjects.teachers.sync');
 
         Route::post('academic-years/{academicYear}/periods', [PeriodController::class, 'store'])->name('periods.store');
         Route::patch('periods/{period}', [PeriodController::class, 'update'])->name('periods.update');

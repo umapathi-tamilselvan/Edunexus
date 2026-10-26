@@ -5,11 +5,11 @@ namespace App\Http\Requests\Api\V1;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
-class UpdateUserSubjectRequest extends FormRequest
+class UpdateUserSubjectsRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()->can('updateSubject', $this->route('user'));
+        return $this->user()->can('updateSubjects', $this->route('user'));
     }
 
     /**
@@ -18,7 +18,8 @@ class UpdateUserSubjectRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'subject_id' => ['present', 'nullable', 'integer', Rule::exists('subjects', 'id')],
+            'subject_ids' => ['present', 'array'],
+            'subject_ids.*' => ['integer', 'distinct', Rule::exists('subjects', 'id')],
         ];
     }
 }
