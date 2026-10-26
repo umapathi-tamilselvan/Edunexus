@@ -11,7 +11,8 @@ import SearchField from '../../components/SearchField.vue';
 import TablePagination from '../../components/TablePagination.vue';
 import { parseError } from '../../lib/errors';
 import { http } from '../../lib/http';
-import { loadAcademicYears, loadYearStructure, sectionOptions } from '../academic';
+import { loadYearStructure, sectionOptions } from '../academic';
+import { academicYear } from '../academicYear';
 import { session } from '../session';
 import { terms } from '../terms';
 
@@ -38,12 +39,11 @@ const form = reactive(emptyForm());
 const formError = ref({ message: '', fields: {} });
 
 async function loadStructure() {
-    if (!canSeeStructure.value) {
+    if (!canSeeStructure.value || !academicYear.selectedId) {
         return;
     }
 
-    const current = (await loadAcademicYears()).find((item) => item.is_current);
-    year.value = current ? await loadYearStructure(current.id) : null;
+    year.value = await loadYearStructure(academicYear.selectedId);
 }
 
 async function loadStudents() {

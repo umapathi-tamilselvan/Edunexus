@@ -30,7 +30,8 @@ defineEmits(['toggle-sidebar', 'sign-out']);
             </RouterLink>
         </div>
 
-        <div class="flex shrink-0 items-center px-3 sm:px-4 lg:flex-1 lg:justify-end lg:px-7.5">
+        <div class="flex shrink-0 items-center gap-2 px-3 sm:gap-3 sm:px-4 lg:flex-1 lg:justify-end lg:px-7.5">
+            <slot />
             <UserMenu :user="user" @sign-out="$emit('sign-out')" />
         </div>
     </header>

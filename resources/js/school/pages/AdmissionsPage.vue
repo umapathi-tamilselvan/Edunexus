@@ -11,7 +11,8 @@ import SegmentedTabs from '../../components/SegmentedTabs.vue';
 import TablePagination from '../../components/TablePagination.vue';
 import { parseError } from '../../lib/errors';
 import { http } from '../../lib/http';
-import { loadAcademicYears, loadYearStructure } from '../academic';
+import { loadYearStructure } from '../academic';
+import { academicYear } from '../academicYear';
 import { terms } from '../terms';
 
 const statuses = [
@@ -58,8 +59,7 @@ const admitForm = reactive({ section_id: '', admission_no: '', roll_no: '', cons
 const admitSections = computed(() => year.value?.classes.find((schoolClass) => schoolClass.id === selected.value?.class.id)?.sections ?? []);
 
 async function loadYear() {
-    const current = (await loadAcademicYears()).find((item) => item.is_current);
-    year.value = current ? await loadYearStructure(current.id) : null;
+    year.value = academicYear.selectedId ? await loadYearStructure(academicYear.selectedId) : null;
 }
 
 async function loadApplications() {
@@ -183,7 +183,7 @@ onMounted(async () => {
 
 <template>
     <div class="flex flex-col gap-5 lg:gap-7.5">
-        <PageHeader title="Admissions" :description="year ? `Applications for ${year.name}.` : 'Set a current academic year to take admissions.'">
+        <PageHeader title="Admissions" :description="year ? `Applications for ${year.name}. Pick another year at the top to take admissions for it.` : 'An academic year is needed to take admissions.'">
             <button v-if="year && !showCreate" type="button" class="btn-primary" @click="openCreate">
                 <AppIcon name="plus" class="size-4" />
                 New enquiry

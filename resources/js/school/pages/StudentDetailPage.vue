@@ -10,7 +10,8 @@ import LoadingState from '../../components/LoadingState.vue';
 import PageHeader from '../../components/PageHeader.vue';
 import { parseError } from '../../lib/errors';
 import { http } from '../../lib/http';
-import { loadAcademicYears, loadYearStructure, sectionOptions } from '../academic';
+import { loadYearStructure, sectionOptions } from '../academic';
+import { academicYear } from '../academicYear';
 import { session } from '../session';
 import { terms } from '../terms';
 
@@ -37,7 +38,7 @@ const detailsForm = reactive({ admission_no: '', name: '', date_of_birth: '', ge
 const placementForm = reactive({ section_id: '', roll_no: '' });
 
 const sections = computed(() => sectionOptions(year.value));
-const currentEnrollment = computed(() => student.value?.enrollments.find((enrollment) => enrollment.academic_year.id === year.value?.id) ?? null);
+const yearEnrollment = computed(() => student.value?.enrollments.find((enrollment) => enrollment.academic_year.id === year.value?.id) ?? null);
 
 async function load() {
     loadError.value = '';
@@ -46,12 +47,11 @@ async function load() {
         const [{ data }] = await Promise.all([http.get(`/api/v1/students/${route.params.id}`), terms.load()]);
         student.value = data.data;
 
-        if (canManage.value && session.can('academic.view')) {
-            const current = (await loadAcademicYears()).find((item) => item.is_current);
-            year.value = current ? await loadYearStructure(current.id) : null;
+        if (canManage.value && session.can('academic.view') && academicYear.selectedId) {
+            year.value = await loadYearStructure(academicYear.selectedId);
         }
     } catch (error) {
-        loadError.value = error.response?.status === 403 ? 'You can only view students in your own sections.' : parseError(error).message;
+        loadError.value = error.response?.status === 403 ? 'You can only view students of the sections you teach in the selected academic year.' : parseError(error).message;
     }
 }
 
@@ -70,7 +70,7 @@ function open(key) {
     } else if (key === 'guardian') {
         Object.assign(guardianForm, { name: '', phone: '', email: '', relation: 'mother', is_primary: false });
     } else if (key === 'placement') {
-        Object.assign(placementForm, { section_id: currentEnrollment.value?.section.id ?? '', roll_no: currentEnrollment.value?.roll_no ?? '' });
+        Object.assign(placementForm, { section_id: yearEnrollment.value?.section.id ?? '', roll_no: yearEnrollment.value?.roll_no ?? '' });
     }
 }
 
@@ -105,14 +105,14 @@ function removeGuardian(guardian) {
 function savePlacement() {
     const rollNo = placementForm.roll_no === '' ? null : Number(placementForm.roll_no);
 
-    if (currentEnrollment.value) {
+    if (yearEnrollment.value) {
         // An empty roll number keeps the current one, or takes the next free
         // one when moving section.
         const payload = rollNo === null ? {} : { roll_no: rollNo };
-        if (placementForm.section_id !== currentEnrollment.value.section.id) {
+        if (placementForm.section_id !== yearEnrollment.value.section.id) {
             payload.section_id = placementForm.section_id;
         }
-        submit(() => http.patch(`/api/v1/enrollments/${currentEnrollment.value.id}`, payload), 'Placement updated.');
+        submit(() => http.patch(`/api/v1/enrollments/${yearEnrollment.value.id}`, payload), 'Placement updated.');
     } else {
         submit(() => http.post(`/api/v1/students/${student.value.id}/enrollments`, { section_id: placementForm.section_id, roll_no: rollNo }), `Enrolled in ${year.value.name}.`);
     }
@@ -251,7 +251,7 @@ onMounted(load);
                     <div class="card-header">
                         <h2 class="card-title">Enrollment</h2>
                         <button v-if="canManage && year && openForm !== 'placement'" type="button" class="btn-link" @click="open('placement')">
-                            {{ currentEnrollment ? 'Change placement' : `Enroll in ${year.name}` }}
+                            {{ yearEnrollment ? `Change placement in ${year.name}` : `Enroll in ${year.name}` }}
                         </button>
                     </div>
 
@@ -275,8 +275,8 @@ onMounted(load);
                                 <FormField :label="`${terms.class} and ${terms.section.toLowerCase()} (${year.name})`" :error="fieldError('section_id')">
                                     <select v-model="placementForm.section_id" required class="input">
                                         <option value="" disabled>Choose…</option>
-                                        <option v-for="section in sections" :key="section.id" :value="section.id" :disabled="section.full && section.id !== currentEnrollment?.section.id">
-                                            {{ section.label }}{{ section.full && section.id !== currentEnrollment?.section.id ? ' (full)' : '' }}
+                                        <option v-for="section in sections" :key="section.id" :value="section.id" :disabled="section.full && section.id !== yearEnrollment?.section.id">
+                                            {{ section.label }}{{ section.full && section.id !== yearEnrollment?.section.id ? ' (full)' : '' }}
                                         </option>
                                     </select>
                                 </FormField>

@@ -15,9 +15,9 @@ const selected = computed(() => props.years.find((year) => year.id === props.mod
 <template>
     <label class="relative flex items-center" :title="selected && !selected.is_current ? `You are working in ${selected.name}, not the current year.` : null">
         <span class="sr-only">Academic year</span>
-        <AppIcon name="calendar" class="pointer-events-none absolute left-3 size-4" :class="selected?.is_current === false ? 'text-warning-strong' : 'text-gray-500'" />
+        <AppIcon name="calendar" class="pointer-events-none absolute left-3 hidden size-4 sm:block" :class="selected?.is_current === false ? 'text-warning-strong' : 'text-gray-500'" />
         <select
-            class="input h-9 w-auto pl-9"
+            class="input h-9 w-auto sm:pl-9"
             :class="selected?.is_current === false ? 'border-warning bg-warning-light text-warning-strong hover:border-warning' : ''"
             :value="modelValue"
             @change="emit('update:modelValue', Number($event.target.value))"

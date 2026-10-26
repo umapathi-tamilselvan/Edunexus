@@ -8,15 +8,14 @@ import LoadingState from '../../components/LoadingState.vue';
 import PageHeader from '../../components/PageHeader.vue';
 import { parseError } from '../../lib/errors';
 import { http } from '../../lib/http';
-import { loadAcademicYears, loadYearStructure } from '../academic';
+import { loadYearStructure } from '../academic';
+import { academicYear } from '../academicYear';
 import { session } from '../session';
 import { terms } from '../terms';
 
 const canManage = computed(() => session.can('academic.manage'));
 const emptyError = () => ({ message: '', fields: {} });
 
-const years = ref([]);
-const selectedYearId = ref(null);
 const year = ref(null);
 const subjects = ref([]);
 const teachers = ref([]);
@@ -33,13 +32,9 @@ const sectionForm = reactive({ name: '', capacity: 40, class_teacher_id: '' });
 const subjectForm = reactive({ code: '', name: '' });
 const classSubjectIds = ref([]);
 
-async function loadYears() {
-    years.value = await loadAcademicYears();
-    selectedYearId.value ??= (years.value.find((item) => item.is_current) ?? years.value[0])?.id ?? null;
-}
-
+/** The year picked in the header. */
 async function loadYear() {
-    year.value = selectedYearId.value ? await loadYearStructure(selectedYearId.value) : null;
+    year.value = academicYear.selectedId ? await loadYearStructure(academicYear.selectedId) : null;
 }
 
 async function load() {
@@ -47,8 +42,7 @@ async function load() {
     pageError.value = '';
 
     try {
-        await Promise.all([terms.load(), loadYears(), loadSubjects(), loadTeachers()]);
-        await loadYear();
+        await Promise.all([terms.load(), loadYear(), loadSubjects(), loadTeachers()]);
     } catch (error) {
         pageError.value = parseError(error).message;
     } finally {
@@ -103,27 +97,25 @@ async function submit(request, message, after) {
 }
 
 function makeCurrent() {
-    submit(() => http.post(`/api/v1/academic-years/${selectedYearId.value}/make-current`), `${year.value.name} is now the current year.`, async () => {
-        await loadYears();
+    submit(() => http.post(`/api/v1/academic-years/${year.value.id}/make-current`), `${year.value.name} is now the current year.`, async () => {
+        await academicYear.load({ force: true });
         await loadYear();
     });
 }
 
 /** Years are listed newest first, so only the current year can be followed by a new one. */
-const canOpenNextYear = computed(() => canManage.value && years.value[0]?.is_current === true);
+const canOpenNextYear = computed(() => canManage.value && academicYear.years[0]?.is_current === true);
 
 async function openNextYear() {
-    const current = years.value[0];
+    const current = academicYear.years[0];
     busy.value = true;
     notice.value = '';
     pageError.value = '';
 
     try {
         const { data } = await http.post('/api/v1/academic-years/next');
-        selectedYearId.value = data.data.id;
-        notice.value = `${data.data.name} is open with the ${terms.classes.toLowerCase()}, ${terms.sections.toLowerCase()}, subjects and bell schedule of ${current.name}. Assign its teachers, and make it current when it starts.`;
-        await loadYears();
-        await loadYear();
+        notice.value = `${data.data.name} is open with the ${terms.classes.toLowerCase()}, ${terms.sections.toLowerCase()}, subjects and bell schedule of ${current.name}. Pick it at the top to assign its teachers, and make it current when it starts.`;
+        await academicYear.load({ force: true });
     } catch (error) {
         const parsed = parseError(error);
         pageError.value = Object.values(parsed.fields)[0] ?? parsed.message;
@@ -133,7 +125,7 @@ async function openNextYear() {
 }
 
 function createClass() {
-    submit(() => http.post(`/api/v1/academic-years/${selectedYearId.value}/classes`, classForm), `${terms.class} ${classForm.name} added.`, loadYear);
+    submit(() => http.post(`/api/v1/academic-years/${year.value.id}/classes`, classForm), `${terms.class} ${classForm.name} added.`, loadYear);
 }
 
 function createSection(schoolClass) {
@@ -163,21 +155,16 @@ async function remove(url, message) {
     }
 }
 
-function changeYear() {
-    openForm.value = null;
-    loadYear();
-}
-
 onMounted(load);
 </script>
 
 <template>
     <div class="flex flex-col gap-5 lg:gap-7.5">
-        <PageHeader title="Academic setup" :description="`Academic years, ${terms.classes.toLowerCase()}, ${terms.sections.toLowerCase()} and subjects.`">
-            <select v-if="years.length" v-model="selectedYearId" class="input w-auto" aria-label="Academic year" @change="changeYear">
-                <option v-for="item in years" :key="item.id" :value="item.id">{{ item.name }}{{ item.is_current ? ' (current)' : '' }}</option>
-            </select>
-            <button v-if="canManage && year && !year.is_current" type="button" class="btn-secondary" :disabled="busy" @click="makeCurrent">Make current</button>
+        <PageHeader
+            title="Academic setup"
+            :description="year ? `${year.name}: ${terms.classes.toLowerCase()}, ${terms.sections.toLowerCase()} and subjects. Pick another year at the top.` : `Academic years, ${terms.classes.toLowerCase()}, ${terms.sections.toLowerCase()} and subjects.`"
+        >
+            <button v-if="canManage && year && !year.is_current" type="button" class="btn-secondary" :disabled="busy" @click="makeCurrent">Make {{ year.name }} current</button>
             <button v-if="canOpenNextYear" type="button" class="btn-primary" :disabled="busy" @click="openNextYear">
                 <AppIcon name="plus" class="size-4" />
                 Open next year
@@ -189,7 +176,7 @@ onMounted(load);
 
         <LoadingState v-if="loading" class="card" />
 
-        <div v-else-if="!years.length" class="card">
+        <div v-else-if="!academicYear.years.length" class="card">
             <EmptyState icon="calendar" title="No academic years yet" description="The first academic year opens when the institution is set up. Ask EduNexus support if it is missing." />
         </div>
 

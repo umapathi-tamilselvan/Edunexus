@@ -1,15 +1,9 @@
 import { http } from '../lib/http';
 
 /**
- * Loads academic years and the full structure (classes, sections, subjects)
- * of one year, the current year by default.
+ * Loads the full structure (classes, sections, subjects) of one academic
+ * year. The years themselves are in the academicYear store.
  */
-export async function loadAcademicYears() {
-    const { data } = await http.get('/api/v1/academic-years');
-
-    return data.data;
-}
-
 export async function loadYearStructure(yearId) {
     const { data } = await http.get(`/api/v1/academic-years/${yearId}`);
 

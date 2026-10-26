@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import { http } from '../lib/http';
+import { academicYear } from './academicYear';
 import AcademicPage from './pages/AcademicPage.vue';
 import AdmissionsPage from './pages/AdmissionsPage.vue';
 import DashboardPage from './pages/DashboardPage.vue';
@@ -42,6 +43,11 @@ router.beforeEach(async (to) => {
 
     if ((permissions.length && !session.canAny(permissions)) || (to.meta.module && !session.hasModule(to.meta.module))) {
         return { name: 'dashboard' };
+    }
+
+    // Pages open in the selected year; without the years, the API uses the current one.
+    if (session.can('academic.view') && session.hasModule('academic')) {
+        await academicYear.load().catch(() => null);
     }
 });
 

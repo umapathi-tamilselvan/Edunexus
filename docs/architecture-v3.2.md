@@ -14,7 +14,7 @@ v3.2 prepares EduNexus for 10,000–15,000 concurrent users across all clients, 
 | --- | --- | --- | --- |
 | 1 | Strict Eloquent models outside production; query-count tests for every list endpoint | [Performance and scale](#performance-and-scale) | built |
 | 2 | Redis for sessions, cache, queues (Horizon) and rate limiting, with a per-client key prefix and Redis user; throttled token `last_used_at` | [Queues](#queues-notifications-storage-and-audit), [Security](#security-and-compliance) | built |
-| 3 | Academic year as context: start-month setting, automatic first year, next year with copy-forward, year switcher; the year create and edit endpoints are retired | [Core data model](#core-data-model) | planned |
+| 3 | Academic year as context: start-month setting, automatic first year, next year with copy-forward, year switcher; the year create and edit endpoints are retired | [Core data model](#core-data-model) | built |
 | 4 | A teacher teaches one or more subjects; class-level subject teachers; timetable slots default to the subject teacher; workload matrix; Subjects and Subject teachers pages | [Core data model](#core-data-model) | planned |
 | 5 | Minimal attendance (section-day sheets) and fee (dues, payments, receipts) modules | [Core data model](#core-data-model), [Fees](#fees-and-finance-ledger) | planned |
 | 6 | Database: indexes for hot queries, bulk upserts for attendance and marks sheets, queued audits, score and fee-balance projections, cursor pagination | [Performance and scale](#performance-and-scale) | planned |
@@ -96,11 +96,11 @@ php artisan edunexus:client:create abc \
 | 2. Write `deployments/abc/abc.env` | Non-secret settings, see [Client files](#client-files) |
 | 3. Write `deployments/abc/abc.env.secure` | New `APP_KEY`, `DB_DATABASE=edunexus_abc`, `DB_USERNAME=edunexus_abc`, a random 32-character DB password |
 | 4. Provision the database | Creates database `edunexus_abc` and MySQL user `edunexus_abc` with rights on that database only, through the `provisioning` connection (`DB_PROVISION_USERNAME`) |
-| 5. Migrate and seed | Connected as the new client user: runs all migrations, then `DatabaseSeeder`: the institution-type seeder, and the sample school only when `APP_ENV=local` (see [Development data](#development-data)) |
+| 5. Migrate and seed | Connected as the new client user: runs all migrations, then `DatabaseSeeder`: the institution-type seeder, the first academic year (v3.2), and the sample school only when `APP_ENV=local` (see [Development data](#development-data)) |
 | 6. Create the admin | A Super Admin; the password is printed once, or asked for with `--ask-password` |
-| 7. Summary | Prints the client code, institution, database, login URL and Super Admin email; for a non-local client also its Redis user and the access string to create it with (v3.2) |
+| 7. Summary | Prints the client code, institution, database, first academic year, login URL and Super Admin email; for a non-local client also its Redis user and the access string to create it with (v3.2) |
 
-Other options: `--admin-name` (default "Super Admin") and `--url` (default `EDUNEXUS_CLIENT_URL`, `http://localhost:8000`). If any step from 2 to 6 fails, the database, MySQL user and files are removed again.
+Other options: `--admin-name` (default "Super Admin"), `--url` (default `EDUNEXUS_CLIENT_URL`, `http://localhost:8000`) and, since v3.2, `--year-start-month=<1-12>` (default per institution type, see [Academic years](#academic-years-v32--built)). If any step from 2 to 6 fails, the database, MySQL user and files are removed again.
 
 ### Supporting commands
 
@@ -138,12 +138,12 @@ Without `EDUNEXUS_CLIENT`, the root `.env` is used as the development client (`E
 
 ### Development data
 
-`DatabaseSeeder` runs `InstitutionTypeSeeder` and `UserSeeder` everywhere, and `DemoSchoolSeeder` only when `APP_ENV=local`. Tests build their own data, and production clients never get sample data.
+`DatabaseSeeder` runs `InstitutionTypeSeeder`, `AcademicYearSeeder` (v3.2: opens the first academic year when there is none) and `UserSeeder` everywhere, and `DemoSchoolSeeder` only when `APP_ENV=local`. Tests seed only `InstitutionTypeSeeder` and build their own data, years included, and production clients never get sample data.
 
 | Seeder | What it creates |
 | --- | --- |
 | `UserSeeder` | A Super Admin from `EDUNEXUS_SUPER_ADMIN_NAME`, `_EMAIL` and `_PASSWORD` in the root `.env`, to sign in to the development client. Skipped when no email is set. `edunexus:client:create` and `edunexus:client:migrate --seed` clear these values first, so the root credentials never reach a client database. |
-| `DemoSchoolSeeder` | Years 2025-2026 and 2026-2027 (current), Class 1 to Class 10 with sections A, B and C (capacity 40), 8 subjects, 30 teachers (`teacher01@<code>.test` to `teacher30@<code>.test`, password `password`, each a class teacher) and 50 students per class with two guardians each. 2025-2026's students move up a class. Refuses to run in production; safe to rerun. Run it alone with `php artisan db:seed --class=DemoSchoolSeeder`. |
+| `DemoSchoolSeeder` | The year today falls in (current) and the year before, from the start month, e.g. 2025-26 and 2026-27; Class 1 to Class 10 with sections A, B and C (capacity 40), 8 subjects, 30 teachers (`teacher01@<code>.test` to `teacher30@<code>.test`, password `password`, each a class teacher) and 50 students per class with two guardians each. Last year's students move up a class. Refuses to run in production; safe to rerun. Run it alone with `php artisan db:seed --class=DemoSchoolSeeder`. |
 
 ## Institution types
 
@@ -155,7 +155,7 @@ Without `EDUNEXUS_CLIENT`, the root `.env` is used as the development client (`E
 | `college` | Examination, Library, Hostel | Admin, Principal, Teacher, Accountant, Student | Semester / Division / Faculty / Principal |
 | `coaching` | none | Admin, Teacher, Accountant, Guardian, Student | Course / Batch / Tutor / Centre head |
 
-The core set for every type is Academic, Admission, Student, Staff, Attendance, Fee, Communication and Report. The definitions live in `App\Support\Deployment\InstitutionType`. `InstitutionTypeSeeder` syncs the roles and stores the terminology, with plural forms (Classes, Semesters, Batches…), in the `settings` table under `institution.terminology`. The SPA uses these words in every label.
+The core set for every type is Academic, Admission, Student, Staff, Attendance, Fee, Communication and Report. The definitions live in `App\Support\Deployment\InstitutionType`. `InstitutionTypeSeeder` syncs the roles and stores the terminology, with plural forms (Classes, Semesters, Batches…), in the `settings` table under `institution.terminology`. The SPA uses these words in every label. Since v3.2 it also stores the month academic years start in, `academic_year.start_month`: June for schools, July for colleges and April for coaching centres, unless the client already has one.
 
 ## Request lifecycle
 
@@ -232,12 +232,18 @@ app/
 - Guardian phones are normalised (digits only, no +91 or leading 0), encrypted, and matched by keyed hash, so siblings share one guardian record. Each student has at least one guardian and exactly one primary guardian.
 - Students, guardians and enrollments are audited; guardian phone values never enter the audit log.
 
-**Academic years (v3.2 · planned).** The academic year becomes a context every screen and endpoint works in, instead of something each page looks up.
+#### Academic years (v3.2 · built)
 
-- **Start month.** Each client has an `academic_year.start_month` setting with a default per institution type; `edunexus:client:create --year-start-month=<1-12>` overrides it.
-- **First year.** The first academic year is created automatically from the start month, so no one creates years by hand. The `POST academic-years` and `PATCH academic-years/{id}` endpoints and their screens are retired.
-- **Next year.** `POST academic-years/next` creates the following year and copies the current year's structure forward.
-- **Selected year.** `AcademicYearContext` holds the year a request works in, set by the `SelectedAcademicYear` middleware and defaulting to the current year, which is cached. The SPA header gets an `AcademicYearSwitcher`.
+The academic year is a context every screen and endpoint works in, instead of something each page looks up. No one creates or edits years by hand.
+
+- **Start month.** Each client has an `academic_year.start_month` setting: June for schools, July for colleges and April for coaching centres, or the month given to `edunexus:client:create --year-start-month=<1-12>`. Reseeding keeps a client's month.
+- **Shape of a year.** A year starts on the 1st of the start month and is named after it: with June, `2026-27` runs from 1 June 2026 to 31 May 2027 (with January, a year is named `2026`). `CreateAcademicYear` never lets years overlap: a new year starts after the year before it ends and ends before the year after it starts. Application numbers use the same name (`2026-27/0001`).
+- **First year.** `AcademicYearSeeder` opens the year today falls in, as current, for a client with no year: at creation, or for an existing client with `edunexus:client:migrate --seed`.
+- **Next year.** `POST academic-years/next` (`academic.manage`) opens the year after the current one and copies forward its classes, their sections and capacities, each class's subjects and the bell schedule (`CopyAcademicYearForward`). Class teachers, subject teachers and the timetable are set afresh. Only one year can be open ahead of the current one. The new year does not become current; `POST academic-years/{id}/make-current` switches when it starts, so admissions for the next year can be taken before then.
+- **Retired.** `POST academic-years` and `PATCH academic-years/{id}` are removed (405) along with the SPA's year form.
+- **Selected year.** A request works in the year named by the `X-Academic-Year` header (a year id), set by the `SelectedAcademicYear` middleware on every API route, or else the current year. `AcademicYearContext` (scoped to the request) resolves it lazily, so requests that never use it pay nothing. A header naming no year fails with 422. The list of years is cached for an hour and forgotten after commit whenever a year is saved or made current.
+- **What follows it.** The student and admission lists (unless filtered by `academic_year_id`), the enrollment shown with each student, teacher visibility (`student.view_assigned`), `GET me/timetable` and `GET me/teaching`. A marks sheet uses its exam's year instead.
+- **SPA.** The header has an `AcademicYearSwitcher` for users with `academic.view`, tinted when a year other than the current one is picked. The choice is remembered in the browser and sent on every request; switching reloads the open page in that year. Academic setup shows the picked year, with Make current and Open next year.
 
 **Admissions.** An application moves enquiry → approved → admitted, or to rejected (reason required) or withdrawn; small institutions may admit straight from an enquiry. Closed applications cannot change.
 
@@ -260,7 +266,7 @@ app/
 - A section's subject teacher must be linked to that subject, and the subject must be offered to the section's class. Assigning no teacher clears the slot.
 - A teacher still assigned to sections cannot move to another subject until those sections get another teacher; the error names the sections.
 - Taking a subject off a class (`PUT classes/{id}/subjects`) also removes its subject teachers in that class's sections.
-- Subject teachers see the students of their sections (see RBAC), and `GET me/teaching` lists their current-year sections and subjects.
+- Subject teachers see the students of their sections (see RBAC), and `GET me/teaching` lists their sections and subjects in the selected year.
 
 **v3.2 · planned.** Some teachers teach more than one subject.
 
@@ -274,7 +280,7 @@ app/
 
 | Area | Endpoints | Permission |
 | --- | --- | --- |
-| Years | `GET/POST academic-years`, `GET/PATCH academic-years/{id}`, `POST academic-years/{id}/make-current` | read `academic.view`, write `academic.manage` |
+| Years | `GET academic-years`, `GET academic-years/{id}`, `POST academic-years/next`, `POST academic-years/{id}/make-current` | read `academic.view`, write `academic.manage` |
 | Classes, sections | `GET/POST academic-years/{id}/classes`, `PATCH/DELETE classes/{id}`, `PUT classes/{id}/subjects`, `POST classes/{id}/sections`, `GET/PATCH/DELETE sections/{id}` | read `academic.view`, write `academic.manage` |
 | Subjects | `GET/POST subjects` (the list includes each subject's teachers), `PATCH subjects/{id}` | read `academic.view`, write `academic.manage` |
 | Subject teachers | `PUT sections/{id}/subjects/{subject}/teacher` (`teacher_id`, or null to clear), `GET me/teaching` | write `academic.manage`; own list: any signed-in user |
@@ -362,7 +368,7 @@ Exams the student was absent for are left out rather than counted as zero. For e
 
 **No registration.** A client's first and only seeded user is its Super Admin, created by `edunexus:client:create`. Users with the `user.manage` permission create every other login, assign roles and link teachers to their subject through the API (`POST /api/v1/users`, `PUT /api/v1/users/{id}/roles`, `PUT /api/v1/users/{id}/subject`).
 
-**RBAC.** Spatie Permission in the client database, guard `web` for both cookie and token requests. Permissions are fixed in code (`App\Domain\Identity\Enums\Permission`, e.g. `attendance.mark`, `fee.collect`). Roles are seeded per institution type and editable by the client; reseeding never overwrites a client's edits. A teacher's access is further scoped by policy: the Teacher role holds `student.view_assigned`, which shows only students enrolled (current year) in sections where they are class teacher, subject teacher, or teach a timetable period. `student.view` (Accountant, Principal, Admin) shows every student. Guardian phone numbers are masked except for users with `student.manage`. Roles of clients created before this permission existed keep their previous Teacher permissions until edited.
+**RBAC.** Spatie Permission in the client database, guard `web` for both cookie and token requests. Permissions are fixed in code (`App\Domain\Identity\Enums\Permission`, e.g. `attendance.mark`, `fee.collect`). Roles are seeded per institution type and editable by the client; reseeding never overwrites a client's edits. A teacher's access is further scoped by policy: the Teacher role holds `student.view_assigned`, which shows only students enrolled, in the selected year (current by default), in sections where they are class teacher, subject teacher, or teach a timetable period. `student.view` (Accountant, Principal, Admin) shows every student. Guardian phone numbers are masked except for users with `student.manage`. Roles of clients created before this permission existed keep their previous Teacher permissions until edited.
 
 **Exam permissions.** Teachers hold `exam.view` and `exam.enter_marks`. `exam.manage` (create and change exams, set paper maximums, enter any section's marks) was added in v3.1. New clients' Principal role gets it. Existing clients add it with `edunexus:client:migrate --seed`: Super Admin and Admin pick it up automatically, while an existing Principal role keeps its permissions until a client admin grants it.
 
@@ -378,8 +384,8 @@ Exams the student was absent for are left out rather than counted as zero. For e
 
 - **Tokens** live in `@theme` in `resources/css/app.css`: the Inter font (served by the `@fonts` Blade directive), primary `#1B84FF`, a navy-tinted gray scale, and success, warning, danger and info tones. Each tone has a fill, a hover fill (`-active`), a tinted surface (`-light`) and a readable text colour for that surface (`-strong`).
 - **Component classes** in the same file keep every page uniform: `btn-primary`, `btn-secondary`, `btn-danger`, `btn-icon`, `btn-link`, `input`, `checkbox`, `choice`, `card` (with `card-header`, `card-body`, `card-footer`), `badge-*`, `table` and `spinner`.
-- **Layout.** A full-width header holds only the app name (EduNexus, with the institution's name under it) and the profile menu (name, email, roles, sign out). A sidebar below it holds the navigation, grouped under Academics and Administration; on phones it becomes a slide-out drawer.
-- **Shared Vue components** in `resources/js/components`: `PageHeader`, `AppIcon` (inline Lucide icons), `InitialsAvatar`, `SearchField`, `SegmentedTabs`, `TablePagination`, `EmptyState`, `LoadingState`, `AlertMessage` and `FormField`.
+- **Layout.** A full-width header holds only the app name (EduNexus, with the institution's name under it), the academic year switcher (v3.2) and the profile menu (name, email, roles, sign out). A sidebar below it holds the navigation, grouped under Academics and Administration; on phones it becomes a slide-out drawer.
+- **Shared Vue components** in `resources/js/components`: `PageHeader`, `AppIcon` (inline Lucide icons), `InitialsAvatar`, `SearchField`, `SegmentedTabs`, `TablePagination`, `EmptyState`, `LoadingState`, `AlertMessage`, `FormField` and `AcademicYearSwitcher`. The selected year lives in the `academicYear` store (`resources/js/school/academicYear.js`).
 - **Navigation.** `resources/js/school/navigation.js` is the one list of pages, filtered by the user's permissions and modules. It feeds both the sidebar and the dashboard's quick-access tiles.
 
 | Page | Path | Shown when the user has |
@@ -474,7 +480,7 @@ Confirm the exact DPDP obligations with a lawyer before launch; the rules were s
 
 - Outside production, Eloquent is strict (`Model::shouldBeStrict()` in `AppServiceProvider`): lazy loading a relation, reading an attribute that wasn't selected and filling one that isn't fillable all throw.
 - `tests/Feature/ListQueryCountTest.php` covers all 18 list endpoints. Each test counts one request's queries with one row, adds two more rows with all their relations, and fails if the count changes (an N+1) or exceeds the endpoint's budget, set to today's count. Tighten a budget when a change lowers it; never raise one to make a test pass.
-- Every API route has a feature test, including exams, marks sheets, scores and subject teachers, which had none in v3.1. The one exception is `PATCH academic-years/{id}`, which v3.2 retires.
+- Every API route has a feature test, including exams, marks sheets, scores and subject teachers, which had none in v3.1.
 
 **Caching.** **v3.2 · planned:** branding (with ETag), `/me`, settings and terminology, timetables and a teacher's section IDs are cached per client and invalidated by model events.
 

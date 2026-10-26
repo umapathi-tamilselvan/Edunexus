@@ -40,6 +40,10 @@ Oct 25, 2026 · Analysis only; no application code was changed.
 | Year name format? | `2026-27`. | Step 3; also what application numbers show. |
 | What does `academic-years/next` copy? | Classes, sections with capacity, class subjects and periods. | Teachers and the timetable are not copied. |
 | What follows the selected year? | Everything a user browses, including teacher visibility. | Step 3. |
+| Does `academic-years/next` make the new year current? *(Oct 26, while building step 3; to confirm)* | No. It opens the year so admissions and setup can start; `make-current` switches when it starts. Only one year may be open ahead of the current one. | Step 3. |
+| How is the selected year sent? *(Oct 26; to confirm)* | As an `X-Academic-Year` header (a year id) on every API request, so the SPA and the mobile app work the same way and no session state is needed. No header means the current year; an unknown year is a 422. | Step 3. |
+| What if today falls in no year? *(Oct 26)* | It can't: years are contiguous from the start month, and the current year is the `is_current` flag, not today's date. | Step 3. |
+| Retired endpoints (question 9)? *(Oct 26; to confirm)* | `POST`/`PATCH academic-years` are removed now (405). A mobile build that calls them would need `academic-years/next` instead. | Step 3. |
 | New dependencies? | Keep the current ones; add one only when a step needs it. | **Horizon** is added in step 2.3, because the brief names it. **No Redis client package**: production uses the phpredis extension in the server image (the config already defaults to it), while local and tests keep the database drivers. **Octane is not added**: the worker test reproduces Octane's per-request reset itself. **k6** is installed on the machine that runs load tests, not added to the project. |
 
 ### What the overall target means

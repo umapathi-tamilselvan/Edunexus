@@ -9,7 +9,8 @@ import PageHeader from '../../components/PageHeader.vue';
 import SegmentedTabs from '../../components/SegmentedTabs.vue';
 import { parseError } from '../../lib/errors';
 import { http } from '../../lib/http';
-import { loadAcademicYears, loadYearStructure, sectionOptions } from '../academic';
+import { loadYearStructure, sectionOptions } from '../academic';
+import { academicYear } from '../academicYear';
 import { session } from '../session';
 import { terms } from '../terms';
 
@@ -162,8 +163,7 @@ onMounted(async () => {
     }
 
     try {
-        const current = (await loadAcademicYears()).find((item) => item.is_current);
-        year.value = current ? await loadYearStructure(current.id) : null;
+        year.value = academicYear.selectedId ? await loadYearStructure(academicYear.selectedId) : null;
         sectionId.value = sections.value[0]?.id ?? '';
         await loadSection();
 
@@ -226,7 +226,7 @@ onMounted(async () => {
                 v-else-if="!periods.length"
                 icon="timetable"
                 title="No periods yet"
-                :description="mode === 'mine' ? 'You have no periods assigned in the current year.' : 'Add the periods of the school day (the bell schedule) to start the timetable.'"
+                :description="mode === 'mine' ? `You have no periods assigned in ${academicYear.selected?.name ?? 'this academic year'}.` : 'Add the periods of the school day (the bell schedule) to start the timetable.'"
             />
 
             <div v-else class="overflow-x-auto">
