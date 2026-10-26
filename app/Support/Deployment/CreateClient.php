@@ -2,6 +2,7 @@
 
 namespace App\Support\Deployment;
 
+use App\Domain\Academic\Models\AcademicYear;
 use App\Domain\Identity\Enums\Role;
 use App\Domain\Identity\Models\User;
 use App\Support\OrganizationContext;
@@ -28,7 +29,7 @@ class CreateClient
     ) {}
 
     /**
-     * @return array{client: Client, admin_email: string, admin_password: string, redis_access: string|null}
+     * @return array{client: Client, admin_email: string, admin_password: string, academic_year: string, redis_access: string|null}
      */
     public function handle(
         string $code,
@@ -59,6 +60,7 @@ class CreateClient
         }
 
         $adminPassword ??= Str::password(16, symbols: false);
+        $academicYear = '';
 
         try {
             // 2–3. Write deployments/<code>/.env and .env.secure.
@@ -67,9 +69,10 @@ class CreateClient
             // 4. Provision the database and its user.
             $this->database->provision($client);
 
-            // 5–6. Migrate, seed and create the admin, connected as the client's user.
-            $this->database->run($client, function () use ($client, $adminEmail, $adminName, $adminPassword, $yearStartMonth): void {
-                $this->asClient($client, function () use ($adminEmail, $adminName, $adminPassword, $yearStartMonth): void {
+            // 5–6. Migrate, seed (which opens the first academic year) and
+            // create the admin, connected as the client's user.
+            $this->database->run($client, function () use ($client, $adminEmail, $adminName, $adminPassword, $yearStartMonth, &$academicYear): void {
+                $this->asClient($client, function () use ($adminEmail, $adminName, $adminPassword, $yearStartMonth, &$academicYear): void {
                     $this->call('migrate', ['--force' => true]);
 
                     // Before seeding, so the seeders keep it instead of the type's default.
@@ -78,6 +81,9 @@ class CreateClient
                     }
 
                     $this->call('db:seed', ['--force' => true]);
+
+                    $year = AcademicYear::query()->current()->sole();
+                    $academicYear = "{$year->name} ({$year->starts_on->format('j M Y')} – {$year->ends_on->format('j M Y')})";
 
                     User::query()
                         ->create([
@@ -99,6 +105,7 @@ class CreateClient
             'client' => $client,
             'admin_email' => $adminEmail,
             'admin_password' => $adminPassword,
+            'academic_year' => $academicYear,
             'redis_access' => $this->usesRedis() ? self::redisAccess($code) : null,
         ];
     }

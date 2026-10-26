@@ -72,8 +72,6 @@ Route::middleware(['auth:sanctum', 'entitled:academic'])->group(function () {
     Route::get('me/teaching', [SectionSubjectTeacherController::class, 'mine'])->name('teaching.mine');
 
     Route::middleware('can:academic.manage')->group(function () {
-        Route::post('academic-years', [AcademicYearController::class, 'store'])->name('academic-years.store');
-        Route::patch('academic-years/{academicYear}', [AcademicYearController::class, 'update'])->name('academic-years.update');
         Route::post('academic-years/{academicYear}/make-current', [AcademicYearController::class, 'makeCurrent'])->name('academic-years.make-current');
 
         Route::post('academic-years/{academicYear}/classes', [SchoolClassController::class, 'store'])->name('classes.store');

@@ -20,21 +20,21 @@ use App\Support\OrganizationContext;
 use App\Support\Sequences;
 use Faker\Generator;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use RuntimeException;
 
 /**
  * Fills a development client with a sample school, so every screen has
- * realistic data. DatabaseSeeder never calls it, so real clients never get
- * it; run it on its own:
+ * realistic data. DatabaseSeeder calls it only when APP_ENV is local, so
+ * real clients never get it; run it on its own with:
  *
  *     php artisan db:seed --class=DemoSchoolSeeder
  *     EDUNEXUS_CLIENT=abc php artisan db:seed --class=DemoSchoolSeeder
  *
  * It creates:
- * - academic years 2025-2026 and 2026-2027, the latter current;
+ * - the academic year today falls in, current, and the year before it
+ *   (e.g. 2025-26 and 2026-27), from the client's start month;
  * - Class 1 to Class 10 in each year, each with sections A, B and C;
  * - subjects, offered to the classes that study them;
  * - 30 teachers, teacher01@<client code>.test to teacher30@…, all with the
@@ -42,8 +42,8 @@ use RuntimeException;
  *   years: teacher01 of Class 1 A, teacher02 of Class 1 B, … teacher30 of
  *   Class 10 C;
  * - 50 students per class, each with a father and a mother as guardians.
- *   2025-2026's students move up a class in 2026-2027, its Class 10
- *   leaves, and a new Class 1 joins.
+ *   Last year's students move up a class this year, its Class 10 leaves,
+ *   and a new Class 1 joins.
  *
  * Students, guardians and enrollments are inserted in bulk, a class at a
  * time: CreateStudent and EnrollStudent row by row took about 25 seconds.
@@ -53,18 +53,6 @@ use RuntimeException;
  */
 class DemoSchoolSeeder extends Seeder
 {
-    /**
-     * Name => [starts on, ends on], oldest first.
-     *
-     * @var array<string, array{string, string}>
-     */
-    private const YEARS = [
-        '2025-2026' => ['2025-06-01', '2026-04-30'],
-        '2026-2027' => ['2026-06-01', '2027-04-30'],
-    ];
-
-    private const CURRENT_YEAR = '2026-2027';
-
     private const HIGHEST_CLASS = 10;
 
     private const SECTIONS = ['A', 'B', 'C'];
@@ -113,18 +101,20 @@ class DemoSchoolSeeder extends Seeder
         Student::withoutAuditing(fn () => DB::transaction(function (): void {
             $teachers = $this->teachers();
             $subjectIds = $this->subjectIdsByClass();
+            $currentStartYear = $this->createAcademicYear->startYearOf(today());
             $previousSections = [];
 
-            foreach (self::YEARS as $name => [$startsOn, $endsOn]) {
-                $year = AcademicYear::query()->firstWhere('name', $name)
-                    ?? $this->createAcademicYear->handle($name, Carbon::parse($startsOn), Carbon::parse($endsOn));
+            foreach ([$currentStartYear - 1, $currentStartYear] as $startYear) {
+                // A year is found by when it starts, so years named by hand are reused.
+                $year = AcademicYear::query()->whereYear('starts_on', $startYear)->orderBy('starts_on')->first()
+                    ?? $this->createAcademicYear->handle($startYear);
 
                 $sections = $this->classes($year, $teachers, $subjectIds);
                 $this->fillClasses($year, $sections, $previousSections);
                 $previousSections = $sections;
             }
 
-            $this->makeAcademicYearCurrent->handle(AcademicYear::query()->where('name', self::CURRENT_YEAR)->sole());
+            $this->makeAcademicYearCurrent->handle($year);
         }), globally: true);
     }
 

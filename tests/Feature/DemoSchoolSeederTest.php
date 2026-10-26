@@ -26,13 +26,21 @@ use Tests\TestCase;
  */
 class DemoSchoolSeederTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // The demo years are this year and last, from the school's June start.
+        $this->travelTo('2026-10-26');
+    }
+
     public function test_creates_two_years_of_ten_classes_with_three_sections_class_teachers_and_subjects(): void
     {
         $this->seed(DemoSchoolSeeder::class);
 
         $years = AcademicYear::query()->with(['classes.sections.classTeacher', 'classes.subjects'])->orderBy('starts_on')->get();
-        $this->assertSame(['2025-2026', '2026-2027'], $years->pluck('name')->all());
-        $this->assertSame('2026-2027', AcademicYear::query()->current()->sole()->name);
+        $this->assertSame(['2025-26', '2026-27'], $years->pluck('name')->all());
+        $this->assertSame('2026-27', AcademicYear::query()->current()->sole()->name);
 
         foreach ($years as $year) {
             $this->assertSame(
@@ -72,12 +80,12 @@ class DemoSchoolSeederTest extends TestCase
             ->with(['academicYear', 'section.schoolClass'])
             ->get()
             ->countBy(fn (StudentEnrollment $enrollment): string => "{$enrollment->academicYear->name} {$enrollment->section->schoolClass->name} {$enrollment->status->value}");
-        $this->assertSame(50, $statuses['2025-2026 Class 3 promoted']);
-        $this->assertSame(50, $statuses['2025-2026 Class 10 left']);
-        $this->assertSame(500, $statuses->filter(fn (int $count, string $key): bool => str_starts_with($key, '2026-2027') && str_ends_with($key, ' active'))->sum());
+        $this->assertSame(50, $statuses['2025-26 Class 3 promoted']);
+        $this->assertSame(50, $statuses['2025-26 Class 10 left']);
+        $this->assertSame(500, $statuses->filter(fn (int $count, string $key): bool => str_starts_with($key, '2026-27') && str_ends_with($key, ' active'))->sum());
 
-        $this->assertSame($this->studentIdsIn('2025-2026', 'Class 3', 'B'), $this->studentIdsIn('2026-2027', 'Class 4', 'B'));
-        $this->assertSame(0, Student::query()->whereKey($this->studentIdsIn('2026-2027', 'Class 1', 'A'))->has('enrollments', '>', 1)->count());
+        $this->assertSame($this->studentIdsIn('2025-26', 'Class 3', 'B'), $this->studentIdsIn('2026-27', 'Class 4', 'B'));
+        $this->assertSame(0, Student::query()->whereKey($this->studentIdsIn('2026-27', 'Class 1', 'A'))->has('enrollments', '>', 1)->count());
         $this->assertDatabaseCount('students', 550);
     }
 
@@ -85,7 +93,7 @@ class DemoSchoolSeederTest extends TestCase
     {
         $this->seed(DemoSchoolSeeder::class);
 
-        $register = $this->section('2026-2027', 'Class 4', 'B')->enrollments()->with('student.guardians')->orderBy('roll_no')->get();
+        $register = $this->section('2026-27', 'Class 4', 'B')->enrollments()->with('student.guardians')->orderBy('roll_no')->get();
         $this->assertSame(range(1, 17), $register->pluck('roll_no')->all());
         $names = $register->pluck('student.name')->all();
         $alphabetical = $names;
@@ -111,7 +119,7 @@ class DemoSchoolSeederTest extends TestCase
 
         $listedIds = $this->withToken($token)->getJson('/api/v1/students')->assertOk()->json('data.*.id');
         sort($listedIds);
-        $this->assertSame($this->studentIdsIn('2026-2027', 'Class 1', 'A'), $listedIds);
+        $this->assertSame($this->studentIdsIn('2026-27', 'Class 1', 'A'), $listedIds);
     }
 
     public function test_rerunning_adds_no_duplicates(): void

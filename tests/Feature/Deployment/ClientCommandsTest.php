@@ -153,14 +153,20 @@ class ClientCommandsTest extends TestCase
         });
     }
 
-    public function test_the_year_start_month_option_overrides_the_types_default_and_survives_reseeding(): void
+    public function test_the_year_start_month_option_sets_when_the_first_academic_year_starts_and_survives_reseeding(): void
     {
+        $this->travelTo('2026-10-26');
+
         $this->artisan('edunexus:client:create', ['code' => 'abc', '--name' => 'ABC', '--type' => 'school', '--admin-email' => 'owner@abc.test', '--year-start-month' => '4'])
+            ->expectsOutputToContain('2026-27 (1 Apr 2026 – 31 Mar 2027)')
             ->assertSuccessful();
 
         $this->artisan('edunexus:client:migrate', ['code' => 'abc', '--seed' => true])->assertSuccessful();
 
-        $this->asClient('abc', fn () => $this->assertSame(4, json_decode(DB::table('settings')->where('key', 'academic_year.start_month')->value('value'))));
+        $this->asClient('abc', function (): void {
+            $this->assertSame(4, json_decode(DB::table('settings')->where('key', 'academic_year.start_month')->value('value')));
+            $this->assertSame([['name' => '2026-27', 'is_current' => 1]], DB::table('academic_years')->get(['name', 'is_current'])->map(fn ($year): array => (array) $year)->all());
+        });
     }
 
     #[TestWith(['13'])]

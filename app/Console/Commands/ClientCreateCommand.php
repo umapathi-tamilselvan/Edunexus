@@ -59,6 +59,7 @@ class ClientCreateCommand extends Command
         $this->components->twoColumnDetail('Client code', $client->code);
         $this->components->twoColumnDetail('Institution', "{$client->name} ({$client->type->label()})");
         $this->components->twoColumnDetail('Database', $client->database);
+        $this->components->twoColumnDetail('Academic year', $result['academic_year']);
 
         if ($result['redis_access'] !== null) {
             $this->components->twoColumnDetail('Redis user', "{$client->username} (password: REDIS_PASSWORD in {$client->code}.env.secure)");

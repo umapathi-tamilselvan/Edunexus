@@ -28,7 +28,6 @@ const pageError = ref('');
 const openForm = ref(null);
 const busy = ref(false);
 const formError = ref(emptyError());
-const yearForm = reactive({ name: '', starts_on: '', ends_on: '', make_current: false });
 const classForm = reactive({ name: '', sort_order: 0 });
 const sectionForm = reactive({ name: '', capacity: 40, class_teacher_id: '' });
 const subjectForm = reactive({ code: '', name: '' });
@@ -76,9 +75,7 @@ function open(key, values = {}) {
     formError.value = emptyError();
     notice.value = '';
 
-    if (key === 'year') {
-        Object.assign(yearForm, { name: '', starts_on: '', ends_on: '', make_current: false });
-    } else if (key === 'class') {
+    if (key === 'class') {
         Object.assign(classForm, { name: '', sort_order: (year.value?.classes.length ?? 0) + 1 });
     } else if (key.startsWith('section:')) {
         Object.assign(sectionForm, { name: '', capacity: 40, class_teacher_id: '' });
@@ -103,20 +100,6 @@ async function submit(request, message, after) {
     } finally {
         busy.value = false;
     }
-}
-
-function createYear() {
-    submit(
-        async () => {
-            const { data } = await http.post('/api/v1/academic-years', yearForm);
-            selectedYearId.value = data.data.id;
-        },
-        `Academic year ${yearForm.name} created.`,
-        async () => {
-            await loadYears();
-            await loadYear();
-        },
-    );
 }
 
 function makeCurrent() {
@@ -172,54 +155,15 @@ onMounted(load);
                 <option v-for="item in years" :key="item.id" :value="item.id">{{ item.name }}{{ item.is_current ? ' (current)' : '' }}</option>
             </select>
             <button v-if="canManage && year && !year.is_current" type="button" class="btn-secondary" :disabled="busy" @click="makeCurrent">Make current</button>
-            <button v-if="canManage" type="button" class="btn-primary" @click="open('year')">
-                <AppIcon name="plus" class="size-4" />
-                New year
-            </button>
         </PageHeader>
 
         <AlertMessage v-if="notice" tone="success">{{ notice }}</AlertMessage>
         <AlertMessage v-if="pageError">{{ pageError }}</AlertMessage>
 
-        <form v-if="openForm === 'year'" class="card" @submit.prevent="createYear">
-            <div class="card-header">
-                <h2 class="card-title">New academic year</h2>
-                <button type="button" class="btn-icon btn-sm" aria-label="Close" :disabled="busy" @click="openForm = null">
-                    <AppIcon name="x" class="size-4.5" />
-                </button>
-            </div>
-            <div class="card-body flex flex-col gap-5">
-                <AlertMessage v-if="formError.message">{{ formError.message }}</AlertMessage>
-                <div class="grid gap-5 sm:grid-cols-3">
-                    <FormField label="Name" :error="formError.fields.name" hint="e.g. 2026-27">
-                        <input v-model="yearForm.name" required class="input" />
-                    </FormField>
-                    <FormField label="Starts on" :error="formError.fields.starts_on">
-                        <input v-model="yearForm.starts_on" type="date" required class="input" />
-                    </FormField>
-                    <FormField label="Ends on" :error="formError.fields.ends_on">
-                        <input v-model="yearForm.ends_on" type="date" required class="input" />
-                    </FormField>
-                </div>
-                <label class="flex items-center gap-2 text-2sm text-gray-700">
-                    <input v-model="yearForm.make_current" type="checkbox" class="checkbox" />
-                    Make this the current year
-                </label>
-            </div>
-            <div class="card-footer">
-                <button type="button" class="btn-secondary" :disabled="busy" @click="openForm = null">Cancel</button>
-                <button type="submit" class="btn-primary" :disabled="busy">Create year</button>
-            </div>
-        </form>
-
         <LoadingState v-if="loading" class="card" />
 
         <div v-else-if="!years.length" class="card">
-            <EmptyState
-                icon="calendar"
-                title="No academic years yet"
-                :description="`Create the first academic year to start adding ${terms.classes.toLowerCase()} and ${terms.sections.toLowerCase()}.`"
-            />
+            <EmptyState icon="calendar" title="No academic years yet" description="The first academic year opens when the institution is set up. Ask EduNexus support if it is missing." />
         </div>
 
         <template v-else-if="year">
