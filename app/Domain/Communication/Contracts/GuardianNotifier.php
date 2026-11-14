@@ -18,4 +18,10 @@ interface GuardianNotifier
      * the whole day or for a session or period named by $when.
      */
     public function absent(Guardian $guardian, Student $student, CarbonInterface $date, string $when): void;
+
+    /**
+     * Sends the guardian a one-time code to sign in. The code is valid for
+     * five minutes. Drivers must never store the code outside the message.
+     */
+    public function otp(Guardian $guardian, string $code): void;
 }

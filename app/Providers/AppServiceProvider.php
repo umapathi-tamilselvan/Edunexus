@@ -12,7 +12,9 @@ use App\Domain\Examination\Policies\ExamPolicy;
 use App\Domain\Identity\Listeners\RecordTokenUse;
 use App\Domain\Identity\Models\User;
 use App\Domain\Identity\Policies\UserPolicy;
+use App\Domain\Student\Models\Guardian;
 use App\Domain\Student\Models\Student;
+use App\Domain\Student\Policies\GuardianPolicy;
 use App\Domain\Student\Policies\StudentPolicy;
 use App\Support\AcademicYearContext;
 use App\Support\OrganizationContext;
@@ -54,6 +56,7 @@ class AppServiceProvider extends ServiceProvider
         // Policies live in their domain modules, outside the discovery path.
         Gate::policy(User::class, UserPolicy::class);
         Gate::policy(Student::class, StudentPolicy::class);
+        Gate::policy(Guardian::class, GuardianPolicy::class);
         Gate::policy(Exam::class, ExamPolicy::class);
         Gate::policy(AttendanceRecord::class, AttendancePolicy::class);
 
@@ -71,6 +74,12 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('api', fn (Request $request): Limit => $request->user()
             ? Limit::perMinute(120)->by('user:'.$request->user()->getAuthIdentifier())
             : Limit::perMinute(600)->by('ip:'.$request->ip()));
+
+        // Guardians sign in by phone, so their codes are limited per phone and IP.
+        RateLimiter::for('guardian-otp', fn (Request $request): array => [
+            Limit::perMinute(3)->by('phone:'.Guardian::hashPhone((string) $request->input('phone')).'|'.$request->ip()),
+            Limit::perMinute(20)->by((string) $request->ip()),
+        ]);
 
         RateLimiter::for('login', fn (Request $request): array => [
             Limit::perMinute(5)->by(strtolower((string) $request->input('email')).'|'.$request->ip()),

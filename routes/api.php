@@ -22,6 +22,8 @@ use App\Http\Controllers\Api\V1\Examination\ExamPublicationController;
 use App\Http\Controllers\Api\V1\Examination\SectionResultsController;
 use App\Http\Controllers\Api\V1\Examination\SubjectScoreController;
 use App\Http\Controllers\Api\V1\Fee\FeeController;
+use App\Http\Controllers\Api\V1\Guardian\GuardianAuthController;
+use App\Http\Controllers\Api\V1\Guardian\GuardianChildrenController;
 use App\Http\Controllers\Api\V1\MeController;
 use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\Settings\ClientSettingsController;
@@ -42,6 +44,18 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::get('branding', BrandingController::class)->name('branding');
+
+// Guardian sign-in by phone code (§3.4, R7). Guardians hold no permissions:
+// they see only their linked children, checked by GuardianPolicy.
+Route::post('guardian/otp', [GuardianAuthController::class, 'sendCode'])->middleware('throttle:guardian-otp')->name('guardian.otp.send');
+Route::post('guardian/otp/verify', [GuardianAuthController::class, 'verifyCode'])->middleware('throttle:guardian-otp')->name('guardian.otp.verify');
+
+Route::middleware('auth:sanctum')->prefix('guardian')->name('guardian.')->group(function () {
+    Route::get('children', [GuardianChildrenController::class, 'index'])->name('children.index');
+    Route::get('children/{student}/attendance', [GuardianChildrenController::class, 'attendance'])->name('children.attendance');
+    Route::get('children/{student}/marks', [GuardianChildrenController::class, 'marks'])->name('children.marks');
+    Route::get('children/{student}/scores', [GuardianChildrenController::class, 'scores'])->name('children.scores');
+});
 
 Route::prefix('auth')->name('auth.')->group(function () {
     Route::post('login', [SessionController::class, 'store'])->middleware('throttle:login')->name('login');

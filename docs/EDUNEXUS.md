@@ -27,7 +27,7 @@ The core modules for every type: Academic, Admission, Student, Staff, Attendance
 | Principal | head of the institution | Oversight, approvals, insights. Every permission except role and settings management. |
 | Teacher | class teachers and subject teachers | Marks attendance for their sections, enters marks for the subjects they teach, sees their own timetable and their students. |
 | Accountant | fee office | Collects payments, issues receipts, reverses entries, sees students and fee balances. |
-| Guardian | parent | Mobile app: child's attendance, marks and dues. **Planned.** Login does not work yet. |
+| Guardian | parent | Mobile app (R7): signs in with a one-time code sent to the phone on file; sees each linked child's attendance, published marks and scores. Dues come with Finance. Holds no permissions. **Built** (dues planned). |
 | Student | learner | **Planned.** |
 
 Every role's permissions are in §5 (RBAC). Roles are seeded per institution type; client edits to role permissions are **planned** (no write endpoint yet).
@@ -100,7 +100,7 @@ The status endpoint (`GET academic-years/{id}/setup-status`) and the checklist p
 
 ### 2.4 Home per role
 
-Each role gets its own home. The Teacher home and the Principal home are **built** (step 1.2). Principal, Admin and Super Admin see the Principal home, until the Admin home is decided (Q20, §9). Accountant and Guardian homes are **planned**; other roles see the generic dashboard.
+Each role gets its own home. The Teacher home and the Principal home are **built** (step 1.2). Principal, Admin and Super Admin see the Principal home, until the Admin home is decided (Q20, §9). The Guardian home is the mobile app (R7). The Accountant home is **planned**; other roles see the generic dashboard.
 
 | Role | Shows |
 | --- | --- |
@@ -108,7 +108,7 @@ Each role gets its own home. The Teacher home and the Principal home are **built
 | Principal | today's attendance by section, with sheets not yet submitted; admissions by status; fee collection today (after Finance) |
 | Admin | Year Setup progress; open admissions |
 | Accountant | collections today; defaulters |
-| Guardian (mobile) | each child's attendance, marks and dues |
+| Guardian (mobile, built in R7) | each child's attendance (today, and the chosen month, with the percentage), published exam marks and scores; dues after Finance |
 
 ## 3. Business rules by module
 
@@ -151,6 +151,9 @@ Each role gets its own home. The Teacher home and the Principal home are **built
 - **Admissions.** An application moves enquiry → approved → admitted, or to rejected (reason required) or withdrawn. Closed applications cannot change. Admitting runs in one transaction: it locks the application, checks the section belongs to the class applied for, creates the student, links or reuses the guardian, enrols, and writes a consent row. Consent is mandatory: the admitting user confirms the guardian saw the privacy notice and records how consent was given (signed form, in person, digital). The notice version is stored.
 - Application numbers are gapless per year (`2026-27/0001`). Admission numbers default to `<CODE><00001>`, skip numbers typed by hand, and are returned if the admission rolls back.
 - **Placing a class's students (R2).** The students of a class for a year are those enrolled last year in a class of the same name who have no enrollment this year (D21, Q22). They are placed in name order, into the classrooms in name order, each up to its capacity. Each placement goes through the normal enrollment rules (one enrollment a year, roll numbers, capacity lock). Students with no seat left are counted and not placed. Roll numbers are given in name or admission-number order, as chosen.
+
+- **Guardian sign-in (R7).** A guardian signs in with a six-digit code sent to the phone on file. The code is valid for five minutes, works once, and locks after five wrong attempts. Requests are limited per phone and IP (3 a minute). Whether a phone is on file is never revealed. The first successful sign-in creates the guardian's login (role Guardian, no email, no password anyone knows) and links it to the guardian record (D37). Codes are sent on the critical queue (D38).
+- **What a guardian sees (R7).** Only their linked children, checked by `GuardianPolicy`: each child's attendance (the year's summary, today by session or period, and a chosen month), exam marks only for exams whose marks are published, and academic and attendance scores that count published exams only. Guardians hold no permissions.
 
 ### 3.5 Attendance
 
@@ -287,7 +290,7 @@ Built for deployed clients. Local and tests use database and array drivers.
 
 - Horizon runs each client's queues: `critical` (OTP, receipts), `default` (notifications, audits, recomputes), `bulk` (reminders, imports, PDFs). Three tries, 5 s then 30 s backoff, 60 s timeout.
 - The Horizon dashboard opens only to a Super Admin outside local development.
-- `AbsenceAlert` (R3) runs on `critical` after an attendance save commits, and sends the guardian notice through `GuardianNotifier` (§3.5). Audits are still written in the request; queued audits are planned (Phase 6).
+- `AbsenceAlert` (R3) runs on `critical` after an attendance save commits, and sends the guardian notice through `GuardianNotifier` (§3.5). `SendGuardianOtp` (R7) sends guardian sign-in codes on `critical`. Audits are still written in the request; queued audits are planned (Phase 6).
 
 ### 4.4 Security and rate limits
 
@@ -344,7 +347,7 @@ Permissions are fixed in code (`App\Domain\Identity\Enums\Permission`). Roles ho
 | `exam.publish`, `exam.unlock` | route middleware on the publish and unlock endpoints (R4) | Principal, Admin, Super Admin |
 | `fee.concession_approve`, `communication.send`, `report.view` | **nowhere yet** | see the role table in code |
 
-Guardian and Student roles hold no permissions. Roles of clients created before a permission existed keep their old permissions until edited.
+Guardian and Student roles hold no permissions. A guardian sees their linked children through `GuardianPolicy` (R7). Roles of clients created before a permission existed keep their old permissions until edited.
 
 ## 6. Client settings
 
@@ -410,7 +413,7 @@ One commit per step, full suite green before each. Commits and behaviour changes
 | R4 | marks entry per classroom (step 2.4): `exam_mark_sheets`, bulk save, publish and unlock | this commit (no tests; R9 owes them) |
 | R5 | scale of 10 for academic and attendance scores, shown per subject and overall (replaces Q9); Q19 | this commit (no tests; R9 owes them) |
 | R6 | teacher home "My classrooms" | this commit (no tests; R9 owes them) |
-| R7 | guardian login by OTP, and guardian endpoints scoped to linked children | not started |
+| R7 | guardian login by OTP, and guardian endpoints scoped to linked children | this commit (no tests; R9 owes them) |
 | R8 | navigation: Classrooms under People; old section pages route to the classroom page; final doc pass | not started |
 | R9 | tests and query-count budgets for R1–R8 | owed |
 
@@ -493,6 +496,9 @@ Owner decisions are answers from the product owner. "Technical" decisions were m
 | D34 | The overall academic score averages all exam percentages, every exam counting equally, not the subject scores. It matches the rule in §3.6 | technical (R5) |
 | D35 | `students/{id}/scores` returns an object: `scale`, `academic` (overall and subjects) and `attendance`, side by side. Its previous list shape is gone. The existing score tests assert the old shape and are owed in R9 | technical (R5) |
 | D36 | Marks due on the teacher's home are exams not yet published that end within `home.marks_due_window_days` (14, §6) or have no end date. There is no due date field yet (`exams.marks_due_on`, step 2.2) | technical (R6) |
+| D37 | A guardian's login is created on first sign-in, with no email and an unusable password, and linked to the guardian record. `users.email` becomes nullable for it. Guardians sign in only with codes | technical (R7) |
+| D38 | The sign-in code travels in the queued job's payload for at most its few seconds in the queue. It is never logged outside local and testing, and the log driver says a code was requested, not what it was. Only a keyed hash of the code is stored | technical (R7) |
+| D39 | Guardian sign-in is limited per phone and IP (3 a minute) with a separate limiter, not the email limiter sign-in uses, because a guardian signs in by phone | technical (R7) |
 | Q1 | Attendance is per day, per session or per period, chosen by `attendance.mode`. The `period` column holds 0 for the day or the period's id (R3). Replaces the earlier per-day answer | owner (R3 brief) |
 | Q2 | Leave is excluded from the attendance percentage; release note | owner |
 | Q3 | Late counts 1, half day 0.5 | owner |
@@ -519,7 +525,7 @@ Owner decisions are answers from the product owner. "Technical" decisions were m
 ## 9. Open questions
 
 1. **Q14: which clients hold live data today?** Blocks step 0.5 and the migration rehearsal. Reply with client codes, or "none".
-2. **Q17: When do guardians get logins, and what does each guardian see?** Blocks the guardian home (§2.4) and the guardian app (step 7.2).
+2. **Q17 (answered in R7, owner brief):** guardians sign in with a code sent to the phone on file, and see the attendance, published marks and scores of their linked children (§3.4). Dues come with Finance.
 3. **Q18: Do students get logins, and what do they see?** Blocks the student app (step 7.2).
 4. **Q20: Which home does an Admin see?** Today Admin and Super Admin see the Principal home (§2.4). Blocks the Admin home.
 5. **Q21: What does "Admissions open" mean on the Year Setup checklist?** Today the step is done when the year is the current year (§2.3). Blocks the step's real definition.
@@ -546,13 +552,14 @@ Conventions: every table has `id` and timestamps unless noted. Foreign keys are 
 
 | Table | Key columns and rules |
 | --- | --- |
-| `users` | name, email (unique), password, remember token, `subject_id` (legacy: one subject, kept in step with `subject_teacher` until a later release; planned for removal) |
+| `users` | name, email (unique; nullable for a guardian's login, R7), password, remember token, `subject_id` (legacy: one subject, kept in step with `subject_teacher` until a later release; planned for removal) |
 | `roles`, `permissions`, `model_has_roles`, `model_has_permissions`, `role_has_permissions` | Spatie permission tables; role name unique per guard |
 | `personal_access_tokens` | Sanctum tokens, unique token; no expiry |
 | `settings` | key (unique), value (JSON) — client settings (§6) |
 | `audits` | owen-it audit rows: auditable, event, old and new values, user, IP, URL, time |
 | `sequences` | key (unique), next value — gapless counters, locked on use |
-| `guardians` | name, phone (encrypted), phone hash (indexed), email, `user_id` (unique, nullable; unused) |
+| `guardians` | name, phone (encrypted), phone hash (indexed), email, `user_id` (unique, nullable: the guardian's login, R7) |
+| `guardian_otps` (R7) | guardian_id, phone_hash (indexed), code_hash (keyed hash), expires_at, attempts, consumed_at; codes are never stored in clear |
 
 **Academic (built)**
 
@@ -631,3 +638,4 @@ All under `/api/v1`. `entitled` is the module gate; `can` the permission. Full l
 | Examinations | `academic-years/{id}/exams` (list, create), `exams/{id}` (show, update, delete), `exams/{id}/classes/{class}/subjects/{subject}/max-marks`, `exams/{id}/marks` (show, save), `exams/{id}/sections/{section}/mark-sheets` (subject status), `exams/{id}/publish`, `exams/{id}/unlock`, `me/classrooms` (the teacher's classrooms and today's due attendance and marks), `sections/{section}/results` (academic and attendance scores for the year), `students/{id}/scores` (academic and attendance scores, lifetime) |
 | Fees | `fee-heads` (list, create), `fee-dues` (create), `enrollments/{id}/payments` (collect), `fee-entries/{id}/reverse`, `receipts/{id}`, `sections/{id}/fees` |
 | Settings | `settings` (show, save; `settings.manage`) |
+| Guardian (R7) | `guardian/otp` (send a code), `guardian/otp/verify` (sign in), `guardian/children`, `guardian/children/{student}/attendance`, `guardian/children/{student}/marks`, `guardian/children/{student}/scores` (each child checked by GuardianPolicy) |

@@ -13,6 +13,9 @@ use App\Support\OrganizationContext;
  * taken in any year. Lifetime measure: the attendance score is kept apart
  * (AttendanceScores), and the two are never combined here.
  *
+ * Pass $publishedOnly to count only exams whose marks are published (what a
+ * guardian may see).
+ *
  * Every exam counts equally: each mark becomes a percentage of its paper's
  * maximum, the percentages are averaged, and the average is scaled to the
  * client's scale. Exams the student was absent for are left out rather than
@@ -25,7 +28,7 @@ class ConsolidateSubjectScores
     /**
      * @return array{scale: int, overall: array{score: float, average_percentage: float}|null, subjects: list<array{subject: array{id: int, code: string, name: string}, score: float, average_percentage: float, exams: list<array{exam_id: int, exam: string, academic_year: string, marks: float, max_marks: int, percentage: float}>}>}
      */
-    public function handle(Student $student): array
+    public function handle(Student $student, bool $publishedOnly = false): array
     {
         $scale = (int) $this->organization->settingOrDefault('results.scale');
 
@@ -33,6 +36,7 @@ class ConsolidateSubjectScores
             ->whereIn('enrollment_id', $student->enrollments()->select('id'))
             ->where('is_absent', false)
             ->whereNotNull('marks')
+            ->when($publishedOnly, fn ($query) => $query->whereHas('exam', fn ($exams) => $exams->whereNotNull('published_at')))
             ->with(['exam.academicYear', 'subject', 'enrollment.section'])
             ->get();
 

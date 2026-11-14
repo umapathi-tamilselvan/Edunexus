@@ -1,0 +1,38 @@
+<?php
+
+namespace App\Http\Controllers\Api\V1\Guardian;
+
+use App\Domain\Student\Actions\RequestGuardianOtp;
+use App\Domain\Student\Actions\VerifyGuardianOtp;
+use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\V1\Guardian\RequestGuardianOtpRequest;
+use App\Http\Requests\Api\V1\Guardian\VerifyGuardianOtpRequest;
+use App\Http\Resources\Api\V1\CurrentUserResource;
+use Illuminate\Http\JsonResponse;
+
+/**
+ * Guardians sign in with a one-time code sent to the phone on file, and get
+ * a bearer token for the mobile app.
+ */
+class GuardianAuthController extends Controller
+{
+    public function sendCode(RequestGuardianOtpRequest $request, RequestGuardianOtp $requestGuardianOtp): JsonResponse
+    {
+        $requestGuardianOtp->handle($request->validated('phone'));
+
+        return response()->json([
+            'message' => 'If this number is on file, a code has been sent. It is valid for five minutes.',
+        ], 202);
+    }
+
+    public function verifyCode(VerifyGuardianOtpRequest $request, VerifyGuardianOtp $verifyGuardianOtp): JsonResponse
+    {
+        $user = $verifyGuardianOtp->handle($request->validated('phone'), $request->validated('code'));
+        $token = $user->createToken($request->validated('device_name') ?? 'guardian-app');
+
+        return response()->json([
+            'token' => $token->plainTextToken,
+            'user' => new CurrentUserResource($user),
+        ], 201);
+    }
+}

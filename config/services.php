@@ -43,6 +43,7 @@ return [
         'token' => env('WHATSAPP_TOKEN'),
         'phone_number_id' => env('WHATSAPP_PHONE_NUMBER_ID'),
         'absence_template' => env('WHATSAPP_ABSENCE_TEMPLATE'),
+        'otp_template' => env('WHATSAPP_OTP_TEMPLATE'),
         'language' => env('WHATSAPP_TEMPLATE_LANGUAGE', 'en'),
     ],
 

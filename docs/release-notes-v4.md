@@ -56,3 +56,9 @@ Each classroom has a **Results** tab with each student's academic score per subj
 ## The teacher's home shows their classrooms and what is due
 
 The teacher's home lists **My classrooms**: the classrooms where they are class teacher first, then the ones where they teach. It shows attendance not yet taken today (for the whole day, a session or a period, by the school's attendance mode) and marks not yet entered for exams that are not published and end within 14 days.
+
+## Guardians sign in with a code, and see their children
+
+Guardians sign in on the mobile app with a six-digit code sent to the phone on file. A code is valid for five minutes and works once. The first sign-in creates the guardian's login; a guardian has no password and no email on it.
+
+Guardians see each linked child's attendance (the year's summary, today, and a chosen month), exam marks once they are published, and academic and attendance scores. Nothing about other students is visible to them.
