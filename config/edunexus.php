@@ -24,6 +24,12 @@ return [
     'receipt_prefix' => env('RECEIPT_PREFIX', 'RCPT'),
 
     /*
+    | How guardians are told about absences: 'log' (the default, sends
+    | nothing) or 'whatsapp' (services.whatsapp).
+    */
+    'guardian_notifier' => env('EDUNEXUS_GUARDIAN_NOTIFIER', 'log'),
+
+    /*
     |--------------------------------------------------------------------------
     | Seeded Super Admin
     |--------------------------------------------------------------------------

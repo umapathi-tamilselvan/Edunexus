@@ -35,4 +35,15 @@ return [
         ],
     ],
 
+    /*
+    | WhatsApp Business API, used to send guardians absence notices when
+    | EDUNEXUS_GUARDIAN_NOTIFIER=whatsapp. Set per client in its .env.
+    */
+    'whatsapp' => [
+        'token' => env('WHATSAPP_TOKEN'),
+        'phone_number_id' => env('WHATSAPP_PHONE_NUMBER_ID'),
+        'absence_template' => env('WHATSAPP_ABSENCE_TEMPLATE'),
+        'language' => env('WHATSAPP_TEMPLATE_LANGUAGE', 'en'),
+    ],
+
 ];

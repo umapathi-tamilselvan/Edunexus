@@ -3,7 +3,8 @@
 namespace App\Domain\Attendance\Policies;
 
 use App\Domain\Academic\Models\Section;
-use App\Domain\Academic\Models\SectionSubjectTeacher;
+use App\Domain\Academic\Models\TimetableEntry;
+use App\Domain\Attendance\Models\AttendanceRecord;
 use App\Domain\Identity\Enums\Permission;
 use App\Domain\Identity\Models\User;
 use App\Support\OrganizationContext;
@@ -16,18 +17,23 @@ class AttendancePolicy
 
     /**
      * Anyone with attendance.edit_late marks any section on any day. With
-     * attendance.mark, a section's class teacher and subject teachers mark
-     * it within the edit window: the day itself, or the client's
+     * attendance.mark, who may mark depends on the attendance mode:
+     *
+     * - daily: the section's class teacher;
+     * - session: the class teacher, or the teacher of the session's first period;
+     * - period: the teacher of that period on the timetable.
+     *
+     * Within the edit window: the day itself, or the client's
      * attendance.edit_window_days before it.
      */
-    public function mark(User $user, Section $section, CarbonInterface $date): Response
+    public function mark(User $user, Section $section, CarbonInterface $date, int $period = AttendanceRecord::DAY): Response
     {
         if ($user->can(Permission::AttendanceEditLate->value)) {
             return Response::allow();
         }
 
-        if (! $user->can(Permission::AttendanceMark->value) || ! $this->teaches($user, $section)) {
-            return Response::deny('Only this section\'s class teacher and subject teachers mark its attendance.');
+        if (! $user->can(Permission::AttendanceMark->value) || ! $this->mayMark($user, $section, $date, $period)) {
+            return Response::deny($this->whoMayMark());
         }
 
         $window = $this->organization->attendanceEditWindowDays();
@@ -41,9 +47,39 @@ class AttendancePolicy
         return Response::allow();
     }
 
-    private function teaches(User $user, Section $section): bool
+    private function mayMark(User $user, Section $section, CarbonInterface $date, int $period): bool
     {
-        return $section->class_teacher_id === $user->id
-            || SectionSubjectTeacher::query()->where('section_id', $section->id)->where('teacher_id', $user->id)->exists();
+        $isClassTeacher = $section->class_teacher_id === $user->id;
+
+        return match ($this->organization->settingOrDefault('attendance.mode')) {
+            'session' => $isClassTeacher || $this->slotTeacherId($section, $date, $period) === $user->id,
+            'period' => $this->slotTeacherId($section, $date, $period) === $user->id,
+            default => $isClassTeacher,
+        };
+    }
+
+    /**
+     * The teacher of the section's timetable slot for the period on the day.
+     */
+    private function slotTeacherId(Section $section, CarbonInterface $date, int $period): ?int
+    {
+        if ($period === AttendanceRecord::DAY) {
+            return null;
+        }
+
+        return TimetableEntry::query()
+            ->where('section_id', $section->id)
+            ->where('weekday', $date->dayOfWeekIso)
+            ->where('period_id', $period)
+            ->value('teacher_id');
+    }
+
+    private function whoMayMark(): string
+    {
+        return match ($this->organization->settingOrDefault('attendance.mode')) {
+            'session' => 'Only the class teacher, or the teacher of this session\'s first period, marks it.',
+            'period' => 'Only the teacher of this period on the timetable marks it.',
+            default => 'Only this section\'s class teacher marks its attendance.',
+        };
     }
 }

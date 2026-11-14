@@ -15,6 +15,7 @@ class RecordAttendanceRequest extends FormRequest
     {
         return [
             'date' => ['required', 'date_format:Y-m-d'],
+            'period_id' => ['nullable', 'integer'],
             'entries' => ['present', 'array', 'max:500'],
             'entries.*.enrollment_id' => ['required', 'integer', 'distinct'],
             'entries.*.status' => ['present', 'nullable', Rule::enum(AttendanceStatus::class)],

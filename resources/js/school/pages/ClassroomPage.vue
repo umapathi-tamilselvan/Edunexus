@@ -2,7 +2,9 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import AlertMessage from '../../components/AlertMessage.vue';
+import AttendanceSheet from '../../components/AttendanceSheet.vue';
 import EmptyState from '../../components/EmptyState.vue';
+import FormField from '../../components/FormField.vue';
 import InitialsAvatar from '../../components/InitialsAvatar.vue';
 import LoadingState from '../../components/LoadingState.vue';
 import PageHeader from '../../components/PageHeader.vue';
@@ -48,14 +50,7 @@ function today() {
     return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }
 
-const todaysAttendance = ref(null);
-
-async function loadAttendance() {
-    todaysAttendance.value = null;
-
-    const { data } = await http.get('/api/v1/attendance/day-summary', { params: { date: today() } });
-    todaysAttendance.value = data.data.sections.find((candidate) => candidate.id === Number(route.params.sectionId)) ?? null;
-}
+const attendanceDate = ref(today());
 
 async function load() {
     loading.value = true;
@@ -64,7 +59,6 @@ async function load() {
         section.value = (await http.get(`/api/v1/sections/${route.params.sectionId}`)).data.data;
         list.filters.section_id = Number(route.params.sectionId);
         list.restart();
-        await loadAttendance();
     });
 
     loading.value = false;
@@ -141,19 +135,12 @@ watch(() => route.params.sectionId, load);
             </section>
 
             <section v-else-if="tab === 'attendance'" class="card">
-                <div class="card-header">
-                    <h2 class="card-title">Today</h2>
-                    <RouterLink to="/daily/attendance" class="btn-secondary btn-sm">Open attendance</RouterLink>
+                <div class="card-header items-end">
+                    <FormField label="Day" class="w-full sm:w-44">
+                        <input v-model="attendanceDate" type="date" class="input" :max="today()" />
+                    </FormField>
                 </div>
-                <EmptyState
-                    v-if="!todaysAttendance"
-                    icon="circle-check"
-                    title="No attendance for today"
-                    description="Attendance is taken on the attendance screen, day by day."
-                />
-                <p v-else class="px-5 py-4 text-2sm text-gray-700 lg:px-7.5">
-                    {{ todaysAttendance.taken ? `Taken for ${todaysAttendance.marked} of ${todaysAttendance.enrolled} students.` : `Not taken yet for ${todaysAttendance.enrolled} students.` }}
-                </p>
+                <AttendanceSheet :section-id="section.id" :date="attendanceDate" />
             </section>
 
             <section v-else-if="tab === 'marks'" class="card">

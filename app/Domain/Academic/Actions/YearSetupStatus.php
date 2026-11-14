@@ -9,6 +9,7 @@ use App\Domain\Academic\Models\SchoolClass;
 use App\Domain\Academic\Models\Section;
 use App\Domain\Academic\Models\SectionSubjectTeacher;
 use App\Domain\Academic\Models\TimetableEntry;
+use App\Support\OrganizationContext;
 
 /**
  * The Year Setup checklist: each step is done or says what is missing. It
@@ -17,14 +18,18 @@ use App\Domain\Academic\Models\TimetableEntry;
  */
 class YearSetupStatus
 {
+    public function __construct(private OrganizationContext $organization) {}
+
     /**
-     * @return list<array{key: string, label: string, done: bool, detail: string, optional?: bool}>
+     * @return list<array{key: string, label: string, done: bool, detail: string, optional: bool}>
      */
     public function handle(AcademicYear $year): array
     {
         $classes = SchoolClass::query()->where('academic_year_id', $year->id)->withCount(['sections', 'subjects'])->get();
         $sections = Section::query()->whereIn('class_id', $classes->pluck('id'))->get(['id', 'class_id', 'class_teacher_id']);
-        $teachingPeriodIds = Period::query()->where('academic_year_id', $year->id)->where('is_break', false)->pluck('id');
+        $teachingPeriods = Period::query()->where('academic_year_id', $year->id)->where('is_break', false)->get(['id', 'session']);
+        $teachingPeriodIds = $teachingPeriods->pluck('id');
+        $mode = (string) $this->organization->settingOrDefault('attendance.mode');
 
         $classesWithoutSections = $classes->where('sections_count', 0)->count();
         $classesWithoutSubjects = $classes->where('subjects_count', 0)->count();
@@ -69,15 +74,19 @@ class YearSetupStatus
             [
                 'key' => 'bell_schedule',
                 'label' => 'Bell schedule',
-                'done' => $teachingPeriodIds->isNotEmpty(),
-                'detail' => $teachingPeriodIds->isEmpty() ? 'No teaching periods yet.' : "{$teachingPeriodIds->count()} teaching periods a day.",
+                'done' => $teachingPeriodIds->isNotEmpty() && ($mode !== 'session' || $teachingPeriods->whereNotNull('session')->isNotEmpty()),
+                'detail' => match (true) {
+                    $teachingPeriodIds->isEmpty() => 'No teaching periods yet.',
+                    $mode === 'session' && $teachingPeriods->whereNotNull('session')->isEmpty() => 'Set each period to morning or afternoon. Attendance is taken by session.',
+                    default => "{$teachingPeriodIds->count()} teaching periods a day.",
+                },
             ],
             [
                 'key' => 'timetable',
                 'label' => 'Timetable',
                 'done' => $timetableSlotsNeeded > 0 && $timetableSlotsFilled >= $timetableSlotsNeeded,
                 'detail' => $timetableSlotsNeeded === 0 ? 'Needs sections and teaching periods first.' : "{$timetableSlotsFilled} of {$timetableSlotsNeeded} slots are filled.",
-                'optional' => true,
+                'optional' => $mode !== 'period',
             ],
             [
                 'key' => 'holidays',

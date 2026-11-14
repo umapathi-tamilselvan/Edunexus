@@ -21,7 +21,7 @@ final class ClientSettings
         return [
             'academic_year.start_month' => ['default' => null, 'editable' => true, 'rules' => ['integer', 'between:1,12'], 'used' => true],
             'attendance.edit_window_days' => ['default' => 0, 'editable' => true, 'rules' => ['integer', 'between:0,365'], 'used' => true],
-            'attendance.mode' => ['default' => 'daily', 'editable' => true, 'rules' => ['string', Rule::in(['daily', 'session', 'period'])], 'used' => false],
+            'attendance.mode' => ['default' => 'daily', 'editable' => true, 'rules' => ['string', Rule::in(['daily', 'session', 'period'])], 'used' => true],
             'results.scale' => ['default' => 10, 'editable' => true, 'rules' => ['integer', 'between:1,100'], 'used' => false],
             'school.timezone' => ['default' => 'Asia/Kolkata', 'editable' => true, 'rules' => ['string', Rule::in(\DateTimeZone::listIdentifiers())], 'used' => false],
             'attendance.cutoff_time' => ['default' => '10:00', 'editable' => true, 'rules' => ['date_format:H:i'], 'used' => false],

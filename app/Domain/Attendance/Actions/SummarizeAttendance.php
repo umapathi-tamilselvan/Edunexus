@@ -7,21 +7,22 @@ use App\Domain\Attendance\Models\AttendanceRecord;
 use App\Domain\Student\Models\StudentEnrollment;
 
 /**
- * A student's attendance in one enrollment: days marked, days attended
- * (late counts in full, half a day as half) and the percentage, with the
- * most recent days they were not fully present. Holidays never count,
- * because no attendance is taken on them. Leave is excused, so it is left
- * out of both the days attended and the days marked.
+ * A student's attendance in one enrollment. A unit is one record: a day, a
+ * session or a period, depending on the attendance mode. The summary gives
+ * the units marked, the units attended (late counts in full, half a day as
+ * half) and the percentage, with the most recent units they were not fully
+ * present for. Units with no record never count, because no attendance is
+ * taken on them. Leave is excused, so it is left out of both the attended
+ * units and the marked units.
  */
 class SummarizeAttendance
 {
     /**
-     * @return array{days_marked: int, days_attended: float, percentage: float|null, by_status: array<string, int>, missed: list<array{date: string, status: string, remark: string|null}>}
+     * @return array{days_marked: int, days_attended: float, percentage: float|null, by_status: array<string, int>, missed: list<array{date: string, status: string, remark: string|null, period_id: int|null}>}
      */
     public function handle(StudentEnrollment $enrollment): array
     {
         $byStatus = $enrollment->attendance()
-            ->where('period', AttendanceRecord::DAY)
             ->toBase()
             ->groupBy('status')
             ->selectRaw('status, COUNT(*) AS days')
@@ -46,12 +47,17 @@ class SummarizeAttendance
             'percentage' => $marked === 0 ? null : round($attended / $marked * 100, 1),
             'by_status' => $counts,
             'missed' => $enrollment->attendance()
-                ->where('period', AttendanceRecord::DAY)
                 ->whereNotIn('status', [AttendanceStatus::Present, AttendanceStatus::Late])
                 ->orderByDesc('date')
+                ->orderByDesc('period')
                 ->limit(30)
-                ->get(['date', 'status', 'remark'])
-                ->map(fn (AttendanceRecord $record): array => ['date' => $record->date->toDateString(), 'status' => $record->status->value, 'remark' => $record->remark])
+                ->get(['date', 'period', 'status', 'remark'])
+                ->map(fn (AttendanceRecord $record): array => [
+                    'date' => $record->date->toDateString(),
+                    'status' => $record->status->value,
+                    'remark' => $record->remark,
+                    'period_id' => $record->period === AttendanceRecord::DAY ? null : $record->period,
+                ])
                 ->all(),
         ];
     }

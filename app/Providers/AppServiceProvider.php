@@ -4,6 +4,9 @@ namespace App\Providers;
 
 use App\Domain\Attendance\Models\AttendanceRecord;
 use App\Domain\Attendance\Policies\AttendancePolicy;
+use App\Domain\Communication\Contracts\GuardianNotifier;
+use App\Domain\Communication\Notifiers\LogGuardianNotifier;
+use App\Domain\Communication\Notifiers\WhatsAppGuardianNotifier;
 use App\Domain\Examination\Models\Exam;
 use App\Domain\Examination\Policies\ExamPolicy;
 use App\Domain\Identity\Listeners\RecordTokenUse;
@@ -14,6 +17,7 @@ use App\Domain\Student\Policies\StudentPolicy;
 use App\Support\AcademicYearContext;
 use App\Support\OrganizationContext;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
@@ -31,6 +35,11 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->scoped(OrganizationContext::class);
         $this->app->scoped(AcademicYearContext::class);
+
+        $this->app->bind(GuardianNotifier::class, fn (Application $app): GuardianNotifier => match ($app['config']->get('edunexus.guardian_notifier')) {
+            'whatsapp' => new WhatsAppGuardianNotifier($app['config']->get('services.whatsapp')),
+            default => new LogGuardianNotifier,
+        });
     }
 
     /**

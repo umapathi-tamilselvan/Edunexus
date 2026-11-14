@@ -25,6 +25,7 @@ class StorePeriodRequest extends FormRequest
             'ends_at' => ['required', 'date_format:H:i', 'after:starts_at'],
             'is_break' => ['sometimes', 'boolean'],
             'sort_order' => ['sometimes', 'integer', 'min:0', 'max:100'],
+            'session' => ['nullable', Rule::in(['morning', 'afternoon'])],
         ];
     }
 }

@@ -26,3 +26,17 @@ The Timetable step of the Year Setup checklist no longer needs to be complete. I
 ## Classrooms are created and filled from the class page
 
 A class's sections can be created together (a count and a capacity, named A, B, C…). The class page also places last year's students of that class into its classrooms, in name order, up to each classroom's capacity, and holds the teacher grid: the class teacher and each subject's teacher for every classroom, saved in one step.
+
+## Attendance can be taken per session or per period
+
+The client chooses how attendance is taken: once a day (the default), per session (morning or afternoon) or per timetable period. Each session or period has its own sheet. In session mode, half day is not recorded.
+
+Who may mark depends on the mode. In daily mode it is the section's **class teacher** only; subject teachers can no longer mark a whole day unless they are also the class teacher. In session mode it is the class teacher or the teacher of the session's first period; in period mode it is the teacher of that period on the timetable. Principal, Admin and Super Admin can still mark any day.
+
+## Attendance percentage counts sessions and periods
+
+The percentage counts each record as one unit, so in session or period mode a student's percentage is over the sessions or periods marked, not days. Leave is still left out. The fields keep their names (`days_marked`, `days_attended`) for existing apps, and they now mean units.
+
+## Guardians can be told about absences
+
+When a student is newly marked absent, the primary guardian is sent a notice after the attendance is saved. The default driver sends nothing and only writes to the application log. A client that wants WhatsApp notices sets `EDUNEXUS_GUARDIAN_NOTIFIER=whatsapp` and the `WHATSAPP_*` values in its `.env`.

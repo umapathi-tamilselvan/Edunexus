@@ -56,7 +56,7 @@ For each screen: who sees it, what they do, status.
 | --- | --- | --- | --- |
 | Sign in `/login` | everyone | signs in | built |
 | Home `/home` (`/dashboard` redirects) | any signed-in user | the role home (§2.4); other roles see the generic dashboard with counts and quick links | partial |
-| Attendance `/daily/attendance` (`/attendance` redirects) | `attendance.view` | picks a section and a day; sets present, absent, late, half day or leave with a remark per student; saves | built |
+| Attendance `/daily/attendance` (`/attendance` redirects) | `attendance.view` | picks a section and a day (and, in session or period mode, a session or period); sets present, absent, late, half day or leave with a remark per student; saves | built (modes in R3) |
 | My timetable `/daily/timetable` (My timetable tab) | any teacher | views their week | built |
 | Timetable `/daily/timetable` | `academic.view` | sets or clears a slot; sets an override teacher; adds periods | built |
 | Students `/people/students` | `student.view` or `student.view_assigned` | searches; filters by class and section; adds a student with guardians and a section | built |
@@ -89,8 +89,8 @@ Each step shows done, or what is missing. A step never blocks another: an admin 
 | 4 | Subjects per class | every class has a subject | built |
 | 5 | Class teachers | every section has a class teacher | built |
 | 6 | Subject teachers | every section subject has a teacher, no teacher over workload | built |
-| 7 | Timetable | every section has a timetable | built; optional, and needed only when attendance is in period mode (R2, R3) |
-| 8 | Bell schedule | the year has periods and a teaching period | built |
+| 7 | Timetable | every section has a timetable | built; optional unless attendance mode is period (R2, R3) |
+| 8 | Bell schedule | the year has periods and a teaching period; in session mode, a session is set on them | built |
 | 9 | Holidays and weekly off days | holidays added; weekly off days set (default Sunday) | holidays built; weekly off planned |
 | 10 | Open admissions | the year is the current year (product question Q21, §9) | built |
 
@@ -134,7 +134,7 @@ Each role gets its own home. The Teacher home and the Principal home are **built
 - A section has one teacher per subject the class studies (`section_subject_teachers`, unique on section and subject). The teacher must teach that subject.
 - A class-level assignment (`PUT classes/{id}/subjects/{subject}/teacher`) sets the same teacher on every section of the class. Sections keep their own assignments afterwards.
 - A subject cannot be taken away from a teacher who teaches it to sections in the current year or later. Earlier years are history.
-- Each year has a bell schedule of periods; some are breaks. A period in use cannot be deleted or made a break.
+- Each year has a bell schedule of periods; some are breaks. A period in use cannot be deleted or made a break. A teaching period can belong to a session, morning or afternoon (R3).
 - Each section has a weekly grid of slots: weekday and period, with a subject and an optional teacher.
 - A slot given no teacher gets the section's subject teacher, and follows it when that changes. A slot given someone else is an **override** (`is_override`) and stays put. If the new subject teacher is busy in a following slot, the change is refused with the clash named.
 - A teacher cannot be in two sections in the same weekday and period. Enforced by a unique index.
@@ -154,19 +154,23 @@ Each role gets its own home. The Teacher home and the Principal home are **built
 
 **Built.**
 
-- Attendance is taken per school day, per section. The sheet lists the section's students in roll order with each one's status: present, absent, late, half day or leave; and an optional remark.
+- Attendance is taken in one of three modes, chosen by the client (`attendance.mode`, §6). **Daily** (the default): one sheet per section per day. **Session**: one sheet per session, morning or afternoon, per section per day. **Period**: one sheet per timetable period, per section per day (R3).
+- A session is the teaching periods that share a session value (`periods.session`: morning or afternoon). Its sheet is recorded against its first teaching period by sort order. A period with no session belongs to no session.
+- In period mode the sheet is for a period the section has on the timetable that weekday. Year Setup then requires the timetable (§2.3).
+- A sheet lists the section's students in roll order with each one's status (present, absent, late, half day or leave) and an optional remark. In session mode half day is not recorded (D28).
 - A sheet is saved in one write: one read, one upsert, at most one delete. Changes to saved records are audited in bulk with old and new values. Unchanged saves write nothing.
 - A day cannot be marked if it is a holiday (the holiday's name is shown), in the future, or outside the selected year.
 - A holiday cannot be added to a day that already has attendance. Clear the attendance first.
-- Who may mark: the section's class teacher and its subject teachers, within the edit window (`attendance.edit_window_days`, default 0: the day itself). Anyone with `attendance.edit_late` (Principal, Admin, Super Admin) may change any day.
-- A student's summary (`students/{id}/attendance`): days marked, days attended, the percentage, the count per status, and the last 30 missed days. Formula: present and late count 1, half day 0.5, absent 0. **Leave is left out** of both days attended and days marked, so it does not change the percentage (release note in `docs/release-notes-v4.md`).
+- Who may mark (`AttendancePolicy`, by mode). Anyone with `attendance.edit_late` (Principal, Admin, Super Admin) may mark any day. Otherwise, with `attendance.mark`: in daily mode, the section's class teacher; in session mode, the class teacher or the teacher of the session's first period on the timetable; in period mode, the teacher of that period on the timetable. Every such teacher marks within the edit window (`attendance.edit_window_days`, default 0: the day itself).
+- Units. A unit is one record: a day, a session or a period. Present and late count 1, half day 0.5, absent 0. **Leave is left out** of both attended and marked units, so it does not change the percentage (release note). The summary keeps the field names `days_marked` and `days_attended`; they count units (D24).
+- A student's summary (`students/{id}/attendance`): units marked, units attended, the percentage, the count per status, and the last 30 missed units, each with its session or period id when there is one.
+- When a save marks a student absent who was not absent before, the student's primary guardian gets a notice after the save commits. It is sent by the `AbsenceAlert` job on the `critical` queue (3 tries, 5 s then 30 s backoff, 60 s timeout) through `GuardianNotifier`. The driver is `log` by default, which writes to the application log and sends nothing. `whatsapp` sends the WhatsApp Business API template named in the client's `.env` (`WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_ABSENCE_TEMPLATE`, `WHATSAPP_TEMPLATE_LANGUAGE`; `EDUNEXUS_GUARDIAN_NOTIFIER=whatsapp` selects it). A driver that fails makes the job retry.
 
 **Planned.**
 
 - Weekly off days (`weekly_off_days`, default Sunday) cannot be marked; they are excluded like holidays.
 - A sheet record (`attendance_sheets`) stores who submitted the sheet and when. The first save sets both; later edits do not change them.
 - Attendance rows keep the section and academic year the student was in when marked (step 0.5, waiting on owner answer Q14).
-- Per day only for v4.0. The `period` column stays for a later option.
 - Staff attendance is per day (§3.8).
 
 ### 3.6 Exams and scores
@@ -276,7 +280,7 @@ Built for deployed clients. Local and tests use database and array drivers.
 
 - Horizon runs each client's queues: `critical` (OTP, receipts), `default` (notifications, audits, recomputes), `bulk` (reminders, imports, PDFs). Three tries, 5 s then 30 s backoff, 60 s timeout.
 - The Horizon dashboard opens only to a Super Admin outside local development.
-- No job exists yet for the business rules; audits are written in the request. Queued audits are planned (Phase 6).
+- `AbsenceAlert` (R3) runs on `critical` after an attendance save commits, and sends the guardian notice through `GuardianNotifier` (§3.5). Audits are still written in the request; queued audits are planned (Phase 6).
 
 ### 4.4 Security and rate limits
 
@@ -322,7 +326,7 @@ Permissions are fixed in code (`App\Domain\Identity\Enums\Permission`). Roles ho
 | `student.view` | `visibleTo` | Accountant, Principal, Admin, Super Admin |
 | `student.view_assigned` | `visibleTo` | Teacher |
 | `student.manage` | student routes | Principal, Admin, Super Admin |
-| `attendance.view` / `attendance.mark` | route middleware, AttendancePolicy | view: Teacher, Principal, Admin, Super Admin; mark: same |
+| `attendance.view` / `attendance.mark` | route middleware, AttendancePolicy (who may mark depends on `attendance.mode`, §3.5) | view: Teacher, Principal, Admin, Super Admin; mark: same |
 | `attendance.edit_late` | AttendancePolicy | Principal, Admin, Super Admin |
 | `exam.view` / `exam.enter_marks` | route middleware, ExamPolicy | view: Teacher, Principal, Admin, Super Admin; enter marks: Teacher, Principal, Admin, Super Admin |
 | `exam.manage` | route middleware, ExamPolicy | Principal, Admin, Super Admin |
@@ -344,7 +348,7 @@ Stored in the client's `settings` table and read through `OrganizationContext`. 
 | Key | Default | Set by | Used for | Status |
 | --- | --- | --- | --- | --- |
 | `academic_year.start_month` | June (school), July (college), April (coaching); `null` takes the institution type's month | Admin (`--year-start-month` at client creation) | the start of each year | built; editable |
-| `attendance.mode` | `daily` (`daily`, `session` or `period`) | Admin | how attendance is marked (R3) | stored; not yet used |
+| `attendance.mode` | `daily` (`daily`, `session` or `period`) | Admin | how attendance is marked (§3.5) | built; editable (R3) |
 | `attendance.edit_window_days` | 0 | Admin | how far back a teacher can change attendance | built; editable |
 | `attendance.cutoff_time` | `10:00` local | Admin | teacher on-time attendance (§3.9) | stored; not yet used |
 | `results.scale` | 10 (integer 1–100) | Admin | the score out of which academic and attendance scores are shown (R5) | stored; not yet used |
@@ -395,7 +399,7 @@ One commit per step, full suite green before each. Commits and behaviour changes
 | --- | --- | --- |
 | R1 | client settings (above) | this commit |
 | R2 | classroom setup: create classrooms, distribute students, teacher grid per class, Classrooms page (Students, Teachers, Attendance, Exams & marks, Results tabs); timetable becomes optional outside period mode | this commit (Exams & marks and Results are empty until R4 and R5; R9 owes the tests) |
-| R3 | attendance modes: daily, session, period; `periods.session`; AttendancePolicy by mode; percentage in units (replaces Q1); absence alerts through `GuardianNotifier` | not started |
+| R3 | attendance modes: daily, session, period; `periods.session`; AttendancePolicy by mode; percentage in units (replaces Q1); absence alerts through `GuardianNotifier` | this commit (no tests; R9 owes them) |
 | R4 | marks entry per classroom (step 2.4): `exam_mark_sheets`, bulk save, publish and unlock | not started |
 | R5 | scale of 10 for academic and attendance scores, shown per subject and overall (replaces Q9); Q19 | not started |
 | R6 | teacher home "My classrooms" | not started |
@@ -469,7 +473,12 @@ Owner decisions are answers from the product owner. "Technical" decisions were m
 | D21 | A class's students for a year are those enrolled last year in a class of the same name and not yet enrolled this year. No class is stored on a student before enrolment, so this is the only link available (Q22) | technical (R2; to confirm with the owner) |
 | D22 | The teacher grid is one request, GET and PUT per class. Errors are keyed by row and column (`sections.{i}.subjects.{j}.teacher_id`), and the whole save is refused when any cell fails | technical |
 | D23 | The Exams & marks and Results tabs of a classroom are empty states until R4 and R5 build them, rather than hidden | technical |
-| Q1 | Attendance per day; keep the `period` column | owner |
+| D24 | The attendance summary counts units (one record each: a day, a session or a period). Its field names `days_marked` and `days_attended` are kept for the apps that read them | technical (R3) |
+| D25 | A session's attendance is stored against its first teaching period by sort order, so a session needs no row of its own. The stored period is always a period of the section's year | technical (R3) |
+| D26 | Absence notices are a queued job after the save commits, sent through a `GuardianNotifier` interface. The default driver writes to the log and sends nothing, so no client is messaged by accident | technical (R3) |
+| D27 | WhatsApp is a driver configured per client in `.env`, not a setting, because its credentials are secrets | technical (R3) |
+| D28 | Half day is refused in session mode only, as the brief asks. Period mode accepts it | owner (R3 brief) |
+| Q1 | Attendance is per day, per session or per period, chosen by `attendance.mode`. The `period` column holds 0 for the day or the period's id (R3). Replaces the earlier per-day answer | owner (R3 brief) |
 | Q2 | Leave is excluded from the attendance percentage; release note | owner |
 | Q3 | Late counts 1, half day 0.5 | owner |
 | Q4 | Teachers see their own numbers only, no peer ranking | owner (T1 confirmed: own sections' averages only) |
@@ -538,7 +547,7 @@ Conventions: every table has `id` and timestamps unless noted. Foreign keys are 
 | `sections` | class_id, name, capacity, class_teacher_id (nullable, → users); unique (class, name) |
 | `subjects` | code (unique), name |
 | `class_subject` | class_id, subject_id; primary key on both |
-| `periods` | academic_year_id, name, starts_at, ends_at, is_break, sort_order; unique (year, name) |
+| `periods` | academic_year_id, name, starts_at, ends_at, is_break, sort_order, session (nullable: morning or afternoon, R3); unique (year, name) |
 | `timetable_entries` | section_id, weekday, period_id, subject_id, teacher_id (nullable), is_override; unique (section, weekday, period); unique (teacher, weekday, period); index (teacher, section) |
 | `section_subject_teachers` | section_id, subject_id, teacher_id; unique (section, subject); index (teacher, section) |
 | `subject_teacher` | subject_id, user_id; primary key on both; index (user) |
@@ -558,7 +567,7 @@ Conventions: every table has `id` and timestamps unless noted. Foreign keys are 
 
 | Table | Key columns and rules |
 | --- | --- |
-| `attendance_records` | enrollment_id, date, period (default 0 = whole day), status (varchar 20; the enum is in code), remark, marked_by; unique (enrollment, date, period); index (date, status). Planned additions: `section_id`, `academic_year_id` (step 0.5) |
+| `attendance_records` | enrollment_id, date, period (0 = whole day; otherwise the `periods.id` of the session or period, R3), status (varchar 20; the enum is in code), remark, marked_by; unique (enrollment, date, period); index (date, status). Planned additions: `section_id`, `academic_year_id` (step 0.5) |
 
 **Examinations (built)**
 
@@ -602,7 +611,7 @@ All under `/api/v1`. `entitled` is the module gate; `can` the permission. Full l
 | Academic | `academic-years` (list, show, `next`, `{id}/make-current`), `academic-years/{id}/classes`, `classes/{id}` (update, delete, subjects, subject teacher), `sections` (show, store, update, delete, subject teacher), `subjects` (list, create, update, teachers), `academic-years/{id}/periods` (list, create), `periods/{id}` (update, delete), `sections/{id}/timetable` (show, set, clear), `me/timetable`, `me/teaching`, `teachers`, `teachers/workload`, `academic-years/{id}/holidays` (list, create), `holidays/{id}` (delete), `academic-years/{id}/setup-status`, `classes/{id}/teacher-grid` (show, save), `classes/{id}/classrooms` (create) |
 | Students | `students` (list, create, show, update), `students/{id}/guardians` (add, remove), `students/{id}/enrollments`, `enrollments/{id}`, `students/{id}/attendance`, `students/{id}/scores`, `students/{id}/fees`, `classes/{id}/students/distribute` |
 | Admissions | `admissions` (list, create, show, update), `admissions/{id}/decision`, `admissions/{id}/admit` |
-| Attendance | `sections/{id}/attendance` (show, save), `attendance/day-summary` |
+| Attendance | `sections/{id}/attendance` (show with `date` and `period_id`; save with `date`, `period_id` and `entries`), `attendance/day-summary` |
 | Examinations | `academic-years/{id}/exams` (list, create), `exams/{id}` (show, update, delete), `exams/{id}/classes/{class}/subjects/{subject}/max-marks`, `exams/{id}/marks` (show, save) |
 | Fees | `fee-heads` (list, create), `fee-dues` (create), `enrollments/{id}/payments` (collect), `fee-entries/{id}/reverse`, `receipts/{id}`, `sections/{id}/fees` |
 | Settings | `settings` (show, save; `settings.manage`) |

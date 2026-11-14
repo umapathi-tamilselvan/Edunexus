@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Attendance;
 
 use App\Domain\Academic\Models\Section;
+use App\Domain\Attendance\Actions\AttendancePeriods;
 use App\Domain\Attendance\Actions\RecordAttendance;
 use App\Domain\Attendance\Actions\SummarizeAttendance;
 use App\Domain\Attendance\Enums\AttendanceStatus;
@@ -14,6 +15,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Attendance\RecordAttendanceRequest;
 use App\Support\AcademicYearContext;
 use App\Support\OrganizationContext;
+use Illuminate\Auth\Access\Response;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -21,32 +23,50 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Gate;
 
 /**
- * Attendance sheets: one section, one day.
+ * Attendance sheets: one section, one day, and in session or period mode
+ * one session or period of it.
  */
 class AttendanceController extends Controller
 {
     /**
      * The sheet: the section's students the user may see, in roll order,
-     * with the day's status of each, a summary, and whether the user may
-     * mark it (or why not).
+     * with each one's status for the day (and the session or period chosen),
+     * a summary, and whether the user may mark it (or why not).
      */
-    public function show(Request $request, Section $section): JsonResponse
+    public function show(Request $request, Section $section, AttendancePeriods $attendancePeriods): JsonResponse
     {
-        $date = Carbon::parse($request->validate(['date' => ['required', 'date_format:Y-m-d']])['date']);
+        $validated = $request->validate([
+            'date' => ['required', 'date_format:Y-m-d'],
+            'period_id' => ['nullable', 'integer'],
+        ]);
+        $date = Carbon::parse($validated['date']);
         $section->load('schoolClass.academicYear');
         $day = $date->toDateString();
-        $todays = fn ($records) => $records->where('date', $day)->where('period', AttendanceRecord::DAY);
+
+        $mode = $attendancePeriods->mode();
+        $options = $attendancePeriods->options($section, $date);
+        $periodId = $mode === 'daily' ? null : ($validated['period_id'] ?? $options[0]['id'] ?? null);
+        $stored = match (true) {
+            $mode === 'daily' => AttendanceRecord::DAY,
+            $periodId === null => null,
+            default => $attendancePeriods->resolve($section, $date, $periodId),
+        };
+        $onThePeriod = fn ($records) => $records->where('date', $day)->where('period', $stored ?? -1);
 
         // Students who have left still show on days they were marked.
         $enrollments = $section->enrollments()
-            ->where(fn (Builder $enrollments) => $enrollments->where('status', EnrollmentStatus::Active)->orWhereHas('attendance', $todays))
+            ->where(fn (Builder $enrollments) => $enrollments->where('status', EnrollmentStatus::Active)->orWhereHas('attendance', $onThePeriod))
             ->whereHas('student', fn (Builder $students) => $students->visibleTo($request->user(), $section->schoolClass->academic_year_id))
-            ->with(['student:id,name,admission_no', 'attendance' => $todays])
+            ->with(['student:id,name,admission_no', 'attendance' => $onThePeriod])
             ->orderBy('roll_no')
             ->get();
 
         $closed = RecordAttendance::closedReason($section, $date);
-        $access = Gate::inspect('mark', [AttendanceRecord::class, $section, $date]);
+        $access = $stored === null
+            ? Response::deny($mode === 'session'
+                ? 'No sessions are set up yet. Set a session on the bell schedule first.'
+                : 'The timetable has no periods for this section on this day.')
+            : Gate::inspect('mark', [AttendanceRecord::class, $section, $date, $stored]);
         $summary = [...array_fill_keys(array_column(AttendanceStatus::cases(), 'value'), 0), 'unmarked' => 0];
 
         foreach ($enrollments as $enrollment) {
@@ -56,7 +76,10 @@ class AttendanceController extends Controller
         return response()->json([
             'data' => [
                 'date' => $day,
+                'mode' => $mode,
                 'section' => ['id' => $section->id, 'name' => $section->name, 'class' => ['id' => $section->schoolClass->id, 'name' => $section->schoolClass->name]],
+                'periods' => $options,
+                'period_id' => $periodId,
                 'can_mark' => $closed === null && $access->allowed(),
                 'closed_reason' => $closed ?? ($access->allowed() ? null : $access->message()),
                 'summary' => $summary,
@@ -73,8 +96,8 @@ class AttendanceController extends Controller
 
     /**
      * Every section of the selected year on one day: how many students are
-     * enrolled and how many have a mark, so a page can list the sections not
-     * yet taken. One query, whatever the number of sections.
+     * enrolled and how many have any mark that day, so a page can list the
+     * sections not yet taken. One query, whatever the number of sections.
      */
     public function daySummary(Request $request, AcademicYearContext $academicYear): JsonResponse
     {
@@ -85,7 +108,7 @@ class AttendanceController extends Controller
             ->with('schoolClass:id,name')
             ->withCount([
                 'enrollments as enrolled_count' => fn (Builder $enrollments) => $enrollments->where('status', EnrollmentStatus::Active),
-                'enrollments as marked_count' => fn (Builder $enrollments) => $enrollments->whereHas('attendance', fn (Builder $records) => $records->where('date', $day)->where('period', AttendanceRecord::DAY)),
+                'enrollments as marked_count' => fn (Builder $enrollments) => $enrollments->whereHas('attendance', fn (Builder $records) => $records->where('date', $day)),
             ])
             ->orderBy('class_id')
             ->orderBy('name')
@@ -105,13 +128,14 @@ class AttendanceController extends Controller
         ]);
     }
 
-    public function update(RecordAttendanceRequest $request, Section $section, RecordAttendance $recordAttendance): JsonResponse
+    public function update(RecordAttendanceRequest $request, Section $section, RecordAttendance $recordAttendance, AttendancePeriods $attendancePeriods): JsonResponse
     {
         $date = Carbon::parse($request->validated('date'));
+        $period = $attendancePeriods->resolve($section, $date, $request->validated('period_id'));
 
-        Gate::authorize('mark', [AttendanceRecord::class, $section, $date]);
+        Gate::authorize('mark', [AttendanceRecord::class, $section, $date, $period]);
 
-        return response()->json(['data' => $recordAttendance->handle($section, $date, $request->validated('entries'), $request->user())]);
+        return response()->json(['data' => $recordAttendance->handle($section, $date, $request->validated('entries'), $request->user(), $period)]);
     }
 
     /**

@@ -4,41 +4,52 @@ namespace App\Domain\Attendance\Actions;
 
 use App\Domain\Academic\Models\Section;
 use App\Domain\Attendance\Enums\AttendanceStatus;
+use App\Domain\Attendance\Jobs\AbsenceAlert;
 use App\Domain\Attendance\Models\AttendanceRecord;
 use App\Domain\Identity\Models\User;
 use App\Support\BulkAudit;
+use App\Support\OrganizationContext;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Saves a section's attendance sheet for one day: one SELECT of what is
- * already marked, then one upsert and at most one delete, however many
- * students the section has.
+ * Saves a section's attendance sheet for one day and one period (0 for the
+ * whole day): one SELECT of what is already marked, then one upsert and at
+ * most one delete, however many students the section has.
  *
  * Rules: the day is a school day of the section's academic year (in the
- * year, not in the future, not a holiday), and every student is enrolled
- * in the section. A student without a status has their record cleared.
- * Changing or clearing a record already marked is audited.
+ * year, not in the future, not a holiday), every student is enrolled in the
+ * section, and in session mode half a day is not recorded. A student
+ * without a status has their record cleared. Changing or clearing a record
+ * already marked is audited. Students newly marked absent get an
+ * AbsenceAlert after the save commits.
  */
 class RecordAttendance
 {
+    public function __construct(private OrganizationContext $organization) {}
+
     /**
      * @param  list<array{enrollment_id: int, status: string|null, remark?: string|null}>  $entries
      * @return array{marked: int, cleared: int}
      */
-    public function handle(Section $section, CarbonInterface $date, array $entries, User $markedBy): array
+    public function handle(Section $section, CarbonInterface $date, array $entries, User $markedBy, int $period = AttendanceRecord::DAY): array
     {
         if (($closed = self::closedReason($section, $date)) !== null) {
             throw ValidationException::withMessages(['date' => $closed]);
         }
 
         $enrolled = $section->enrollments()->pluck('id')->all();
+        $bySession = $this->organization->settingOrDefault('attendance.mode') === 'session';
         $errors = [];
 
         foreach ($entries as $index => $entry) {
             if (! in_array((int) $entry['enrollment_id'], $enrolled, true)) {
                 $errors["entries.{$index}.enrollment_id"] = "This student is not in {$section->schoolClass->name} {$section->name}.";
+            }
+
+            if ($bySession && ($entry['status'] ?? null) === AttendanceStatus::HalfDay->value) {
+                $errors["entries.{$index}.status"] = 'Half day is not recorded by session. Choose present, late, absent or leave.';
             }
         }
 
@@ -46,12 +57,14 @@ class RecordAttendance
             throw ValidationException::withMessages($errors);
         }
 
-        return DB::transaction(function () use ($date, $entries, $markedBy): array {
-            $day = $date->toDateString();
+        $day = $date->toDateString();
+        $newlyAbsent = [];
+
+        $counts = DB::transaction(function () use ($day, $period, $entries, $markedBy, &$newlyAbsent): array {
             $marked = AttendanceRecord::query()
                 ->whereIn('enrollment_id', array_map(fn (array $entry): int => (int) $entry['enrollment_id'], $entries))
                 ->where('date', $day)
-                ->where('period', AttendanceRecord::DAY)
+                ->where('period', $period)
                 ->lockForUpdate()
                 ->get()
                 ->keyBy('enrollment_id');
@@ -78,6 +91,10 @@ class RecordAttendance
                     continue;
                 }
 
+                if ($status === AttendanceStatus::Absent && ($record === null || $record->status !== AttendanceStatus::Absent)) {
+                    $newlyAbsent[] = (int) $entry['enrollment_id'];
+                }
+
                 if ($record !== null) {
                     $changes[] = ['id' => $record->id, 'event' => 'updated', 'old' => self::values($record->status, $record->remark), 'new' => self::values($status, $remark)];
                 }
@@ -85,7 +102,7 @@ class RecordAttendance
                 $rows[] = [
                     'enrollment_id' => (int) $entry['enrollment_id'],
                     'date' => $day,
-                    'period' => AttendanceRecord::DAY,
+                    'period' => $period,
                     'status' => $status->value,
                     'remark' => $remark,
                     'marked_by' => $markedBy->id,
@@ -105,6 +122,12 @@ class RecordAttendance
 
             return ['marked' => count($rows), 'cleared' => count($cleared)];
         });
+
+        if ($newlyAbsent !== []) {
+            AbsenceAlert::dispatch($newlyAbsent, $day, $period);
+        }
+
+        return $counts;
     }
 
     /**

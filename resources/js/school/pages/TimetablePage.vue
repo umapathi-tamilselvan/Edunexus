@@ -40,7 +40,10 @@ const gridLoading = ref(false);
 /** The drawer: { kind: 'slot', weekday, period } or { kind: 'period' }. */
 const drawer = ref(null);
 const slotForm = reactive({ subject_id: '', teacher_id: null });
-const periodForm = reactive({ name: '', starts_at: '', ends_at: '', is_break: false, sort_order: 1 });
+const periodForm = reactive({ name: '', starts_at: '', ends_at: '', is_break: false, sort_order: 1, session: '' });
+
+/** A blank session is sent as null: the period belongs to no session. */
+const periodPayload = () => ({ ...periodForm, session: periodForm.session || null });
 const pendingClear = ref(false);
 /** The period waiting to be removed from the bell schedule. */
 const pendingPeriod = ref(null);
@@ -141,7 +144,7 @@ function openPeriod(period = null) {
     clear();
 
     if (period) {
-        Object.assign(periodForm, { name: period.name, starts_at: period.starts_at, ends_at: period.ends_at, is_break: period.is_break, sort_order: period.sort_order });
+        Object.assign(periodForm, { name: period.name, starts_at: period.starts_at, ends_at: period.ends_at, is_break: period.is_break, sort_order: period.sort_order, session: period.session ?? '' });
         drawer.value = { kind: 'editPeriod', period };
 
         return;
@@ -153,6 +156,7 @@ function openPeriod(period = null) {
         ends_at: '',
         is_break: false,
         sort_order: periods.value.length + 1,
+        session: '',
     });
     drawer.value = { kind: 'period' };
 }
@@ -167,7 +171,7 @@ async function reloadGrid() {
 
 function submitDrawer() {
     if (drawer.value.kind === 'editPeriod') {
-        return run(() => http.patch(`/api/v1/periods/${drawer.value.period.id}`, periodForm), {
+        return run(() => http.patch(`/api/v1/periods/${drawer.value.period.id}`, periodPayload()), {
             success: `${periodForm.name} saved.`,
             onSuccess: async () => {
                 closeDrawer();
@@ -177,7 +181,7 @@ function submitDrawer() {
     }
 
     if (drawer.value.kind === 'period') {
-        return run(() => http.post(`/api/v1/academic-years/${year.value.id}/periods`, periodForm), {
+        return run(() => http.post(`/api/v1/academic-years/${year.value.id}/periods`, periodPayload()), {
             success: `${periodForm.name} added to the bell schedule.`,
             onSuccess: async () => {
                 closeDrawer();
@@ -285,7 +289,7 @@ onMounted(async () => {
                                 {{ period.name }}
                                 <span class="mt-0.5 flex items-center gap-1 text-xs font-normal text-gray-600">
                                     <AppIcon name="clock" class="size-3.5" />
-                                    {{ period.starts_at }}–{{ period.ends_at }}
+                                    {{ period.starts_at }}–{{ period.ends_at }}{{ period.session ? ` · ${period.session}` : '' }}
                                 </span>
                                 <span v-if="canManage && mode === 'section'" class="mt-1 flex gap-3 text-xs font-normal">
                                     <button type="button" class="btn-link" :disabled="busy" @click="openPeriod(period)">Edit</button>
@@ -369,6 +373,13 @@ onMounted(async () => {
                             <input v-model="periodForm.ends_at" type="time" required class="input" />
                         </FormField>
                     </div>
+                    <FormField label="Session" :error="fieldError('session')" hint="Used when attendance is taken by session. The session's attendance is taken at its first teaching period.">
+                        <select v-model="periodForm.session" class="input" :disabled="periodForm.is_break">
+                            <option value="">No session</option>
+                            <option value="morning">Morning</option>
+                            <option value="afternoon">Afternoon</option>
+                        </select>
+                    </FormField>
                     <label class="flex items-center gap-2 text-2sm text-gray-700">
                         <input v-model="periodForm.is_break" type="checkbox" class="checkbox" />
                         This is a break
