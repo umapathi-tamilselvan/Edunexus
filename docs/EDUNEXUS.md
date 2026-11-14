@@ -416,7 +416,7 @@ One commit per step, full suite green before each. Commits and behaviour changes
 | R6 | teacher home "My classrooms" | this commit (no tests; R9 owes them) |
 | R7 | guardian login by OTP, and guardian endpoints scoped to linked children | this commit (no tests; R9 owes them) |
 | R8 | navigation: Classrooms under People; old section pages route to the classroom page; final doc pass | not started |
-| R9 | tests and query-count budgets for R1–R8 | owed |
+| R9 | tests and query-count budgets for R1–R8 and for the changes since (D41–D48). Includes bringing `students/{id}/scores` back within its existing budget (D48); the budget is not raised. Also the tests that assume the old rules: the R2 distribution, the score shape, and an admission that requires a section | owed |
 
 **Remaining, in order**
 
