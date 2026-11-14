@@ -6,7 +6,9 @@ use App\Domain\Identity\Models\User;
 use App\Domain\Student\Models\StudentEnrollment;
 use Database\Factories\SectionFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Scope;
 use Illuminate\Database\Eloquent\Attributes\UseFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -79,5 +81,23 @@ class Section extends Model
     public function enrollments(): HasMany
     {
         return $this->hasMany(StudentEnrollment::class);
+    }
+
+    /**
+     * The sections a teacher teaches in an academic year: as class teacher,
+     * as a subject teacher, or on the timetable. Select sections.id from it
+     * to filter another query in the same statement.
+     *
+     * @param  Builder<self>  $query
+     */
+    #[Scope]
+    protected function taughtBy(Builder $query, User $teacher, int $academicYearId): void
+    {
+        $query
+            ->whereIn('sections.class_id', SchoolClass::query()->select('id')->where('academic_year_id', $academicYearId))
+            ->where(fn (Builder $taught) => $taught
+                ->where('sections.class_teacher_id', $teacher->id)
+                ->orWhereIn('sections.id', SectionSubjectTeacher::query()->select('section_id')->where('teacher_id', $teacher->id))
+                ->orWhereIn('sections.id', TimetableEntry::query()->select('section_id')->where('teacher_id', $teacher->id)));
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Domain\Student\Models;
 
+use App\Domain\Academic\Models\Section;
 use App\Domain\Identity\Enums\Permission;
 use App\Domain\Identity\Models\User;
 use App\Domain\Student\Enums\Gender;
@@ -98,13 +99,10 @@ class Student extends Model implements AuditableContract
 
         $academicYearId ??= app(AcademicYearContext::class)->id();
 
-        $query->whereHas('enrollments', function (Builder $enrollments) use ($user, $academicYearId): void {
-            $enrollments
-                ->where('academic_year_id', $academicYearId)
-                ->whereHas('section', fn (Builder $section) => $section->where(fn (Builder $taught) => $taught
-                    ->where('class_teacher_id', $user->id)
-                    ->orWhereHas('subjectTeachers', fn (Builder $teachers) => $teachers->where('teacher_id', $user->id))
-                    ->orWhereHas('timetableEntries', fn (Builder $entries) => $entries->where('teacher_id', $user->id))));
-        });
+        $sectionIds = Section::query()->taughtBy($user, $academicYearId)->select('sections.id');
+
+        $query->whereHas('enrollments', fn (Builder $enrollments) => $enrollments
+            ->where('academic_year_id', $academicYearId)
+            ->whereIn('section_id', $sectionIds));
     }
 }
