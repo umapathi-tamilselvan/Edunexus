@@ -105,7 +105,9 @@ class RecordExamMarks
                 if ($mark !== null) {
                     $changes[] = ['id' => $mark->id, 'event' => 'updated', 'old' => self::values($mark->marks, $mark->is_absent), 'new' => self::values($marks, $isAbsent)];
                 } else {
-                    $created[] = $enrollmentId;
+                    // Its id is filled in after the upsert, in the same place, so the audit keeps the entry order.
+                    $created[$enrollmentId] = count($changes);
+                    $changes[] = ['id' => null, 'event' => 'created', 'old' => [], 'new' => self::values($marks, $isAbsent)];
                 }
 
                 $rows[] = [
@@ -128,10 +130,10 @@ class RecordExamMarks
                 ExamMark::query()
                     ->where('exam_id', $exam->id)
                     ->where('subject_id', $subject->id)
-                    ->whereIn('enrollment_id', $created)
-                    ->get(['id', 'marks', 'is_absent'])
-                    ->each(function (ExamMark $mark) use (&$changes): void {
-                        $changes[] = ['id' => $mark->id, 'event' => 'created', 'old' => [], 'new' => self::values($mark->marks, $mark->is_absent)];
+                    ->whereIn('enrollment_id', array_keys($created))
+                    ->get(['id', 'enrollment_id'])
+                    ->each(function (ExamMark $mark) use (&$changes, $created): void {
+                        $changes[$created[$mark->enrollment_id]]['id'] = $mark->id;
                     });
             }
 

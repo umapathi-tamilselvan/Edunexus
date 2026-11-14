@@ -499,7 +499,7 @@ Owner decisions are answers from the product owner. "Technical" decisions were m
 | D27 | WhatsApp is a driver configured per client in `.env`, not a setting, because its credentials are secrets | technical (R3) |
 | D28 | Half day is refused in session mode only, as the brief asks. Period mode accepts it | owner (R3 brief) |
 | D29 | A mark sheet is submitted by any save with a mark or an absence. The first submission sets `submitted_at`; later saves change only `entered_by` | technical (R4) |
-| D30 | Bulk marks saves are audited with BulkAudit. New marks need their ids, so their creation is audited after one read-back of those ids; that is one more read than the attendance save makes | technical (R4) |
+| D30 | Bulk marks saves are audited with BulkAudit. New marks need their ids, so their creation is audited after one read-back of those ids; that is one more read than the attendance save makes. Audit rows follow the order of the entries | technical (R4) |
 | D31 | Publishing recorded when, not who (R4). **Revised by D46:** `exams.published_by` now records who published too. Audited exam changes still come with step 2.6 | technical (R4; revised) |
 | D32 | A published exam's maximum marks are locked with its marks, in both the exam update and the per-class maximum | technical (R4) |
 | D33 | A classroom's results cover its year. The student's score (`students/{id}/scores`) stays lifetime, as §3.6 says. The two can differ for a student with several years | technical (R5) |
