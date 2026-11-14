@@ -490,7 +490,7 @@ Owner decisions are answers from the product owner. "Technical" decisions were m
 | D28 | Half day is refused in session mode only, as the brief asks. Period mode accepts it | owner (R3 brief) |
 | D29 | A mark sheet is submitted by any save with a mark or an absence. The first submission sets `submitted_at`; later saves change only `entered_by` | technical (R4) |
 | D30 | Bulk marks saves are audited with BulkAudit. New marks need their ids, so their creation is audited after one read-back of those ids; that is one more read than the attendance save makes | technical (R4) |
-| D31 | Publishing records when, not who (`exams` has no published_by). Audited exam changes come with step 2.6 | technical (R4) |
+| D31 | Publishing recorded when, not who (R4). **Revised by D46:** `exams.published_by` now records who published too. Audited exam changes still come with step 2.6 | technical (R4; revised) |
 | D32 | A published exam's maximum marks are locked with its marks, in both the exam update and the per-class maximum | technical (R4) |
 | D33 | A classroom's results cover its year. The student's score (`students/{id}/scores`) stays lifetime, as §3.6 says. The two can differ for a student with several years | technical (R5) |
 | D34 | The overall academic score averages all exam percentages, every exam counting equally, not the subject scores. It matches the rule in §3.6 | technical (R5) |
@@ -499,6 +499,14 @@ Owner decisions are answers from the product owner. "Technical" decisions were m
 | D37 | A guardian's login is created on first sign-in, with no email and an unusable password, and linked to the guardian record. `users.email` becomes nullable for it. Guardians sign in only with codes | technical (R7) |
 | D38 | The sign-in code travels in the queued job's payload for at most its few seconds in the queue. It is never logged outside local and testing, and the log driver says a code was requested, not what it was. Only a keyed hash of the code is stored | technical (R7) |
 | D39 | Guardian sign-in is limited per phone and IP (3 a minute) with a separate limiter, not the email limiter sign-in uses, because a guardian signs in by phone | technical (R7) |
+| D41 | Owner: a subject teacher of the section may also mark its daily sheet, not only the class teacher. The sheet records who submitted it (`attendance_sheets`: section, date, period, submitted by, submitted at; the first save sets both, later saves do not change them). §3.5 and §5 are updated; the step 0.5 snapshot columns and backfill stay blocked on Q14 | owner (Q-answer, daily marking) |
+| D42 | Owner (Q19): academic and attendance scores stay separate in v4. The parent app shows the year's scores (`guardian/children/{id}/scores`, year scope). The lifetime scores stay on the staff-facing profile (`students/{id}/scores`) | owner (Q19; parent app) |
+| D43 | Owner (Q20): Admin and Super Admin get an office home. It shows Year Setup progress, classrooms without a class teacher, pending admissions, and fee collection today once Finance exists. Principal keeps the leadership home. Endpoint `home/office`, permission checked per block | owner (Q20) |
+| D44 | Owner (Q21): each academic year has an admissions-open switch (`academic_years.admissions_open`, default off). The Year Setup step "Admissions open" is done when it is on. Admins set it. It does not block applications yet | owner (Q21) |
+| D45 | Owner (Q22): `student_enrollments.class_id` (backfilled from the section for existing rows). `section_id` is nullable until distribution. Admission records the application's class; a section is optional at admission. Returning students move to the next class by sort order (the previous year's class with the next lower sort order), when that class is distributed. Distribution fills sections from enrolments that have a class and no section. The R2 rule placed returning students in the same class; this replaces it | owner (Q22) |
+| D46 | Publishing records who published as well as when (`exams.published_by`). This revises D31; the audit of exam changes still waits for step 2.6 | owner (product, via the technical change list) |
+| D47 | Guardian code requests are limited per phone hash (3 a minute) and per IP (20 a minute), as two separate limits. In production, a request is refused with 503 and a clear message when no working notifier is configured (the log driver sends nothing, so it does not count) | technical (owner-requested) |
+| D48 | `students/{id}/scores` must stay within its existing query budget. Its budget is not raised; the query count is brought down in R9 | technical (owner-requested, R9) |
 | D40 | No redirects were needed in R8: the only section-level page is the classroom page, which replaces no earlier page. The old section cards stay on the Academic page, linked to the class page | technical (R8) |
 | Q1 | Attendance is per day, per session or per period, chosen by `attendance.mode`. The `period` column holds 0 for the day or the period's id (R3). Replaces the earlier per-day answer | owner (R3 brief) |
 | Q2 | Leave is excluded from the attendance percentage; release note | owner |
@@ -513,6 +521,8 @@ Owner decisions are answers from the product owner. "Technical" decisions were m
 | Q11 | Optional `marks_due_on`; attendance cut-off 10:00 local; `school.timezone` Asia/Kolkata; timestamps stored in UTC | owner |
 | Q12 | No Sunday holidays; weekly off days setting, default Sunday | owner |
 | Q13 | Razorpay later | owner |
+| Q18 | No student logins in v4 | owner (answered; §9) |
+| Q19 | Academic and attendance scores stay separate in v4 (D42) | owner (answered; §9) |
 | Q14 | Which clients hold live data | **open.** The round-4 reply was the placeholder "[none / list codes]", not an answer. Step 0.5 stays blocked. |
 | Q15 | Staff attendance per day | owner |
 | Q16 | Substitutions later | owner |
@@ -525,13 +535,18 @@ Owner decisions are answers from the product owner. "Technical" decisions were m
 
 ## 9. Open questions
 
-1. **Q14: which clients hold live data today?** Blocks step 0.5 and the migration rehearsal. Reply with client codes, or "none".
-2. **Q17 (answered in R7, owner brief):** guardians sign in with a code sent to the phone on file, and see the attendance, published marks and scores of their linked children (§3.4). Dues come with Finance.
-3. **Q18: Do students get logins, and what do they see?** Blocks the student app (step 7.2).
-4. **Q20: Which home does an Admin see?** Today Admin and Super Admin see the Principal home (§2.4). Blocks the Admin home.
-5. **Q21: What does "Admissions open" mean on the Year Setup checklist?** Today the step is done when the year is the current year (§2.3). Blocks the step's real definition.
-6. **Q22: How does a new student get a class before a section?** Admission places a student in a section at once (§3.4), and a student created without an enrolment has no class. "Distribute students" (D21) uses last year's class as the link, so a new intake has no class to be placed from. Which link should a new student carry (for example, a class on the student record set at admission), or should promotion (step 7.3) do this?
-7. **Q19: Should an overall performance score combine academics and attendance, and with what weights?** Academic and attendance scores are shown apart until this is answered (R5).
+**Open**
+
+1. **Q14: which clients hold live data today?** Blocks step 0.5 (its snapshot columns and backfill) and the migration rehearsal. Reply with client codes, or "none".
+
+**Answered**
+
+- **Q17 (R7):** guardians sign in with a code sent to the phone on file, and see the attendance, published marks and year scores of their linked children (§3.4). Dues come with Finance.
+- **Q18 (product answer):** no student logins in v4. The student app (step 7.2) is not blocked by anything in v4; it is simply out of scope.
+- **Q19 (product answer):** academic and attendance scores stay separate in v4. No overall score combines them (§3.6, D42).
+- **Q20 (product answer):** Admin and Super Admin get an office home: Year Setup progress, classrooms without a class teacher, pending admissions, and fee collection today once Finance exists (§2.4, D43).
+- **Q21 (product answer):** each academic year has an admissions-open switch that admins set. The Year Setup step "Admissions open" is done when the switch is on (§2.3, D44).
+- **Q22 (product answer):** an enrolment carries its class (`student_enrollments.class_id`). `section_id` is empty until the student is distributed. Admitted applications carry their class; returning students move to the next class by sort order; distribution fills sections from enrolments that have a class and no section (§3.4, D45). The earlier code (R2) placed returning students in the **same** class, matched by name, not the next class. That is corrected by the step that delivers D45.
 
 ## 10. Working rules
 
