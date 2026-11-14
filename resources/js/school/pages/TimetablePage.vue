@@ -143,7 +143,8 @@ function openSlot(weekday, period) {
 function openPeriod(period = null) {
     clear();
 
-    if (period) {
+    // Only a real period (one with an id) opens the edit drawer; anything else opens Add.
+    if (period?.id) {
         Object.assign(periodForm, { name: period.name, starts_at: period.starts_at, ends_at: period.ends_at, is_break: period.is_break, sort_order: period.sort_order, session: period.session ?? '' });
         drawer.value = { kind: 'editPeriod', period };
 
@@ -250,7 +251,7 @@ onMounted(async () => {
     <div class="flex flex-col gap-5 lg:gap-7.5">
         <PageHeader title="Timetable" :description="year ? `Weekly timetable for ${year.name}.` : 'Your weekly teaching timetable.'">
             <SegmentedTabs v-if="canView" :model-value="mode" :options="modes" label="Timetable view" @update:model-value="switchMode" />
-            <button v-if="canManage && mode === 'section' && year" type="button" class="btn-secondary" :disabled="busy" @click="openPeriod">
+            <button v-if="canManage && mode === 'section' && year" type="button" class="btn-secondary" :disabled="busy" @click="openPeriod()">
                 <AppIcon name="clock" class="size-4" />
                 Add period
             </button>
@@ -272,7 +273,7 @@ onMounted(async () => {
                 title="No periods yet"
                 :description="mode === 'mine' ? `You have no periods assigned in ${academicYear.selected?.name ?? 'this academic year'}.` : 'Add the periods of the school day (the bell schedule) to start the timetable.'"
             >
-                <button v-if="canManage && mode === 'section' && year" type="button" class="btn-primary" @click="openPeriod">Add the first period</button>
+                <button v-if="canManage && mode === 'section' && year" type="button" class="btn-primary" @click="openPeriod()">Add the first period</button>
             </EmptyState>
 
             <div v-else class="overflow-x-auto">
