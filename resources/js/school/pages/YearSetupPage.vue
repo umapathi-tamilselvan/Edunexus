@@ -70,7 +70,10 @@ watch(() => academicYear.selectedId, load);
                             <template v-else>{{ index + 1 }}</template>
                         </span>
                         <div class="flex min-w-0 flex-col gap-0.5">
-                            <span class="font-medium text-gray-900">{{ step.label }}</span>
+                            <span class="flex flex-wrap items-center gap-2">
+                                <span class="font-medium text-gray-900">{{ step.label }}</span>
+                                <span v-if="step.optional" class="badge badge-neutral">Optional</span>
+                            </span>
                             <span class="text-2sm text-gray-600">{{ step.detail }}</span>
                         </div>
                     </div>

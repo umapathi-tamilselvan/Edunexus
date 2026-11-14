@@ -4,6 +4,8 @@ import { academicYear } from './academicYear';
 import AcademicPage from './pages/AcademicPage.vue';
 import AdmissionsPage from './pages/AdmissionsPage.vue';
 import AttendancePage from './pages/AttendancePage.vue';
+import ClassPage from './pages/ClassPage.vue';
+import ClassroomPage from './pages/ClassroomPage.vue';
 import ClientSettingsPage from './pages/ClientSettingsPage.vue';
 import DashboardPage from './pages/DashboardPage.vue';
 import LoginPage from './pages/LoginPage.vue';
@@ -48,6 +50,8 @@ export const router = createRouter({
         { path: '/settings/users', name: 'users', component: UsersPage, meta: { permission: 'user.manage' } },
         { path: '/users', redirect: '/settings/users' },
         { path: '/settings/client', name: 'client-settings', component: ClientSettingsPage, meta: { permission: 'settings.manage' } },
+        { path: '/settings/classes/:classId', name: 'class', component: ClassPage, meta: { permission: 'academic.view', module: 'academic' } },
+        { path: '/classrooms/:sectionId', name: 'classroom', component: ClassroomPage, meta: { permission: 'academic.view', module: 'academic' } },
 
         { path: '/:pathMatch(.*)*', redirect: '/home' },
     ],

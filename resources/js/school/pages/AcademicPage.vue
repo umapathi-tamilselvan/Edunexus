@@ -274,7 +274,7 @@ function openNextYear() {
 
                 <article v-for="schoolClass in year.classes" :key="schoolClass.id" class="card overflow-hidden">
                     <header class="card-header flex-wrap">
-                        <h3 class="card-title">{{ schoolClass.name }}</h3>
+                        <h3 class="card-title"><RouterLink :to="`/settings/classes/${schoolClass.id}`" class="hover:text-primary">{{ schoolClass.name }}</RouterLink></h3>
                         <div v-if="canManage" class="flex flex-wrap items-center gap-4">
                             <button type="button" class="btn-link" @click="openDrawer('editClass', schoolClass)">Edit</button>
                             <button type="button" class="btn-link" @click="openDrawer('section', schoolClass)">Add {{ terms.section.toLowerCase() }}</button>

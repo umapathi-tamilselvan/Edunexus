@@ -18,7 +18,7 @@ use App\Domain\Academic\Models\TimetableEntry;
 class YearSetupStatus
 {
     /**
-     * @return list<array{key: string, label: string, done: bool, detail: string}>
+     * @return list<array{key: string, label: string, done: bool, detail: string, optional?: bool}>
      */
     public function handle(AcademicYear $year): array
     {
@@ -77,6 +77,7 @@ class YearSetupStatus
                 'label' => 'Timetable',
                 'done' => $timetableSlotsNeeded > 0 && $timetableSlotsFilled >= $timetableSlotsNeeded,
                 'detail' => $timetableSlotsNeeded === 0 ? 'Needs sections and teaching periods first.' : "{$timetableSlotsFilled} of {$timetableSlotsNeeded} slots are filled.",
+                'optional' => true,
             ],
             [
                 'key' => 'holidays',

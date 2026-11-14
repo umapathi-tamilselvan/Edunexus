@@ -73,6 +73,8 @@ For each screen: who sees it, what they do, status.
 | Insights (three screens) | per §5.9 | performance views | planned |
 | Year Setup `/settings/year-setup` | `academic.view` (the links it offers need `academic.manage`) | checklist (§2.3) | built |
 | Client settings `/settings/client` | `settings.manage` | values in §6 | built (step 1.5, with R1) |
+| Class `/settings/classes/{id}` | `academic.view`; creating classrooms and editing the teacher grid need `academic.manage`; placing students needs `student.manage` | creates classrooms (A, B, C…) with one capacity; places the class's students into them (§3.4); sets the class teacher and each subject's teacher per classroom in one grid (§3.3) | built (R2) |
+| Classroom `/classrooms/{id}` | `academic.view` | tabs: Students (paged list), Teachers (who teaches what here, read-only; changed on the class page), Attendance (today's status), Exams & marks, Results | partial (R2); Exams & marks and Results are empty until R4 and R5 |
 | Roles | `role.manage` | permissions per role | planned (read-only today) |
 
 ### 2.3 Year Setup checklist
@@ -87,7 +89,7 @@ Each step shows done, or what is missing. A step never blocks another: an admin 
 | 4 | Subjects per class | every class has a subject | built |
 | 5 | Class teachers | every section has a class teacher | built |
 | 6 | Subject teachers | every section subject has a teacher, no teacher over workload | built |
-| 7 | Timetable | every section has a timetable | built |
+| 7 | Timetable | every section has a timetable | built; optional, and needed only when attendance is in period mode (R2, R3) |
 | 8 | Bell schedule | the year has periods and a teaching period | built |
 | 9 | Holidays and weekly off days | holidays added; weekly off days set (default Sunday) | holidays built; weekly off planned |
 | 10 | Open admissions | the year is the current year (product question Q21, §9) | built |
@@ -123,6 +125,8 @@ Each role gets its own home. The Teacher home and the Principal home are **built
 - A class with sections, or a section with students, cannot be deleted. A section's capacity cannot drop below its enrolled count.
 - Subjects are shared across years. Each class offers a set of subjects.
 - Taking a subject off a class also removes its subject teachers in that class's sections.
+- **Classrooms (R2).** A class's sections can be created in one go: a count and one capacity. They are named A, B, C… in order, and a name the class already uses is skipped. At most 26 names; capacity 1 to 500.
+- **Teacher grid (R2).** The class page shows, for every classroom, its class teacher and the teacher of each class subject. Saving checks every cell first: the subject must be offered to the class and the teacher must teach it. Nothing is written when any cell fails, and each failure is shown on its cell. Subject teacher changes then follow the rules of §3.3.
 
 ### 3.3 Subject teachers and timetable
 
@@ -144,6 +148,7 @@ Each role gets its own home. The Teacher home and the Principal home are **built
 - Each student has at least one guardian and exactly one primary guardian. Guardian phones are normalised (digits only), encrypted, and matched by a keyed hash, so siblings share one guardian record. Guardian phones are masked for anyone without `student.manage`.
 - **Admissions.** An application moves enquiry → approved → admitted, or to rejected (reason required) or withdrawn. Closed applications cannot change. Admitting runs in one transaction: it locks the application, checks the section belongs to the class applied for, creates the student, links or reuses the guardian, enrols, and writes a consent row. Consent is mandatory: the admitting user confirms the guardian saw the privacy notice and records how consent was given (signed form, in person, digital). The notice version is stored.
 - Application numbers are gapless per year (`2026-27/0001`). Admission numbers default to `<CODE><00001>`, skip numbers typed by hand, and are returned if the admission rolls back.
+- **Placing a class's students (R2).** The students of a class for a year are those enrolled last year in a class of the same name who have no enrollment this year (D21, Q22). They are placed in name order, into the classrooms in name order, each up to its capacity. Each placement goes through the normal enrollment rules (one enrollment a year, roll numbers, capacity lock). Students with no seat left are counted and not placed. Roll numbers are given in name or admission-number order, as chosen.
 
 ### 3.5 Attendance
 
@@ -389,7 +394,7 @@ One commit per step, full suite green before each. Commits and behaviour changes
 | Step | What | Status |
 | --- | --- | --- |
 | R1 | client settings (above) | this commit |
-| R2 | classroom setup: create classrooms, distribute students, teacher grid per class, Classrooms page (Students, Teachers, Attendance, Exams & marks, Results tabs); timetable becomes optional outside period mode | not started |
+| R2 | classroom setup: create classrooms, distribute students, teacher grid per class, Classrooms page (Students, Teachers, Attendance, Exams & marks, Results tabs); timetable becomes optional outside period mode | this commit (Exams & marks and Results are empty until R4 and R5; R9 owes the tests) |
 | R3 | attendance modes: daily, session, period; `periods.session`; AttendancePolicy by mode; percentage in units (replaces Q1); absence alerts through `GuardianNotifier` | not started |
 | R4 | marks entry per classroom (step 2.4): `exam_mark_sheets`, bulk save, publish and unlock | not started |
 | R5 | scale of 10 for academic and attendance scores, shown per subject and overall (replaces Q9); Q19 | not started |
@@ -461,6 +466,9 @@ Owner decisions are answers from the product owner. "Technical" decisions were m
 | D18 | `attendance.mode` (daily, session, period; default daily) and `results.scale` (integer 1–100; default 10). Changing the mode does not rewrite records already saved | technical |
 | D19 | Steps 1.1–1.5 were committed together in `43ac064`, not one commit per step, because the working tree held them together when the owner committed it. Their rows in §7 point at that commit | technical (recorded) |
 | D20 | An unknown key in a settings request is refused (422), not ignored | technical |
+| D21 | A class's students for a year are those enrolled last year in a class of the same name and not yet enrolled this year. No class is stored on a student before enrolment, so this is the only link available (Q22) | technical (R2; to confirm with the owner) |
+| D22 | The teacher grid is one request, GET and PUT per class. Errors are keyed by row and column (`sections.{i}.subjects.{j}.teacher_id`), and the whole save is refused when any cell fails | technical |
+| D23 | The Exams & marks and Results tabs of a classroom are empty states until R4 and R5 build them, rather than hidden | technical |
 | Q1 | Attendance per day; keep the `period` column | owner |
 | Q2 | Leave is excluded from the attendance percentage; release note | owner |
 | Q3 | Late counts 1, half day 0.5 | owner |
@@ -491,6 +499,7 @@ Owner decisions are answers from the product owner. "Technical" decisions were m
 3. **Q18: Do students get logins, and what do they see?** Blocks the student app (step 7.2).
 4. **Q20: Which home does an Admin see?** Today Admin and Super Admin see the Principal home (§2.4). Blocks the Admin home.
 5. **Q21: What does "Admissions open" mean on the Year Setup checklist?** Today the step is done when the year is the current year (§2.3). Blocks the step's real definition.
+6. **Q22: How does a new student get a class before a section?** Admission places a student in a section at once (§3.4), and a student created without an enrolment has no class. "Distribute students" (D21) uses last year's class as the link, so a new intake has no class to be placed from. Which link should a new student carry (for example, a class on the student record set at admission), or should promotion (step 7.3) do this?
 
 ## 10. Working rules
 
@@ -590,8 +599,8 @@ All under `/api/v1`. `entitled` is the module gate; `can` the permission. Full l
 | --- | --- |
 | Auth | `auth/login`, `auth/logout`, `auth/tokens`, `auth/tokens/current`, `me`, `branding` |
 | Users and roles | `users` (list, create), `users/{id}/roles`, `users/{id}/subjects`, `roles` (read) |
-| Academic | `academic-years` (list, show, `next`, `{id}/make-current`), `academic-years/{id}/classes`, `classes/{id}` (update, delete, subjects, subject teacher), `sections` (show, store, update, delete, subject teacher), `subjects` (list, create, update, teachers), `academic-years/{id}/periods` (list, create), `periods/{id}` (update, delete), `sections/{id}/timetable` (show, set, clear), `me/timetable`, `me/teaching`, `teachers`, `teachers/workload`, `academic-years/{id}/holidays` (list, create), `holidays/{id}` (delete), `academic-years/{id}/setup-status` |
-| Students | `students` (list, create, show, update), `students/{id}/guardians` (add, remove), `students/{id}/enrollments`, `enrollments/{id}`, `students/{id}/attendance`, `students/{id}/scores`, `students/{id}/fees` |
+| Academic | `academic-years` (list, show, `next`, `{id}/make-current`), `academic-years/{id}/classes`, `classes/{id}` (update, delete, subjects, subject teacher), `sections` (show, store, update, delete, subject teacher), `subjects` (list, create, update, teachers), `academic-years/{id}/periods` (list, create), `periods/{id}` (update, delete), `sections/{id}/timetable` (show, set, clear), `me/timetable`, `me/teaching`, `teachers`, `teachers/workload`, `academic-years/{id}/holidays` (list, create), `holidays/{id}` (delete), `academic-years/{id}/setup-status`, `classes/{id}/teacher-grid` (show, save), `classes/{id}/classrooms` (create) |
+| Students | `students` (list, create, show, update), `students/{id}/guardians` (add, remove), `students/{id}/enrollments`, `enrollments/{id}`, `students/{id}/attendance`, `students/{id}/scores`, `students/{id}/fees`, `classes/{id}/students/distribute` |
 | Admissions | `admissions` (list, create, show, update), `admissions/{id}/decision`, `admissions/{id}/admit` |
 | Attendance | `sections/{id}/attendance` (show, save), `attendance/day-summary` |
 | Examinations | `academic-years/{id}/exams` (list, create), `exams/{id}` (show, update, delete), `exams/{id}/classes/{class}/subjects/{subject}/max-marks`, `exams/{id}/marks` (show, save) |

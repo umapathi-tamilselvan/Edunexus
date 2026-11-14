@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\V1\Academic\AcademicYearController;
+use App\Http\Controllers\Api\V1\Academic\ClassroomController;
 use App\Http\Controllers\Api\V1\Academic\HolidayController;
 use App\Http\Controllers\Api\V1\Academic\PeriodController;
 use App\Http\Controllers\Api\V1\Academic\SchoolClassController;
@@ -75,6 +76,7 @@ Route::middleware(['auth:sanctum', 'entitled:academic'])->group(function () {
         Route::get('teachers', [TeacherController::class, 'index'])->name('teachers.index');
         Route::get('teachers/workload', [TeacherController::class, 'workload'])->name('teachers.workload');
         Route::get('academic-years/{academicYear}/holidays', [HolidayController::class, 'index'])->name('holidays.index');
+        Route::get('classes/{schoolClass}/teacher-grid', [ClassroomController::class, 'teacherGrid'])->name('classes.teacher-grid.show');
     });
 
     Route::get('me/timetable', [TimetableController::class, 'mine'])->name('timetable.mine');
@@ -89,6 +91,8 @@ Route::middleware(['auth:sanctum', 'entitled:academic'])->group(function () {
         Route::delete('classes/{schoolClass}', [SchoolClassController::class, 'destroy'])->name('classes.destroy');
         Route::put('classes/{schoolClass}/subjects', [SchoolClassController::class, 'syncSubjects'])->name('classes.subjects.sync');
         Route::put('classes/{schoolClass}/subjects/{subject}/teacher', [SectionSubjectTeacherController::class, 'updateClass'])->name('classes.subjects.teacher.update');
+        Route::post('classes/{schoolClass}/classrooms', [ClassroomController::class, 'store'])->name('classes.classrooms.store');
+        Route::put('classes/{schoolClass}/teacher-grid', [ClassroomController::class, 'saveTeacherGrid'])->name('classes.teacher-grid.update');
 
         Route::post('classes/{schoolClass}/sections', [SectionController::class, 'store'])->name('sections.store');
         Route::patch('sections/{section}', [SectionController::class, 'update'])->name('sections.update');
@@ -122,6 +126,7 @@ Route::middleware(['auth:sanctum', 'entitled:student'])->group(function () {
     Route::middleware('can:student.manage')->group(function () {
         Route::post('students', [StudentController::class, 'store'])->name('students.store');
         Route::patch('students/{student}', [StudentController::class, 'update'])->name('students.update');
+        Route::post('classes/{schoolClass}/students/distribute', [ClassroomController::class, 'distribute'])->name('classes.students.distribute');
 
         Route::post('students/{student}/guardians', [StudentGuardianController::class, 'store'])->name('students.guardians.store');
         Route::delete('students/{student}/guardians/{guardian}', [StudentGuardianController::class, 'destroy'])->name('students.guardians.destroy');
