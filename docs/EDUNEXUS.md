@@ -154,11 +154,10 @@ Each role gets its own home. **Planned** except the generic dashboard.
 - A day cannot be marked if it is a holiday (the holiday's name is shown), in the future, or outside the selected year.
 - A holiday cannot be added to a day that already has attendance. Clear the attendance first.
 - Who may mark: the section's class teacher and its subject teachers, within the edit window (`attendance.edit_window_days`, default 0: the day itself). Anyone with `attendance.edit_late` (Principal, Admin, Super Admin) may change any day.
-- A student's summary (`students/{id}/attendance`): days marked, days attended, the percentage, the count per status, and the last 30 missed days. Current formula: present counts 1, late counts 1, half day 0.5, absent 0; **leave counts as a marked day with 0 attended** (changes in step 0.6, §7).
+- A student's summary (`students/{id}/attendance`): days marked, days attended, the percentage, the count per status, and the last 30 missed days. Formula: present and late count 1, half day 0.5, absent 0. **Leave is left out** of both days attended and days marked, so it does not change the percentage (release note in `docs/release-notes-v4.md`).
 
 **Planned.**
 
-- Leave is not counted in the percentage at all (step 0.6). Release note required.
 - Weekly off days (`weekly_off_days`, default Sunday) cannot be marked; they are excluded like holidays.
 - A sheet record (`attendance_sheets`) stores who submitted the sheet and when. The first save sets both; later edits do not change them.
 - Attendance rows keep the section and academic year the student was in when marked (step 0.5, waiting on owner answer Q14).
@@ -369,19 +368,19 @@ One commit per step, full suite green before each. Commits and behaviour changes
 | 0.1 | attendance and holiday tests | `b66e53b` |
 | 0.2 | fee ledger tests | `17b464e` |
 | 0.3 | teacher visibility: set-based subquery and two indexes; tests for subject-teacher, timetable and year visibility | `ab44dfe` |
-| 0.4 | exam list and detail show `has_marks` (boolean, `withExists`) in place of `marks_count`; the flag decides whether an exam can be deleted | this commit (its hash is recorded in the next commit) |
+| 0.4 | exam list and detail show `has_marks` (boolean, `withExists`) in place of `marks_count`; the flag decides whether an exam can be deleted | `9010172` |
+| 0.6 | leave is left out of the attendance percentage and days marked; release notes created (`docs/release-notes-v4.md`) | this commit (its hash is recorded in the next commit) |
 
 **Remaining, in order**
 
 | Step | What | Size | Status |
 | --- | --- | --- | --- |
 | 0.5 | `attendance_records.section_id` and `academic_year_id` snapshot; `attendance_sheets` table; backfill | M | waiting on owner answer Q14 |
-| 0.6 | leave excluded from the attendance percentage; `docs/release-notes-v4.md` in the same commit; update the leave test | S | not started |
 | 1.1 | navigation grouped into the six areas; old paths redirect | S | not started |
 | 1.2 | role homes, starting with Teacher and Principal | M | not started |
 | 1.3 | Year Setup status endpoint and checklist page | M | not started |
 | 1.4 | edit screens for classes, sections and periods | M | not started |
-| 1.5 | client settings endpoint and screen (§6) | M | not started |
+| 1.5 | client settings endpoint and screen (§6); the 75% threshold in the student profile's attendance panel comes from the at-risk setting | M | not started |
 | 1.6 | branding ETag | S | not started |
 | 2.1 | `terms` table, CRUD, defaults per type, admin confirmation before exams | M | not started |
 | 2.2 | `exams.term_id`, `exams.marks_due_on`, backfill, validation | S | not started |

@@ -276,21 +276,32 @@ class AttendanceTest extends TestCase
             ->assertJsonPath('data.missed.0.remark', 'Travel');
     }
 
-    /**
-     * Characterises current behaviour: a day on leave is counted in the
-     * denominator. Step 0.6 excludes leave, and this assertion changes with it.
-     */
-    public function test_a_day_on_leave_is_counted_in_the_percentage_denominator(): void
+    public function test_a_day_on_leave_is_left_out_of_the_percentage(): void
     {
         $chitra = $this->enroll('Chitra', rollNo: 1);
 
         $this->mark($this->adminToken, today()->toDateString(), [['enrollment_id' => $chitra->id, 'status' => 'present']])->assertOk();
         $this->mark($this->adminToken, $this->daysAgo(1), [['enrollment_id' => $chitra->id, 'status' => 'leave']])->assertOk();
+        $this->mark($this->adminToken, $this->daysAgo(2), [['enrollment_id' => $chitra->id, 'status' => 'absent']])->assertOk();
 
         $this->withToken($this->adminToken)->getJson("/api/v1/students/{$chitra->student_id}/attendance")
             ->assertOk()
             ->assertJsonPath('data.days_marked', 2)
-            ->assertJsonPath('data.percentage', 50);
+            ->assertJsonPath('data.days_attended', 1)
+            ->assertJsonPath('data.percentage', 50)
+            ->assertJsonPath('data.by_status.leave', 1);
+    }
+
+    public function test_a_student_with_only_leave_has_no_percentage(): void
+    {
+        $chitra = $this->enroll('Chitra', rollNo: 1);
+
+        $this->mark($this->adminToken, today()->toDateString(), [['enrollment_id' => $chitra->id, 'status' => 'leave']])->assertOk();
+
+        $this->withToken($this->adminToken)->getJson("/api/v1/students/{$chitra->student_id}/attendance")
+            ->assertOk()
+            ->assertJsonPath('data.days_marked', 0)
+            ->assertJsonPath('data.percentage', null);
     }
 
     public function test_a_student_without_an_enrollment_in_the_year_has_no_attendance_summary(): void

@@ -15,7 +15,7 @@ enum AttendanceStatus: string
 
     /**
      * How much of a day this counts as attended: late is a full day, half
-     * a day is half, and leave, though excused, is not attended.
+     * a day is half, and absent is none.
      */
     public function attended(): float
     {
@@ -24,5 +24,15 @@ enum AttendanceStatus: string
             self::HalfDay => 0.5,
             self::Absent, self::Leave => 0.0,
         };
+    }
+
+    /**
+     * Whether the day counts in an attendance percentage at all. Leave is
+     * excused, so it is left out of both the attended days and the days
+     * marked.
+     */
+    public function countsInPercentage(): bool
+    {
+        return $this !== self::Leave;
     }
 }

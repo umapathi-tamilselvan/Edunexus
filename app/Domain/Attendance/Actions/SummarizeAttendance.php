@@ -10,7 +10,8 @@ use App\Domain\Student\Models\StudentEnrollment;
  * A student's attendance in one enrollment: days marked, days attended
  * (late counts in full, half a day as half) and the percentage, with the
  * most recent days they were not fully present. Holidays never count,
- * because no attendance is taken on them.
+ * because no attendance is taken on them. Leave is excused, so it is left
+ * out of both the days attended and the days marked.
  */
 class SummarizeAttendance
 {
@@ -28,13 +29,16 @@ class SummarizeAttendance
 
         $counts = [];
         $attended = 0.0;
+        $marked = 0;
 
         foreach (AttendanceStatus::cases() as $status) {
             $counts[$status->value] = (int) $byStatus->get($status->value, 0);
-            $attended += $counts[$status->value] * $status->attended();
-        }
 
-        $marked = array_sum($counts);
+            if ($status->countsInPercentage()) {
+                $marked += $counts[$status->value];
+                $attended += $counts[$status->value] * $status->attended();
+            }
+        }
 
         return [
             'days_marked' => $marked,
