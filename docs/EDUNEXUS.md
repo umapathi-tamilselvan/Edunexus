@@ -449,7 +449,7 @@ Owner decisions are answers from the product owner. "Technical" decisions were m
 | Q11 | Optional `marks_due_on`; attendance cut-off 10:00 local; `school.timezone` Asia/Kolkata; timestamps stored in UTC | owner |
 | Q12 | No Sunday holidays; weekly off days setting, default Sunday | owner |
 | Q13 | Razorpay later | owner |
-| Q14 | Which clients hold live data | **open** |
+| Q14 | Which clients hold live data | **open.** The round-4 reply was the placeholder "[none / list codes]", not an answer. Step 0.5 stays blocked. |
 | Q15 | Staff attendance per day | owner |
 | Q16 | Substitutions later | owner |
 | T1 | Teachers see their own sections' averages only | owner (confirmed) |
@@ -461,7 +461,8 @@ Owner decisions are answers from the product owner. "Technical" decisions were m
 ## 9. Open questions
 
 1. **Q14: which clients hold live data today?** Blocks step 0.5 and the migration rehearsal. Reply with client codes, or "none".
-2. Guardian and student logins: when, and what each sees. Not numbered; to be raised when the mobile stage is planned.
+2. **Q17: When do guardians get logins, and what does each guardian see?** Blocks the guardian home (§2.4) and the guardian app (step 7.2).
+3. **Q18: Do students get logins, and what do they see?** Blocks the student app (step 7.2).
 
 ## 10. Working rules
 
@@ -472,6 +473,7 @@ Owner decisions are answers from the product owner. "Technical" decisions were m
 - Every new endpoint gets a feature test and a query-count budget. Budgets are never raised to make a test pass.
 - Probes and tests use existing credentials only. Never create MySQL or Redis users, grant privileges, or use root or provisioning credentials outside the `edunexus:client:*` commands.
 - Ask only when a decision is a product choice. Make technical decisions yourself, following the existing conventions, and record them in §8.
+- `AGENTS.md`'s install step is already done: `laravel/boost` is a dependency. Do not run `composer require` for it again. This follows the rule above on dependency changes.
 
 ## 11. Data model
 

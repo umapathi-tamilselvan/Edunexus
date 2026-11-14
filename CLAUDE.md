@@ -9,6 +9,7 @@
 - Every new endpoint gets a feature test and a query-count budget. Budgets are never raised to make a test pass.
 - Probes and tests use existing credentials only. Never create MySQL or Redis users, grant privileges, or use root or provisioning credentials outside the `edunexus:client:*` commands.
 - Ask only when a decision is a product choice. Make technical decisions yourself, following the existing conventions, and record them in `docs/EDUNEXUS.md` §8.
+- `AGENTS.md`'s install step is already done: `laravel/boost` is a dependency. Do not run `composer require` for it again. This follows the rule above on dependency changes.
 
 <laravel-boost-guidelines>
 === foundation rules ===
