@@ -327,6 +327,11 @@ Built for deployed clients. Local and tests use database and array drivers.
 - Shared helpers: `school/academic.js` (year structure and section options), `school/weekdays.js` (the weekday lists), `school/navigation.js` (the one list of pages), `lib/format.js` (dates as "1 Jun 2026", date-times in the browser's zone, rupees), `lib/http.js`, `lib/errors.js`, `lib/money.js` (paise arithmetic).
 - Pages do not copy pickers, dialogs, formatters or loading logic. A missing shared piece is built once in `resources/js/components` first.
 
+### 4.7 Caching
+
+- **Academic years** (`App\Support\AcademicYearContext`). What: the list of years, as plain attribute arrays (never Eloquent models), rebuilt into models for each request. Key: `academic_years:<sha1 of the academic_years column list>`, so adding a column changes the key and an old entry is never read. The column list is read once per request. TTL: one hour. Invalidation: saving or deleting a year forgets the key after the transaction commits, and making a year current does the same. The store is the client's Redis (§4.2).
+- No other cache holds business data. Spatie's permission cache and the rate limiter use the framework's own keys.
+
 ## 5. Permissions and roles
 
 Permissions are fixed in code (`App\Domain\Identity\Enums\Permission`). Roles hold them. Super Admin and Admin always hold every permission. Only a Super Admin can grant the Super Admin role.

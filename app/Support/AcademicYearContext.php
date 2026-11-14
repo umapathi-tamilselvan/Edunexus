@@ -6,6 +6,7 @@ use App\Domain\Academic\Models\AcademicYear;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -20,7 +21,8 @@ final class AcademicYearContext
 {
     public const HEADER = 'X-Academic-Year';
 
-    private const CACHE_KEY = 'academic_years:v2';
+    /** @var string|null the cache key, derived from the table's columns once per request */
+    private ?string $cacheKey = null;
 
     private ?int $selectedId = null;
 
@@ -67,8 +69,18 @@ final class AcademicYearContext
     public function forgetYears(): void
     {
         $this->years = null;
+        $key = $this->cacheKey();
 
-        DB::afterCommit(fn () => Cache::forget(self::CACHE_KEY));
+        DB::afterCommit(fn () => Cache::forget($key));
+    }
+
+    /**
+     * The cache key is derived from the academic_years columns, so adding a
+     * column changes the key and an old cache entry is never read (see §4).
+     */
+    private function cacheKey(): string
+    {
+        return $this->cacheKey ??= 'academic_years:'.sha1(implode(',', Schema::getColumnListing((new AcademicYear)->getTable())));
     }
 
     /**
@@ -77,7 +89,7 @@ final class AcademicYearContext
     private function years(): Collection
     {
         // Raw attributes rather than models keep the cached value plain data.
-        return $this->years ??= collect(Cache::remember(self::CACHE_KEY, now()->addHour(), fn (): array => AcademicYear::query()
+        return $this->years ??= collect(Cache::remember($this->cacheKey(), now()->addHour(), fn (): array => AcademicYear::query()
             ->get()
             ->map(fn (AcademicYear $year): array => $year->getAttributes())
             ->all()))
