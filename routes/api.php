@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\V1\BrandingController;
 use App\Http\Controllers\Api\V1\Examination\ExamController;
 use App\Http\Controllers\Api\V1\Examination\ExamMarkController;
 use App\Http\Controllers\Api\V1\Examination\SubjectScoreController;
+use App\Http\Controllers\Api\V1\Fee\FeeController;
 use App\Http\Controllers\Api\V1\MeController;
 use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\Student\EnrollmentController;
@@ -139,6 +140,27 @@ Route::middleware(['auth:sanctum', 'entitled:attendance'])->group(function () {
     });
 
     Route::put('sections/{section}/attendance', [AttendanceController::class, 'update'])->name('attendance.update');
+});
+
+/*
+| Fees: an append-only ledger per enrollment, in integer paise. Dues and
+| payments are reversed, never changed; receipts are numbered without gaps.
+*/
+Route::middleware(['auth:sanctum', 'entitled:fee'])->group(function () {
+    Route::middleware('can:fee.view')->group(function () {
+        Route::get('fee-heads', [FeeController::class, 'heads'])->name('fee-heads.index');
+        Route::get('students/{student}/fees', [FeeController::class, 'student'])->middleware('entitled:student')->name('students.fees');
+        Route::get('sections/{section}/fees', [FeeController::class, 'section'])->name('sections.fees');
+        Route::get('receipts/{receipt}', [FeeController::class, 'receipt'])->name('receipts.show');
+    });
+
+    Route::middleware('can:fee.collect')->group(function () {
+        Route::post('fee-heads', [FeeController::class, 'storeHead'])->name('fee-heads.store');
+        Route::post('fee-dues', [FeeController::class, 'postDues'])->name('fee-dues.store');
+        Route::post('enrollments/{enrollment}/payments', [FeeController::class, 'collect'])->name('payments.store');
+    });
+
+    Route::post('fee-entries/{feeEntry}/reverse', [FeeController::class, 'reverse'])->middleware('can:fee.reverse')->name('fee-entries.reverse');
 });
 
 /*

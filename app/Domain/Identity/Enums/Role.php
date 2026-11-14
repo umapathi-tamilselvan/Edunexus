@@ -50,6 +50,8 @@ enum Role: string
                 Permission::ExamEnterMarks,
             ],
             self::Accountant => [
+                // To work through fees by class and section.
+                Permission::AcademicView,
                 Permission::StudentView,
                 Permission::FeeView,
                 Permission::FeeCollect,

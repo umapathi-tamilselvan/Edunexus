@@ -6,6 +6,7 @@ use App\Domain\Academic\Models\AcademicYear;
 use App\Domain\Academic\Models\Section;
 use App\Domain\Attendance\Models\AttendanceRecord;
 use App\Domain\Examination\Models\ExamMark;
+use App\Domain\Fee\Models\FeeEntry;
 use App\Domain\Student\Enums\EnrollmentStatus;
 use Database\Factories\StudentEnrollmentFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -84,5 +85,15 @@ class StudentEnrollment extends Model implements AuditableContract
     public function attendance(): HasMany
     {
         return $this->hasMany(AttendanceRecord::class, 'enrollment_id');
+    }
+
+    /**
+     * The enrollment's fee ledger; its balance is the sum of amounts.
+     *
+     * @return HasMany<FeeEntry, $this>
+     */
+    public function feeEntries(): HasMany
+    {
+        return $this->hasMany(FeeEntry::class, 'enrollment_id');
     }
 }
