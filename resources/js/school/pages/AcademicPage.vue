@@ -215,14 +215,31 @@ function toggleAdmissions() {
     });
 }
 
-function makeCurrent() {
-    run(() => http.post(`/api/v1/academic-years/${year.value.id}/make-current`), {
+/**
+ * Asks first, stating how many final-class students become left (§3.1). The
+ * numbers come from the server's read-only preview, so the dialog matches what happens.
+ */
+async function askMakeCurrent() {
+    const { data } = await http.get(`/api/v1/academic-years/${year.value.id}/make-current-preview`);
+    const preview = data.data;
+    const leaving = preview.students_to_leave;
+
+    pending.value = {
+        title: `Make ${year.value.name} the current year?`,
+        message: preview.closing_year === null
+            ? `${year.value.name} is the first year, so no students will change status.`
+            : leaving > 0
+                ? `${preview.closing_year.name} closes. ${leaving} ${leaving === 1 ? 'student' : 'students'} in ${preview.final_class.name} who are not enrolled in ${year.value.name} will become left. Students who move up are not affected.`
+                : `${preview.closing_year.name} closes. No students will become left.`,
+        confirmLabel: 'Make current',
+        tone: 'primary',
+        action: () => http.post(`/api/v1/academic-years/${year.value.id}/make-current`),
         success: `${year.value.name} is now the current year.`,
-        onSuccess: async () => {
+        after: async () => {
             await academicYear.load({ force: true });
             await reloadYear();
         },
-    });
+    };
 }
 
 /** Years are listed newest first, so only the current year can be followed by a new one. */
@@ -243,7 +260,7 @@ function openNextYear() {
             :description="year ? `${year.name}: ${terms.classes.toLowerCase()}, ${terms.sections.toLowerCase()} and subjects. Pick another year at the top.` : `Academic years, ${terms.classes.toLowerCase()}, ${terms.sections.toLowerCase()} and subjects.`"
         >
             <button v-if="canManage && year" type="button" class="btn-secondary" :disabled="busy" @click="toggleAdmissions">{{ year.admissions_open ? 'Close admissions' : 'Open admissions' }}</button>
-            <button v-if="canManage && year && !year.is_current" type="button" class="btn-secondary" :disabled="busy" @click="makeCurrent">Make {{ year.name }} current</button>
+            <button v-if="canManage && year && !year.is_current" type="button" class="btn-secondary" :disabled="busy" @click="askMakeCurrent">Make {{ year.name }} current</button>
             <button v-if="canOpenNextYear" type="button" class="btn-primary" :disabled="busy" @click="openNextYear">
                 <AppIcon name="plus" class="size-4" />
                 Open next year
@@ -413,6 +430,7 @@ function openNextYear() {
             :title="pending?.title ?? ''"
             :message="pending?.message ?? ''"
             :confirm-label="pending?.confirmLabel ?? 'Confirm'"
+            :tone="pending?.tone ?? 'danger'"
             :busy="busy"
             @confirm="confirmRemove"
             @cancel="pending = null"

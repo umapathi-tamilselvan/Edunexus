@@ -105,6 +105,7 @@ Route::middleware(['auth:sanctum', 'entitled:academic'])->group(function () {
     Route::middleware('can:academic.manage')->group(function () {
         Route::post('academic-years/next', [AcademicYearController::class, 'next'])->name('academic-years.next');
         Route::post('academic-years/{academicYear}/make-current', [AcademicYearController::class, 'makeCurrent'])->name('academic-years.make-current');
+        Route::get('academic-years/{academicYear}/make-current-preview', [AcademicYearController::class, 'makeCurrentPreview'])->name('academic-years.make-current.preview');
         Route::put('academic-years/{academicYear}/admissions', [AcademicYearController::class, 'setAdmissions'])->name('academic-years.admissions.update');
 
         Route::post('academic-years/{academicYear}/classes', [SchoolClassController::class, 'store'])->name('classes.store');

@@ -23,7 +23,7 @@ class MakeAcademicYearCurrent
             AcademicYear::query()->whereKey($year->getKey())->update(['is_current' => true]);
 
             // The year before this one has closed: its final class is complete (D49).
-            $closedYear = AcademicYear::query()->where('starts_on', '<', $year->starts_on)->orderByDesc('starts_on')->first();
+            $closedYear = $this->completeFinalClass->closingYearFor($year);
 
             if ($closedYear !== null) {
                 $this->completeFinalClass->handle($closedYear, $year);

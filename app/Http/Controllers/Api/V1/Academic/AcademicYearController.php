@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1\Academic;
 
+use App\Domain\Academic\Actions\CompleteFinalClass;
 use App\Domain\Academic\Actions\CopyAcademicYearForward;
 use App\Domain\Academic\Actions\MakeAcademicYearCurrent;
 use App\Domain\Academic\Actions\SetAdmissionsOpen;
@@ -61,6 +62,18 @@ class AcademicYearController extends Controller
     public function makeCurrent(AcademicYear $academicYear, MakeAcademicYearCurrent $makeCurrent): AcademicYearResource
     {
         return new AcademicYearResource($makeCurrent->handle($academicYear));
+    }
+
+    /**
+     * What making this year current would do, for the confirm dialog (§3.1). Read only.
+     */
+    public function makeCurrentPreview(AcademicYear $academicYear, CompleteFinalClass $completeFinalClass): JsonResponse
+    {
+        $closedYear = $completeFinalClass->closingYearFor($academicYear);
+
+        return response()->json(['data' => $closedYear === null
+            ? ['closing_year' => null, 'final_class' => null, 'students_to_leave' => 0]
+            : $completeFinalClass->preview($closedYear, $academicYear)]);
     }
 
     /**
