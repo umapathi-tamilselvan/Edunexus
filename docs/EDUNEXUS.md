@@ -152,8 +152,8 @@ Each role gets its own home. The Teacher home and the Principal home are **built
 - Application numbers are gapless per year (`2026-27/0001`). Admission numbers default to `<CODE><00001>`, skip numbers typed by hand, and are returned if the admission rolls back.
 - **Placing a class's students (R2).** The students of a class for a year are those enrolled last year in a class of the same name who have no enrollment this year (D21, Q22). They are placed in name order, into the classrooms in name order, each up to its capacity. Each placement goes through the normal enrollment rules (one enrollment a year, roll numbers, capacity lock). Students with no seat left are counted and not placed. Roll numbers are given in name or admission-number order, as chosen.
 
-- **Guardian sign-in (R7).** A guardian signs in with a six-digit code sent to the phone on file. The code is valid for five minutes, works once, and locks after five wrong attempts. Requests are limited per phone and IP (3 a minute). Whether a phone is on file is never revealed. The first successful sign-in creates the guardian's login (role Guardian, no email, no password anyone knows) and links it to the guardian record (D37). Codes are sent on the critical queue (D38).
-- **What a guardian sees (R7).** Only their linked children, checked by `GuardianPolicy`: each child's attendance (the year's summary, today by session or period, and a chosen month), exam marks only for exams whose marks are published, and academic and attendance scores that count published exams only. Guardians hold no permissions.
+- **Guardian sign-in (R7).** A guardian signs in with a six-digit code sent to the phone on file. The code is valid for five minutes, works once, and locks after five wrong attempts. Requests are limited per phone (3 a minute) and, separately, per IP (20 a minute) (D47). Whether a phone is on file is never revealed. In production a request is refused with 503 and a clear message when no working message service is configured; the log driver sends nothing and does not count as working (D47). The first successful sign-in creates the guardian's login (role Guardian, no email, no password anyone knows) and links it to the guardian record (D37). Codes are sent on the critical queue (D38).
+- **What a guardian sees (R7).** Only their linked children, checked by `GuardianPolicy`: each child's attendance (the year's summary, today by session or period, and a chosen month), exam marks only for exams whose marks are published, and academic and attendance scores for the year that count published exams only (the staff profile keeps the lifetime scores; D42). Guardians hold no permissions.
 
 ### 3.5 Attendance
 
@@ -185,7 +185,7 @@ Each role gets its own home. The Teacher home and the Principal home are **built
 - Exams belong to an academic year. Names are unique per year. The exam's maximum applies to every subject unless a paper overrides it for one class and subject (`exam_papers`).
 - Marks are entered one section and one subject at a time, from the classroom's Exams & marks tab (R4). Each student gets a mark from 0 to the paper's maximum, or is absent. A blank mark removes the entry.
 - A save is one bulk write: one read of the entries, one upsert, at most one delete, and every change audited (D30). A save that carries any mark or absence **submits** the subject's sheet (`exam_mark_sheets`). The first submission sets the time; later saves change only who entered it (D29). The classroom shows, for every subject, who teaches it and whether it is submitted.
-- **Publishing (R4).** `exam.publish` publishes an exam: from then on its marks and its maximum marks cannot change. `exam.unlock` reopens it. Publishing records the time, not who published (D31).
+- **Publishing (R4).** `exam.publish` publishes an exam: from then on its marks and its maximum marks cannot change. `exam.unlock` reopens it. Publishing records when and by whom (`published_at` and `published_by`, D46). Reopening clears both.
 - Anyone with `exam.manage` enters marks for any section. A user with `exam.enter_marks` enters marks only for a section they teach that subject to.
 - An exam's maximum and a paper's maximum cannot drop below marks already entered under them. A paper set back to the exam's maximum is removed.
 - An exam with marks cannot be deleted. The exam response carries `has_marks` (true once any mark exists). It replaced `marks_count` in step 0.4.
@@ -612,7 +612,7 @@ Conventions: every table has `id` and timestamps unless noted. Foreign keys are 
 
 | Table | Key columns and rules |
 | --- | --- |
-| `exams` | academic_year_id, name (unique per year), max_marks, starts_on, ends_on, published_at (R4; null until published). Planned: `term_id`, `marks_due_on` |
+| `exams` | academic_year_id, name (unique per year), max_marks, starts_on, ends_on, published_at and published_by (R4, D46; null until published). Planned: `term_id`, `marks_due_on` |
 | `exam_papers` | exam_id, class_id, subject_id, max_marks; unique (exam, class, subject) |
 | `exam_marks` | exam_id, enrollment_id, subject_id, marks (decimal 5,2, null when absent), is_absent, recorded_by; unique (exam, enrollment, subject) |
 | `exam_mark_sheets` (R4) | exam_id, section_id, subject_id, entered_by (nullable), submitted_at (first submission); unique (exam, section, subject) |

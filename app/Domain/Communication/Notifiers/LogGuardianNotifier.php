@@ -26,6 +26,11 @@ class LogGuardianNotifier implements GuardianNotifier
         ]);
     }
 
+    public function canSend(): bool
+    {
+        return false;
+    }
+
     public function otp(Guardian $guardian, string $code): void
     {
         $context = ['guardian_id' => $guardian->id];

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1\Guardian;
 
+use App\Domain\Communication\Contracts\GuardianNotifier;
 use App\Domain\Student\Actions\RequestGuardianOtp;
 use App\Domain\Student\Actions\VerifyGuardianOtp;
 use App\Http\Controllers\Controller;
@@ -16,8 +17,15 @@ use Illuminate\Http\JsonResponse;
  */
 class GuardianAuthController extends Controller
 {
-    public function sendCode(RequestGuardianOtpRequest $request, RequestGuardianOtp $requestGuardianOtp): JsonResponse
+    public function sendCode(RequestGuardianOtpRequest $request, RequestGuardianOtp $requestGuardianOtp, GuardianNotifier $notifier): JsonResponse
     {
+        // In production a code that would never arrive is refused, not promised (D47).
+        if (app()->isProduction() && ! $notifier->canSend()) {
+            return response()->json([
+                'message' => 'Sign-in codes cannot be sent yet: this school has no message service set up. Ask the office to set one up.',
+            ], 503);
+        }
+
         $requestGuardianOtp->handle($request->validated('phone'));
 
         return response()->json([

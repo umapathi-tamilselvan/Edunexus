@@ -75,10 +75,11 @@ class AppServiceProvider extends ServiceProvider
             ? Limit::perMinute(120)->by('user:'.$request->user()->getAuthIdentifier())
             : Limit::perMinute(600)->by('ip:'.$request->ip()));
 
-        // Guardians sign in by phone, so their codes are limited per phone and IP.
+        // Guardians sign in by phone: codes are limited per phone hash and, as a
+        // separate limit, per IP (D47).
         RateLimiter::for('guardian-otp', fn (Request $request): array => [
-            Limit::perMinute(3)->by('phone:'.Guardian::hashPhone((string) $request->input('phone')).'|'.$request->ip()),
-            Limit::perMinute(20)->by((string) $request->ip()),
+            Limit::perMinute(3)->by('phone:'.Guardian::hashPhone((string) $request->input('phone'))),
+            Limit::perMinute(20)->by('ip:'.$request->ip()),
         ]);
 
         RateLimiter::for('login', fn (Request $request): array => [

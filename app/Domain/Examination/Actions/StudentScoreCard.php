@@ -8,7 +8,7 @@ use App\Domain\Student\Models\Student;
 /**
  * A student's scores side by side: the academic score (overall and per
  * subject) and the attendance score, out of the client's scale. Never
- * combined. Lifetime, like ConsolidateSubjectScores.
+ * combined. Lifetime unless one academic year is asked for.
  */
 class StudentScoreCard
 {
@@ -17,10 +17,10 @@ class StudentScoreCard
     /**
      * @return array{scale: int, academic: array<string, mixed>, attendance: array<string, mixed>}
      */
-    public function handle(Student $student, bool $publishedOnly = false): array
+    public function handle(Student $student, bool $publishedOnly = false, ?int $academicYearId = null): array
     {
-        $academic = $this->academic->handle($student, $publishedOnly);
-        $measure = $this->attendance->combined($student->enrollments()->pluck('id')->all());
+        $academic = $this->academic->handle($student, $publishedOnly, $academicYearId);
+        $measure = $this->attendance->combined($student->enrollments()->when($academicYearId, fn ($enrollments) => $enrollments->where('academic_year_id', $academicYearId))->pluck('id')->all());
         $scale = $academic['scale'];
 
         return [

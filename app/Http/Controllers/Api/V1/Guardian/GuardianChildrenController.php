@@ -173,14 +173,16 @@ class GuardianChildrenController extends Controller
     }
 
     /**
-     * The child's academic and attendance scores, out of the client's scale,
-     * counting published exams only.
+     * The child's academic and attendance scores for the year (the current one
+     * unless asked for), out of the client's scale, counting published exams only (D42).
      */
-    public function scores(Student $student, StudentScoreCard $scoreCard): JsonResponse
+    public function scores(Request $request, Student $student, StudentScoreCard $scoreCard): JsonResponse
     {
         Gate::authorize('child', [Guardian::class, $student]);
 
-        return response()->json(['data' => $scoreCard->handle($student, publishedOnly: true)]);
+        $yearId = $request->validate(['academic_year_id' => ['nullable', 'integer']])['academic_year_id'] ?? AcademicYear::query()->where('is_current', true)->value('id');
+
+        return response()->json(['data' => $scoreCard->handle($student, publishedOnly: true, academicYearId: $yearId)]);
     }
 
     private function enrollment(Student $student, ?int $academicYearId): ?StudentEnrollment

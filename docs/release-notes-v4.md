@@ -62,3 +62,9 @@ The teacher's home lists **My classrooms**: the classrooms where they are class 
 Guardians sign in on the mobile app with a six-digit code sent to the phone on file. A code is valid for five minutes and works once. The first sign-in creates the guardian's login; a guardian has no password and no email on it.
 
 Guardians see each linked child's attendance (the year's summary, today, and a chosen month), exam marks once they are published, and academic and attendance scores. Nothing about other students is visible to them.
+
+## Guardian sign-in: stricter limits, and a clear refusal when messages are not set up
+
+Sign-in codes are limited to three requests a minute per phone number, and separately to twenty a minute per IP address. On a production school with no message service set up, a code request is refused with a clear message instead of appearing to succeed.
+
+A published exam now records who published it as well as when. A parent's app shows the year's scores; the lifetime scores stay on the staff profile.

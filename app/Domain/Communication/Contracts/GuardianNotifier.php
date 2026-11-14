@@ -24,4 +24,10 @@ interface GuardianNotifier
      * five minutes. Drivers must never store the code outside the message.
      */
     public function otp(Guardian $guardian, string $code): void;
+
+    /**
+     * Whether this driver really sends messages. The log driver does not, so
+     * in production a sign-in code is refused rather than promised.
+     */
+    public function canSend(): bool;
 }

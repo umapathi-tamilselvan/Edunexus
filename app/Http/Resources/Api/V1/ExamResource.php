@@ -27,6 +27,7 @@ class ExamResource extends JsonResource
             'has_marks' => $this->whenExistsLoaded('marks', fn (bool $exists): bool => $exists),
             'is_published' => $this->isPublished(),
             'published_at' => $this->published_at?->toIso8601String(),
+            'published_by' => $this->published_by,
         ];
     }
 }

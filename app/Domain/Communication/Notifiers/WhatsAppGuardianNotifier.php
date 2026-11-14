@@ -47,6 +47,14 @@ class WhatsAppGuardianNotifier implements GuardianNotifier
     }
 
     /**
+     * Configured for sign-in codes: the token, the phone number id and the OTP template are set.
+     */
+    public function canSend(): bool
+    {
+        return ! blank($this->config['token']) && ! blank($this->config['phone_number_id']) && ! blank($this->config['otp_template']);
+    }
+
+    /**
      * @param  list<array<string, mixed>>  $components
      */
     private function send(Guardian $guardian, string $template, array $components): void

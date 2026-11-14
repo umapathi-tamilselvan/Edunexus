@@ -13,7 +13,7 @@ class UnlockExam
     public function handle(Exam $exam): Exam
     {
         if ($exam->isPublished()) {
-            $exam->forceFill(['published_at' => null])->save();
+            $exam->forceFill(['published_at' => null, 'published_by' => null])->save();
         }
 
         return $exam;

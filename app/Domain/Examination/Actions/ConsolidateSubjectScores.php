@@ -14,7 +14,7 @@ use App\Support\OrganizationContext;
  * (AttendanceScores), and the two are never combined here.
  *
  * Pass $publishedOnly to count only exams whose marks are published (what a
- * guardian may see).
+ * guardian may see), and $academicYearId to count one year only.
  *
  * Every exam counts equally: each mark becomes a percentage of its paper's
  * maximum, the percentages are averaged, and the average is scaled to the
@@ -28,12 +28,12 @@ class ConsolidateSubjectScores
     /**
      * @return array{scale: int, overall: array{score: float, average_percentage: float}|null, subjects: list<array{subject: array{id: int, code: string, name: string}, score: float, average_percentage: float, exams: list<array{exam_id: int, exam: string, academic_year: string, marks: float, max_marks: int, percentage: float}>}>}
      */
-    public function handle(Student $student, bool $publishedOnly = false): array
+    public function handle(Student $student, bool $publishedOnly = false, ?int $academicYearId = null): array
     {
         $scale = (int) $this->organization->settingOrDefault('results.scale');
 
         $marks = ExamMark::query()
-            ->whereIn('enrollment_id', $student->enrollments()->select('id'))
+            ->whereIn('enrollment_id', $student->enrollments()->when($academicYearId, fn ($enrollments) => $enrollments->where('academic_year_id', $academicYearId))->select('id'))
             ->where('is_absent', false)
             ->whereNotNull('marks')
             ->when($publishedOnly, fn ($query) => $query->whereHas('exam', fn ($exams) => $exams->whereNotNull('published_at')))
