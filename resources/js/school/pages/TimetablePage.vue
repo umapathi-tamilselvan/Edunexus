@@ -42,6 +42,8 @@ const drawer = ref(null);
 const slotForm = reactive({ subject_id: '', teacher_id: null });
 const periodForm = reactive({ name: '', starts_at: '', ends_at: '', is_break: false, sort_order: 1 });
 const pendingClear = ref(false);
+/** The period waiting to be removed from the bell schedule. */
+const pendingPeriod = ref(null);
 
 const selectedClass = computed(() => year.value?.classes.find((schoolClass) => schoolClass.sections.some((section) => section.id === sectionId.value)));
 /** The section's subject teacher for the subject picked in the slot form. */
@@ -56,6 +58,10 @@ const drawerTitle = computed(() => {
 
     if (drawer.value.kind === 'period') {
         return 'Add a period';
+    }
+
+    if (drawer.value.kind === 'editPeriod') {
+        return `Edit ${drawer.value.period.name}`;
     }
 
     const { weekday, period } = drawer.value;
@@ -131,10 +137,18 @@ function openSlot(weekday, period) {
     drawer.value = { kind: 'slot', weekday, period };
 }
 
-function openPeriod() {
+function openPeriod(period = null) {
     clear();
+
+    if (period) {
+        Object.assign(periodForm, { name: period.name, starts_at: period.starts_at, ends_at: period.ends_at, is_break: period.is_break, sort_order: period.sort_order });
+        drawer.value = { kind: 'editPeriod', period };
+
+        return;
+    }
+
     Object.assign(periodForm, {
-        name: `Period ${periods.value.filter((period) => !period.is_break).length + 1}`,
+        name: `Period ${periods.value.filter((item) => !item.is_break).length + 1}`,
         starts_at: '',
         ends_at: '',
         is_break: false,
@@ -152,6 +166,16 @@ async function reloadGrid() {
 }
 
 function submitDrawer() {
+    if (drawer.value.kind === 'editPeriod') {
+        return run(() => http.patch(`/api/v1/periods/${drawer.value.period.id}`, periodForm), {
+            success: `${periodForm.name} saved.`,
+            onSuccess: async () => {
+                closeDrawer();
+                await reloadGrid();
+            },
+        });
+    }
+
     if (drawer.value.kind === 'period') {
         return run(() => http.post(`/api/v1/academic-years/${year.value.id}/periods`, periodForm), {
             success: `${periodForm.name} added to the bell schedule.`,
@@ -174,6 +198,20 @@ function submitDrawer() {
             },
         },
     );
+}
+
+function askRemovePeriod(period) {
+    pendingPeriod.value = period;
+}
+
+async function confirmRemovePeriod() {
+    const period = pendingPeriod.value;
+    pendingPeriod.value = null;
+
+    await run(() => http.delete(`/api/v1/periods/${period.id}`), {
+        success: `${period.name} removed from the bell schedule.`,
+        onSuccess: reloadGrid,
+    });
 }
 
 async function confirmClear() {
@@ -248,6 +286,10 @@ onMounted(async () => {
                                 <span class="mt-0.5 flex items-center gap-1 text-xs font-normal text-gray-600">
                                     <AppIcon name="clock" class="size-3.5" />
                                     {{ period.starts_at }}–{{ period.ends_at }}
+                                </span>
+                                <span v-if="canManage && mode === 'section'" class="mt-1 flex gap-3 text-xs font-normal">
+                                    <button type="button" class="btn-link" :disabled="busy" @click="openPeriod(period)">Edit</button>
+                                    <button type="button" class="btn-link-danger" :disabled="busy" @click="askRemovePeriod(period)">Remove</button>
                                 </span>
                             </th>
                             <td v-if="period.is_break" :colspan="TIMETABLE_WEEKDAYS.length" class="text-center text-xs font-medium tracking-widest text-gray-500 uppercase">Break</td>
@@ -343,6 +385,16 @@ onMounted(async () => {
                 <button type="submit" form="timetable-drawer-form" class="btn-primary" :disabled="busy">{{ busy ? 'Saving…' : 'Save' }}</button>
             </template>
         </Drawer>
+
+        <ConfirmDialog
+            :open="pendingPeriod !== null"
+            :title="`Remove ${pendingPeriod?.name ?? ''}?`"
+            message="The period leaves the bell schedule. A period still used on a timetable cannot be removed; clear its slots first."
+            confirm-label="Remove"
+            :busy="busy"
+            @confirm="confirmRemovePeriod"
+            @cancel="pendingPeriod = null"
+        />
 
         <ConfirmDialog
             :open="pendingClear"

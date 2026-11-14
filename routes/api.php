@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\V1\Examination\SubjectScoreController;
 use App\Http\Controllers\Api\V1\Fee\FeeController;
 use App\Http\Controllers\Api\V1\MeController;
 use App\Http\Controllers\Api\V1\RoleController;
+use App\Http\Controllers\Api\V1\Settings\ClientSettingsController;
 use App\Http\Controllers\Api\V1\Student\EnrollmentController;
 use App\Http\Controllers\Api\V1\Student\StudentController;
 use App\Http\Controllers\Api\V1\Student\StudentGuardianController;
@@ -68,6 +69,7 @@ Route::middleware(['auth:sanctum', 'entitled:academic'])->group(function () {
         Route::get('academic-years/{academicYear}/classes', [SchoolClassController::class, 'index'])->name('classes.index');
         Route::get('sections/{section}', [SectionController::class, 'show'])->name('sections.show');
         Route::get('subjects', [SubjectController::class, 'index'])->name('subjects.index');
+        Route::get('academic-years/{academicYear}/setup-status', [AcademicYearController::class, 'setupStatus'])->name('academic-years.setup-status');
         Route::get('academic-years/{academicYear}/periods', [PeriodController::class, 'index'])->name('periods.index');
         Route::get('sections/{section}/timetable', [TimetableController::class, 'section'])->name('timetable.section');
         Route::get('teachers', [TeacherController::class, 'index'])->name('teachers.index');
@@ -137,9 +139,18 @@ Route::middleware(['auth:sanctum', 'entitled:attendance'])->group(function () {
     Route::middleware('can:attendance.view')->group(function () {
         Route::get('sections/{section}/attendance', [AttendanceController::class, 'show'])->name('attendance.show');
         Route::get('students/{student}/attendance', [AttendanceController::class, 'student'])->middleware('entitled:student')->name('students.attendance');
+        Route::get('attendance/day-summary', [AttendanceController::class, 'daySummary'])->name('attendance.day-summary');
     });
 
     Route::put('sections/{section}/attendance', [AttendanceController::class, 'update'])->name('attendance.update');
+});
+
+/*
+| Client settings: what the admins may change (settings.manage).
+*/
+Route::middleware(['auth:sanctum', 'can:settings.manage'])->group(function () {
+    Route::get('settings', [ClientSettingsController::class, 'index'])->name('settings.index');
+    Route::put('settings', [ClientSettingsController::class, 'update'])->name('settings.update');
 });
 
 /*

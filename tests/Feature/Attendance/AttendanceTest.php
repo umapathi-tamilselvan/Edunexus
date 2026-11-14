@@ -276,6 +276,26 @@ class AttendanceTest extends TestCase
             ->assertJsonPath('data.missed.0.remark', 'Travel');
     }
 
+    public function test_a_student_below_the_client_threshold_is_flagged_at_risk(): void
+    {
+        $anu = $this->enroll('Anu', rollNo: 1);
+
+        $this->mark($this->adminToken, today()->toDateString(), [['enrollment_id' => $anu->id, 'status' => 'present']])->assertOk();
+        $this->mark($this->adminToken, $this->daysAgo(1), [['enrollment_id' => $anu->id, 'status' => 'late']])->assertOk();
+        $this->mark($this->adminToken, $this->daysAgo(2), [['enrollment_id' => $anu->id, 'status' => 'absent']])->assertOk();
+
+        $this->withToken($this->adminToken)->getJson("/api/v1/students/{$anu->student_id}/attendance")
+            ->assertOk()
+            ->assertJsonPath('data.percentage', 66.7)
+            ->assertJsonPath('data.at_risk', true);
+
+        $this->withToken($this->adminToken)->putJson('/api/v1/settings', ['insights' => ['at_risk' => ['attendance_below' => 60]]])->assertOk();
+
+        $this->withToken($this->adminToken)->getJson("/api/v1/students/{$anu->student_id}/attendance")
+            ->assertOk()
+            ->assertJsonPath('data.at_risk', false);
+    }
+
     public function test_a_day_on_leave_is_left_out_of_the_percentage(): void
     {
         $chitra = $this->enroll('Chitra', rollNo: 1);
@@ -302,6 +322,25 @@ class AttendanceTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.days_marked', 0)
             ->assertJsonPath('data.percentage', null);
+    }
+
+    public function test_the_day_summary_says_which_sections_have_attendance_taken(): void
+    {
+        $anu = $this->enroll('Anu', rollNo: 1);
+        $otherSection = Section::factory()->for($this->class, 'schoolClass')->create(['name' => 'B']);
+        $this->enroll('Bala', rollNo: 1, section: $otherSection);
+        $today = today()->toDateString();
+
+        $this->mark($this->adminToken, $today, [['enrollment_id' => $anu->id, 'status' => 'present']])->assertOk();
+
+        $this->withToken($this->adminToken)->getJson("/api/v1/attendance/day-summary?date={$today}")
+            ->assertOk()
+            ->assertJsonPath('data.sections.0.label', 'Class 5 A')
+            ->assertJsonPath('data.sections.0.taken', true)
+            ->assertJsonPath('data.sections.0.marked', 1)
+            ->assertJsonPath('data.sections.1.label', 'Class 5 B')
+            ->assertJsonPath('data.sections.1.taken', false)
+            ->assertJsonPath('data.sections.1.enrolled', 1);
     }
 
     public function test_a_student_without_an_enrollment_in_the_year_has_no_attendance_summary(): void

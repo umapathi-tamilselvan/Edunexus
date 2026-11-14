@@ -25,7 +25,7 @@ defineEmits(['toggle-sidebar', 'sign-out']);
             >
                 <AppIcon :name="sidebarOpen ? 'x' : 'menu'" class="size-5" />
             </button>
-            <RouterLink to="/dashboard" class="min-w-0 rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary">
+            <RouterLink to="/home" class="min-w-0 rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary">
                 <AppLogo :caption="institution" />
             </RouterLink>
         </div>

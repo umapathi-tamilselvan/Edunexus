@@ -45,7 +45,9 @@ const drawerTitle = computed(() => {
 
     return {
         class: `Add ${terms.class.toLowerCase()}`,
+        editClass: `Edit ${className}`,
         section: `Add ${terms.section.toLowerCase()} to ${className}`,
+        editSection: `Edit ${drawer.value.section?.name ? `${className} ${drawer.value.section.name}` : className}`,
         subjects: `Subjects for ${className}`,
         holiday: 'Add a holiday',
     }[drawer.value.kind];
@@ -66,14 +68,18 @@ onMounted(async () => {
     loaded.value = true;
 });
 
-function openDrawer(kind, schoolClass = null) {
+function openDrawer(kind, schoolClass = null, section = null) {
     clear();
-    drawer.value = { kind, schoolClass };
+    drawer.value = { kind, schoolClass, section };
 
     if (kind === 'class') {
         Object.assign(classForm, { name: '', sort_order: (year.value?.classes.length ?? 0) + 1 });
+    } else if (kind === 'editClass') {
+        Object.assign(classForm, { name: schoolClass.name, sort_order: schoolClass.sort_order ?? 0 });
     } else if (kind === 'section') {
         Object.assign(sectionForm, { name: '', capacity: 40, class_teacher_id: null });
+    } else if (kind === 'editSection') {
+        Object.assign(sectionForm, { name: section.name, capacity: section.capacity, class_teacher_id: section.class_teacher?.id ?? null });
     } else if (kind === 'subjects') {
         classSubjectIds.value = schoolClass.subjects.map((subject) => subject.id);
     } else if (kind === 'holiday') {
@@ -86,7 +92,29 @@ function closeDrawer() {
 }
 
 function submitDrawer() {
-    const { kind, schoolClass } = drawer.value;
+    const { kind, schoolClass, section } = drawer.value;
+
+    if (kind === 'editClass') {
+        return run(() => http.patch(`/api/v1/classes/${schoolClass.id}`, classForm), {
+            success: `${classForm.name} saved.`,
+            onSuccess: () => {
+                closeDrawer();
+                reloadYear();
+            },
+        });
+    }
+
+    if (kind === 'editSection') {
+        const payload = { ...sectionForm, capacity: sectionForm.capacity || null };
+
+        return run(() => http.patch(`/api/v1/sections/${section.id}`, payload), {
+            success: `${schoolClass.name} ${sectionForm.name} saved.`,
+            onSuccess: () => {
+                closeDrawer();
+                reloadYear();
+            },
+        });
+    }
 
     if (kind === 'class') {
         return run(() => http.post(`/api/v1/academic-years/${year.value.id}/classes`, classForm), {
@@ -248,6 +276,7 @@ function openNextYear() {
                     <header class="card-header flex-wrap">
                         <h3 class="card-title">{{ schoolClass.name }}</h3>
                         <div v-if="canManage" class="flex flex-wrap items-center gap-4">
+                            <button type="button" class="btn-link" @click="openDrawer('editClass', schoolClass)">Edit</button>
                             <button type="button" class="btn-link" @click="openDrawer('section', schoolClass)">Add {{ terms.section.toLowerCase() }}</button>
                             <button type="button" class="btn-link" @click="openDrawer('subjects', schoolClass)">Subjects</button>
                             <button v-if="!schoolClass.sections.length" type="button" class="btn-link-danger" @click="removeClass(schoolClass)">Remove</button>
@@ -278,9 +307,10 @@ function openNextYear() {
                                     </td>
                                     <td>{{ section.class_teacher?.name ?? '—' }}</td>
                                     <td class="text-right">
-                                        <button v-if="canManage && section.enrolled_count === 0" type="button" class="btn-link-danger" @click="removeSection(schoolClass, section)">
-                                            Remove
-                                        </button>
+                                        <div v-if="canManage" class="flex justify-end gap-4">
+                                            <button type="button" class="btn-link" @click="openDrawer('editSection', schoolClass, section)">Edit</button>
+                                            <button v-if="section.enrolled_count === 0" type="button" class="btn-link-danger" @click="removeSection(schoolClass, section)">Remove</button>
+                                        </div>
                                     </td>
                                 </tr>
                             </tbody>
@@ -321,7 +351,7 @@ function openNextYear() {
             <form id="academic-drawer-form" class="flex flex-col gap-4" @submit.prevent="submitDrawer">
                 <AlertMessage v-if="drawerMessage">{{ drawerMessage }}</AlertMessage>
 
-                <template v-if="drawer?.kind === 'class'">
+                <template v-if="drawer?.kind === 'class' || drawer?.kind === 'editClass'">
                     <FormField :label="`${terms.class} name`" :error="fieldError('name')">
                         <input v-model="classForm.name" required class="input" :placeholder="`${terms.class} 1`" />
                     </FormField>
@@ -330,7 +360,7 @@ function openNextYear() {
                     </FormField>
                 </template>
 
-                <template v-else-if="drawer?.kind === 'section'">
+                <template v-else-if="drawer?.kind === 'section' || drawer?.kind === 'editSection'">
                     <FormField :label="`${terms.section} name`" :error="fieldError('name')">
                         <input v-model="sectionForm.name" required class="input" placeholder="A" />
                     </FormField>
@@ -348,7 +378,7 @@ function openNextYear() {
 
                 <template v-else-if="drawer?.kind === 'subjects'">
                     <p v-if="!subjectsAndTeachers.subjects.length" class="text-2sm text-gray-600">
-                        Add subjects on the <RouterLink to="/subjects" class="btn-link">Subjects</RouterLink> page first.
+                        Add subjects on the <RouterLink to="/settings/subjects" class="btn-link">Subjects</RouterLink> page first.
                     </p>
                     <CheckboxChips v-model="classSubjectIds" legend="Subjects offered" :options="subjectOptions" />
                 </template>

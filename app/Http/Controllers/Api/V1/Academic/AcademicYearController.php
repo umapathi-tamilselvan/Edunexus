@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1\Academic;
 
 use App\Domain\Academic\Actions\CopyAcademicYearForward;
 use App\Domain\Academic\Actions\MakeAcademicYearCurrent;
+use App\Domain\Academic\Actions\YearSetupStatus;
 use App\Domain\Academic\Models\AcademicYear;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Api\V1\AcademicYearResource;
@@ -25,6 +26,19 @@ class AcademicYearController extends Controller
      * A year with its full structure: classes, sections and subjects, and
      * how many of each section's subjects have a teacher.
      */
+    /**
+     * The Year Setup checklist for one year: each step done or what is missing.
+     */
+    public function setupStatus(AcademicYear $academicYear, YearSetupStatus $yearSetupStatus): JsonResponse
+    {
+        return response()->json([
+            'data' => [
+                'academic_year' => ['id' => $academicYear->id, 'name' => $academicYear->name],
+                'steps' => $yearSetupStatus->handle($academicYear),
+            ],
+        ]);
+    }
+
     public function show(AcademicYear $academicYear): AcademicYearResource
     {
         return new AcademicYearResource($academicYear->load([

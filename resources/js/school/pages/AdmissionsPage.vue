@@ -246,7 +246,7 @@ async function confirmWithdraw() {
                                             <div v-if="application.notes" class="flex flex-col gap-0.5 sm:col-span-3"><dt class="text-gray-600">Notes</dt><dd class="text-gray-900">{{ application.notes }}</dd></div>
                                         </dl>
 
-                                        <RouterLink v-if="application.status === 'admitted' && application.student" :to="`/students/${application.student.id}`" class="btn-link w-fit">
+                                        <RouterLink v-if="application.status === 'admitted' && application.student" :to="`/people/students/${application.student.id}`" class="btn-link w-fit">
                                             Open student record
                                             <AppIcon name="arrow-right" class="size-4" />
                                         </RouterLink>

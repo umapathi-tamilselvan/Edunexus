@@ -136,7 +136,7 @@ onMounted(async () => {
                             <td>
                                 <div class="flex items-center gap-3 whitespace-nowrap">
                                     <InitialsAvatar :name="student.name" size="sm" />
-                                    <RouterLink :to="`/students/${student.id}`" class="font-medium text-gray-900 hover:text-primary">{{ student.name }}</RouterLink>
+                                    <RouterLink :to="`/people/students/${student.id}`" class="font-medium text-gray-900 hover:text-primary">{{ student.name }}</RouterLink>
                                 </div>
                             </td>
                             <td class="font-mono text-gray-600">{{ student.admission_no }}</td>

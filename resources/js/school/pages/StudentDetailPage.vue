@@ -170,7 +170,7 @@ onMounted(load);
 
 <template>
     <div class="flex flex-col gap-5 lg:gap-7.5">
-        <PageHeader title="Student profile" :back="{ to: '/students', label: 'All students' }">
+        <PageHeader title="Student profile" :back="{ to: '/people/students', label: 'All students' }">
             <button v-if="canManage && student" type="button" class="btn-secondary" :disabled="busy" @click="open('details')">
                 <AppIcon name="pencil" class="size-4" />
                 Edit details
@@ -260,7 +260,7 @@ onMounted(load);
             <section v-if="canSeeAttendance" class="card">
                 <div class="card-header">
                     <h2 class="card-title">Attendance{{ attendance ? ` in ${attendance.academic_year.name}` : '' }}</h2>
-                    <span v-if="attendance && attendance.percentage !== null" class="text-2sm font-semibold" :class="attendance.percentage < 75 ? 'text-danger-strong' : 'text-success-strong'">
+                    <span v-if="attendance && attendance.percentage !== null" class="text-2sm font-semibold" :class="attendance.at_risk ? 'text-danger-strong' : 'text-success-strong'">
                         {{ attendance.percentage }}% of {{ attendance.days_marked }} days
                     </span>
                 </div>

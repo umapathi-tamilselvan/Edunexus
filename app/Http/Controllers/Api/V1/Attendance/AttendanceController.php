@@ -13,6 +13,7 @@ use App\Domain\Student\Models\StudentEnrollment;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Attendance\RecordAttendanceRequest;
 use App\Support\AcademicYearContext;
+use App\Support\OrganizationContext;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -70,6 +71,40 @@ class AttendanceController extends Controller
         ]);
     }
 
+    /**
+     * Every section of the selected year on one day: how many students are
+     * enrolled and how many have a mark, so a page can list the sections not
+     * yet taken. One query, whatever the number of sections.
+     */
+    public function daySummary(Request $request, AcademicYearContext $academicYear): JsonResponse
+    {
+        $day = Carbon::parse($request->validate(['date' => ['required', 'date_format:Y-m-d']])['date'])->toDateString();
+
+        $sections = Section::query()
+            ->whereHas('schoolClass', fn (Builder $classes) => $classes->where('academic_year_id', $academicYear->id()))
+            ->with('schoolClass:id,name')
+            ->withCount([
+                'enrollments as enrolled_count' => fn (Builder $enrollments) => $enrollments->where('status', EnrollmentStatus::Active),
+                'enrollments as marked_count' => fn (Builder $enrollments) => $enrollments->whereHas('attendance', fn (Builder $records) => $records->where('date', $day)->where('period', AttendanceRecord::DAY)),
+            ])
+            ->orderBy('class_id')
+            ->orderBy('name')
+            ->get();
+
+        return response()->json([
+            'data' => [
+                'date' => $day,
+                'sections' => $sections->map(fn (Section $section): array => [
+                    'id' => $section->id,
+                    'label' => "{$section->schoolClass->name} {$section->name}",
+                    'enrolled' => $section->enrolled_count,
+                    'marked' => $section->marked_count,
+                    'taken' => $section->marked_count > 0,
+                ])->values(),
+            ],
+        ]);
+    }
+
     public function update(RecordAttendanceRequest $request, Section $section, RecordAttendance $recordAttendance): JsonResponse
     {
         $date = Carbon::parse($request->validated('date'));
@@ -83,18 +118,21 @@ class AttendanceController extends Controller
      * A student's attendance in one year: the academic_year_id filter, else
      * the request's selected year.
      */
-    public function student(Request $request, Student $student, AcademicYearContext $academicYear, SummarizeAttendance $summarizeAttendance): JsonResponse
+    public function student(Request $request, Student $student, AcademicYearContext $academicYear, SummarizeAttendance $summarizeAttendance, OrganizationContext $organization): JsonResponse
     {
         Gate::authorize('view', $student);
 
         $yearId = $request->validate(['academic_year_id' => ['nullable', 'integer']])['academic_year_id'] ?? $academicYear->id();
         $enrollment = $student->enrollments()->with(['academicYear', 'section.schoolClass'])->where('academic_year_id', $yearId)->first();
 
+        $summary = $enrollment === null ? null : $summarizeAttendance->handle($enrollment);
+
         return response()->json([
             'data' => $enrollment === null ? null : [
                 'academic_year' => ['id' => $enrollment->academicYear->id, 'name' => $enrollment->academicYear->name],
                 'section' => ['id' => $enrollment->section->id, 'name' => $enrollment->section->name, 'class' => $enrollment->section->schoolClass->name],
-                ...$summarizeAttendance->handle($enrollment),
+                ...$summary,
+                'at_risk' => $summary['percentage'] !== null && $summary['percentage'] < (int) $organization->settingOrDefault('insights.at_risk.attendance_below'),
             ],
         ]);
     }

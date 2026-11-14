@@ -179,6 +179,33 @@ class ListQueryCountTest extends TestCase
         });
     }
 
+    public function test_the_year_setup_status_runs_a_fixed_number_of_queries(): void
+    {
+        $year = AcademicYear::factory()->current()->create();
+        $this->addClassWithSection($year);
+
+        $this->assertQueryBudget(11, $this->adminToken(), "/api/v1/academic-years/{$year->id}/setup-status", function () use ($year): void {
+            $this->addClassWithSection($year);
+            $this->addClassWithSection($year);
+        });
+    }
+
+    public function test_the_attendance_day_summary_runs_a_fixed_number_of_queries(): void
+    {
+        $year = AcademicYear::factory()->current()->create();
+        $this->enrollIn($this->sectionIn($year));
+
+        $this->assertQueryBudget(6, $this->adminToken(), '/api/v1/attendance/day-summary?date='.today()->toDateString(), function () use ($year): void {
+            $this->enrollIn($this->sectionIn($year));
+            $this->enrollIn($this->sectionIn($year));
+        });
+    }
+
+    public function test_the_client_settings_run_a_fixed_number_of_queries(): void
+    {
+        $this->assertQueryBudget(4, $this->adminToken(), '/api/v1/settings', fn (): null => null);
+    }
+
     public function test_students_for_a_user_who_sees_everyone_run_a_fixed_number_of_queries(): void
     {
         $year = AcademicYear::factory()->current()->create();
