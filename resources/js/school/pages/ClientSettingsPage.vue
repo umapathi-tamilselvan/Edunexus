@@ -42,9 +42,24 @@ const GROUPS = [
     {
         title: 'Attendance',
         items: [
+            {
+                key: 'attendance.mode',
+                label: 'Attendance mode',
+                kind: 'choice',
+                options: [
+                    { value: 'daily', label: 'One mark per day' },
+                    { value: 'session', label: 'Morning and afternoon' },
+                    { value: 'period', label: 'Each teaching period' },
+                ],
+                purpose: 'Whether attendance is marked once a day, per session or per period.',
+            },
             { key: 'attendance.edit_window_days', label: 'Days back teachers can change attendance', kind: 'number', min: 0, max: 365, suffix: ' days', purpose: 'How far back a teacher can change a day they marked.' },
             { key: 'attendance.cutoff_time', label: 'Attendance cut-off time', kind: 'time', purpose: 'The time teacher on-time attendance is judged against.' },
         ],
+    },
+    {
+        title: 'Results',
+        items: [{ key: 'results.scale', label: 'Score scale', kind: 'number', min: 1, max: 100, suffix: '', purpose: 'Academic and attendance scores are shown out of this number.' }],
     },
     {
         title: 'Insights',
@@ -79,6 +94,8 @@ function displayValue(item, value) {
             return value.length ? value.map((day) => DAYS.find((option) => option.value === day)?.label ?? day).join(', ') : 'None';
         case 'boolean':
             return value ? item.onText : item.offText;
+        case 'choice':
+            return item.options.find((option) => option.value === value)?.label ?? value;
         case 'number':
             return `${value}${item.suffix ?? ''}`;
         case 'readonly':
@@ -228,6 +245,12 @@ onMounted(load);
                 </FormField>
 
                 <CheckboxChips v-else-if="editing.kind === 'weekdays'" v-model="draft" :legend="editing.label" :options="DAYS" :error="fieldError(editing.key)" />
+
+                <FormField v-else-if="editing.kind === 'choice'" :label="editing.label" :error="fieldError(editing.key)">
+                    <select v-model="draft" class="input">
+                        <option v-for="option in editing.options" :key="option.value" :value="option.value">{{ option.label }}</option>
+                    </select>
+                </FormField>
 
                 <FormField v-else-if="editing.kind === 'boolean'" :label="editing.label" :error="fieldError(editing.key)">
                     <label class="choice">

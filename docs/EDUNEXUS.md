@@ -55,24 +55,24 @@ For each screen: who sees it, what they do, status.
 | Screen | Who | What the user does | Status |
 | --- | --- | --- | --- |
 | Sign in `/login` | everyone | signs in | built |
-| Dashboard `/dashboard` | any signed-in user | sees counts of roles, permissions and modules; quick links | partial (generic; no role homes) |
-| Attendance `/attendance` | `attendance.view` | picks a section and a day; sets present, absent, late, half day or leave with a remark per student; saves | built |
-| My timetable `/timetable` (My timetable tab) | any teacher | views their week | built |
-| Timetable `/timetable` | `academic.view` | sets or clears a slot; sets an override teacher; adds periods | built |
-| Students `/students` | `student.view` or `student.view_assigned` | searches; filters by class and section; adds a student with guardians and a section | built |
-| Student profile `/students/{id}` | as above | edits details; links or unlinks guardians; enrols or moves section; sees attendance and lifetime score | built |
-| Admissions `/admissions` | `admission.manage` | records enquiries; approves, rejects or withdraws; admits with recorded consent | built |
-| Academic setup `/academic` | `academic.view` (changes need `academic.manage`) | years (make current, open next year); classes; sections with class teacher; class subjects; holidays | built |
-| Subjects `/subjects` | `academic.view` | adds and edits subjects; picks teachers for each | built |
-| Subject teachers `/subject-teachers` | `academic.view` | assigns teachers per section or per class; workload tab | built |
-| Users `/users` | `user.manage` | creates users; sets roles and subjects a teacher teaches | built |
+| Home `/home` (`/dashboard` redirects) | any signed-in user | the role home (§2.4); other roles see the generic dashboard with counts and quick links | partial |
+| Attendance `/daily/attendance` (`/attendance` redirects) | `attendance.view` | picks a section and a day; sets present, absent, late, half day or leave with a remark per student; saves | built |
+| My timetable `/daily/timetable` (My timetable tab) | any teacher | views their week | built |
+| Timetable `/daily/timetable` | `academic.view` | sets or clears a slot; sets an override teacher; adds periods | built |
+| Students `/people/students` | `student.view` or `student.view_assigned` | searches; filters by class and section; adds a student with guardians and a section | built |
+| Student profile `/people/students/{id}` | as above | edits details; links or unlinks guardians; enrols or moves section; sees attendance (at-risk flag from settings) and lifetime score | built |
+| Admissions `/people/admissions` | `admission.manage` | records enquiries; approves, rejects or withdraws; admits with recorded consent | built |
+| Academic setup `/settings/academic` | `academic.view` (changes need `academic.manage`) | years (make current, open next year); classes; sections with class teacher; class subjects; holidays; edit and delete for classes, sections and periods | built |
+| Subjects `/settings/subjects` | `academic.view` | adds and edits subjects; picks teachers for each | built |
+| Subject teachers `/settings/subject-teachers` | `academic.view` | assigns teachers per section or per class; workload tab | built |
+| Users `/settings/users` | `user.manage` | creates users; sets roles and subjects a teacher teaches | built |
 | Exams, Marks entry, Results | `exam.view`, `exam.manage`, `exam.enter_marks` | exam list; marks sheet; results | not built (API only) |
 | Fee screens | `fee.view`, `fee.collect`, `fee.reverse` | dues, collection, receipts, defaulters | not built (backend staged and committed; no screen) |
 | Staff, Staff attendance | `staff.view`, `staff.manage` | staff list; daily staff attendance | planned |
 | Terms | `academic.view` | term names and dates per year | planned |
 | Insights (three screens) | per §5.9 | performance views | planned |
-| Year Setup | `academic.manage` | checklist (§2.3) | partial (see §2.3) |
-| Client settings | `settings.manage` | values in §6 | planned (no endpoint) |
+| Year Setup `/settings/year-setup` | `academic.view` (the links it offers need `academic.manage`) | checklist (§2.3) | built |
+| Client settings `/settings/client` | `settings.manage` | values in §6 | built (step 1.5, with R1) |
 | Roles | `role.manage` | permissions per role | planned (read-only today) |
 
 ### 2.3 Year Setup checklist
@@ -83,20 +83,20 @@ Each step shows done, or what is missing. A step never blocks another: an admin 
 | --- | --- | --- | --- |
 | 1 | Open the year | the year exists and is current or open | built |
 | 2 | Terms | the year has terms, and an admin has confirmed their dates | planned |
-| 3 | Classes and sections | every class has a section, with capacity | built (data); status view planned |
-| 4 | Subjects per class | every class has a subject | built (data); status view planned |
-| 5 | Class teachers | every section has a class teacher | built (data); status view planned |
-| 6 | Subject teachers | every section subject has a teacher, no teacher over workload | built (data); status view planned |
-| 7 | Timetable | every section has a timetable | built (data); status view planned |
-| 8 | Bell schedule | the year has periods and a teaching period | built (data); status view planned |
+| 3 | Classes and sections | every class has a section, with capacity | built |
+| 4 | Subjects per class | every class has a subject | built |
+| 5 | Class teachers | every section has a class teacher | built |
+| 6 | Subject teachers | every section subject has a teacher, no teacher over workload | built |
+| 7 | Timetable | every section has a timetable | built |
+| 8 | Bell schedule | the year has periods and a teaching period | built |
 | 9 | Holidays and weekly off days | holidays added; weekly off days set (default Sunday) | holidays built; weekly off planned |
-| 10 | Open admissions | an admissions round is open | built (data); status view planned |
+| 10 | Open admissions | the year is the current year (product question Q21, §9) | built |
 
-The status endpoint and the checklist page are **planned** (Phase 1).
+The status endpoint (`GET academic-years/{id}/setup-status`) and the checklist page (`/settings/year-setup`) are **built** (step 1.3). The status of each step is what the checklist shows; nothing is blocked.
 
 ### 2.4 Home per role
 
-Each role gets its own home. **Planned** except the generic dashboard.
+Each role gets its own home. The Teacher home and the Principal home are **built** (step 1.2). Principal, Admin and Super Admin see the Principal home, until the Admin home is decided (Q20, §9). Accountant and Guardian homes are **planned**; other roles see the generic dashboard.
 
 | Role | Shows |
 | --- | --- |
@@ -322,7 +322,8 @@ Permissions are fixed in code (`App\Domain\Identity\Enums\Permission`). Roles ho
 | `exam.view` / `exam.enter_marks` | route middleware, ExamPolicy | view: Teacher, Principal, Admin, Super Admin; enter marks: Teacher, Principal, Admin, Super Admin |
 | `exam.manage` | route middleware, ExamPolicy | Principal, Admin, Super Admin |
 | `fee.view` / `fee.collect` / `fee.reverse` | route middleware | view, collect, reverse: Accountant, Principal, Admin, Super Admin |
-| `settings.manage`, `role.manage`, `audit.view` | **nowhere yet** | Admin, Super Admin (and Principal for audit view) |
+| `settings.manage` | route middleware (`can:settings.manage`) on the settings endpoint | Admin, Super Admin |
+| `role.manage`, `audit.view` | **nowhere yet** | Admin, Super Admin (and Principal for audit view) |
 | `staff.view`, `staff.manage` | **nowhere yet** | Principal, Admin, Super Admin |
 | `exam.publish`, `exam.unlock` | **nowhere yet** | Principal, Admin, Super Admin |
 | `fee.concession_approve`, `communication.send`, `report.view` | **nowhere yet** | see the role table in code |
@@ -331,21 +332,25 @@ Guardian and Student roles hold no permissions. Roles of clients created before 
 
 ## 6. Client settings
 
-Stored in the client's `settings` table and read through `OrganizationContext`. Changed by client admins. **No settings endpoint exists yet** (Phase 1, step 1.5).
+Stored in the client's `settings` table and read through `OrganizationContext`. Changed by client admins on `/settings/client`.
+
+**Endpoint (built, step 1.5).** `GET /api/v1/settings` returns every key with its `value`, `default`, `editable` and `used` (whether a screen or rule reads it yet). `PUT /api/v1/settings` takes the editable keys nested by group, the way the keys are written here: `{"attendance": {"cutoff_time": "09:30"}, "weekly_off_days": ["saturday", "sunday"]}`. Both need `settings.manage`. A key sent as `null` takes its default again. Unknown keys and read-only keys are refused with 422, naming the key (D17, D20). Keys marked *not yet used* are shown on the screen with that label.
 
 | Key | Default | Set by | Used for | Status |
 | --- | --- | --- | --- | --- |
-| `academic_year.start_month` | June (school), July (college), April (coaching) | client creation (`--year-start-month`) | the start of each year | built |
-| `attendance.edit_window_days` | 0 | operations, until step 1.5 | how far back a teacher can change attendance | built |
-| `institution.terminology` | from institution type | seeder | labels in the SPA | stored; the SPA reads it from the type, not the setting |
-| `branding.logo_url`, `branding.theme` | none | operations | branding | read by `/branding`; no screen |
-| `school.timezone` | `Asia/Kolkata` | Admin | local-time rules | planned |
-| `attendance.cutoff_time` | `10:00` local | Admin | teacher on-time attendance | planned |
-| `weekly_off_days` | `["sunday"]` | Admin | attendance refusal and school days | planned |
-| `insights.section_rank_enabled` | `false` | Admin | section rank | planned |
-| `insights.at_risk.attendance_below` | 75 | Admin | at-risk flag | planned |
-| `insights.at_risk.overall_below` | 35 | Admin | at-risk flag | planned |
-| `insights.at_risk.trend_drop` | 15 | Admin | at-risk flag | planned |
+| `academic_year.start_month` | June (school), July (college), April (coaching); `null` takes the institution type's month | Admin (`--year-start-month` at client creation) | the start of each year | built; editable |
+| `attendance.mode` | `daily` (`daily`, `session` or `period`) | Admin | how attendance is marked (R3) | stored; not yet used |
+| `attendance.edit_window_days` | 0 | Admin | how far back a teacher can change attendance | built; editable |
+| `attendance.cutoff_time` | `10:00` local | Admin | teacher on-time attendance (§3.9) | stored; not yet used |
+| `results.scale` | 10 (integer 1–100) | Admin | the score out of which academic and attendance scores are shown (R5) | stored; not yet used |
+| `school.timezone` | `Asia/Kolkata` | Admin | local-time rules (§3.9) | stored; not yet used |
+| `weekly_off_days` | `["sunday"]` | Admin | attendance refusal and school days | stored; not yet used |
+| `insights.section_rank_enabled` | `false` | Admin | section rank (§3.9) | stored; not yet used |
+| `insights.at_risk.attendance_below` | 75 | Admin | at-risk flag on the student profile | built; editable |
+| `insights.at_risk.overall_below` | 35 | Admin | at-risk flag (§3.9) | stored; not yet used |
+| `insights.at_risk.trend_drop` | 15 | Admin | at-risk flag (§3.9) | stored; not yet used |
+| `institution.terminology` | from institution type | seeder | labels in the SPA | read-only here; the SPA reads it from the type, not the setting |
+| `branding.logo_url`, `branding.theme` | none | operations | branding | read-only here; read by `/branding` |
 
 Deployment settings (not client settings) come from the client's `.env`: `APP_URL`, `RECEIPT_PREFIX`, `EDUNEXUS_MODULES_ENABLE` and `_DISABLE`, mail and database settings, Redis settings, `EDUNEXUS_PRIVACY_NOTICE_VERSION`.
 
@@ -371,23 +376,38 @@ One commit per step, full suite green before each. Commits and behaviour changes
 | 0.3 | teacher visibility: set-based subquery and two indexes; tests for subject-teacher, timetable and year visibility | `ab44dfe` |
 | 0.4 | exam list and detail show `has_marks` (boolean, `withExists`) in place of `marks_count`; the flag decides whether an exam can be deleted | `9010172` |
 | 0.6 | leave is left out of the attendance percentage and days marked; release notes created (`docs/release-notes-v4.md`) | `f1ad0c2` |
-| 1.0 | shared SPA pieces (confirm dialog, drawer, teacher and section pickers, checkbox chips, subjects and teachers store, busy and list and year composables, date and rupee formatters); every page moved onto them; forms in drawers, removals confirmed | this commit (its hash is recorded in the next commit) |
+| 1.0 | shared SPA pieces (confirm dialog, drawer, teacher and section pickers, checkbox chips, subjects and teachers store, busy and list and year composables, date and rupee formatters); every page moved onto them; forms in drawers, removals confirmed | `3776738` |
+| 1.1 | navigation grouped into the six areas; old paths redirect | `43ac064` (with 1.2–1.5, D19) |
+| 1.2 | role homes: Teacher and Principal | `43ac064` (with 1.1, 1.3–1.5, D19) |
+| 1.3 | Year Setup status endpoint and checklist page | `43ac064` (with 1.1, 1.2, 1.4, 1.5, D19) |
+| 1.4 | edit screens for classes, sections and periods | `43ac064` (with 1.1–1.3, 1.5, D19) |
+| 1.5 | client settings endpoint and screen (§6); the at-risk attendance threshold comes from the setting | `43ac064` (with 1.1–1.4, D19) |
+| R1 | client settings: `attendance.mode` and `results.scale` added to the endpoint and screen; §6 and §8 brought up to date | this commit |
+
+**Classroom rework (owner brief, R1–R9).** These phases replace the remaining Phase 1 to 7 items they name. R1–R8 were committed without tests (§10 override); R9 owes the tests.
+
+| Step | What | Status |
+| --- | --- | --- |
+| R1 | client settings (above) | this commit |
+| R2 | classroom setup: create classrooms, distribute students, teacher grid per class, Classrooms page (Students, Teachers, Attendance, Exams & marks, Results tabs); timetable becomes optional outside period mode | not started |
+| R3 | attendance modes: daily, session, period; `periods.session`; AttendancePolicy by mode; percentage in units (replaces Q1); absence alerts through `GuardianNotifier` | not started |
+| R4 | marks entry per classroom (step 2.4): `exam_mark_sheets`, bulk save, publish and unlock | not started |
+| R5 | scale of 10 for academic and attendance scores, shown per subject and overall (replaces Q9); Q19 | not started |
+| R6 | teacher home "My classrooms" | not started |
+| R7 | guardian login by OTP, and guardian endpoints scoped to linked children | not started |
+| R8 | navigation: Classrooms under People; old section pages route to the classroom page; final doc pass | not started |
+| R9 | tests and query-count budgets for R1–R8 | owed |
 
 **Remaining, in order**
 
 | Step | What | Size | Status |
 | --- | --- | --- | --- |
-| 0.5 | `attendance_records.section_id` and `academic_year_id` snapshot; `attendance_sheets` table; backfill | M | waiting on owner answer Q14 |
-| 1.1 | navigation grouped into the six areas; old paths redirect | S | not started |
-| 1.2 | role homes, starting with Teacher and Principal | M | not started |
-| 1.3 | Year Setup status endpoint and checklist page | M | not started |
-| 1.4 | edit screens for classes, sections and periods | M | not started |
-| 1.5 | client settings endpoint and screen (§6); the 75% threshold in the student profile's attendance panel comes from the at-risk setting | M | not started |
+| 0.5 | `attendance_records.section_id` and `academic_year_id` snapshot; `attendance_sheets` table; backfill | M | waiting on owner answer Q14; not started |
 | 1.6 | branding ETag | S | not started |
 | 2.1 | `terms` table, CRUD, defaults per type, admin confirmation before exams | M | not started |
 | 2.2 | `exams.term_id`, `exams.marks_due_on`, backfill, validation | S | not started |
 | 2.3 | exams list, create and edit screens | M | not started |
-| 2.4 | marks entry screen with bulk upsert, bulk audit, `exam_mark_sheets` | M | not started |
+| 2.4 | marks entry screen with bulk upsert, bulk audit, `exam_mark_sheets` | M | delivered by R4 |
 | 2.5 | results per exam, per class | M | not started |
 | 2.6 | audit `Exam` and `ExamPaper` | S | not started |
 | 3.1 | `staff` table, backfill, StaffController, People → Staff | M | not started |
@@ -437,6 +457,10 @@ Owner decisions are answers from the product owner. "Technical" decisions were m
 | D14 | `class_teacher_assignments` records changes of class teacher, with dates. `sections.class_teacher_id` stays the current value; one action writes both | technical (accepted) |
 | D15 | Term defaults: even split by months; the terms step is confirmed by an admin before exams can be created that year | owner (accepted) |
 | D16 | Insights: Principal, Admin and Super Admin see everything; class teachers see their class-teacher sections; teachers see their own numbers; Accountant sees none | owner |
+| D17 | Settings are written nested by group (`{"attendance": {"cutoff_time": …}}`) and read flat by key. Laravel expands dotted keys when it builds validated input, so a flat body would be silently dropped | technical |
+| D18 | `attendance.mode` (daily, session, period; default daily) and `results.scale` (integer 1–100; default 10). Changing the mode does not rewrite records already saved | technical |
+| D19 | Steps 1.1–1.5 were committed together in `43ac064`, not one commit per step, because the working tree held them together when the owner committed it. Their rows in §7 point at that commit | technical (recorded) |
+| D20 | An unknown key in a settings request is refused (422), not ignored | technical |
 | Q1 | Attendance per day; keep the `period` column | owner |
 | Q2 | Leave is excluded from the attendance percentage; release note | owner |
 | Q3 | Late counts 1, half day 0.5 | owner |
@@ -458,12 +482,15 @@ Owner decisions are answers from the product owner. "Technical" decisions were m
 | T3 | Term defaults accepted (D15) | owner (confirmed) |
 | T4 | Rule F (§10) | owner (confirmed) |
 | T5 | Release notes live in `docs/release-notes-v4.md`, created in the leave-counting commit | owner (confirmed) |
+| T6 | Classroom rework R1–R8 is committed without tests and without running the suite; tests are owed in R9 (§10) | owner |
 
 ## 9. Open questions
 
 1. **Q14: which clients hold live data today?** Blocks step 0.5 and the migration rehearsal. Reply with client codes, or "none".
 2. **Q17: When do guardians get logins, and what does each guardian see?** Blocks the guardian home (§2.4) and the guardian app (step 7.2).
 3. **Q18: Do students get logins, and what do they see?** Blocks the student app (step 7.2).
+4. **Q20: Which home does an Admin see?** Today Admin and Super Admin see the Principal home (§2.4). Blocks the Admin home.
+5. **Q21: What does "Admissions open" mean on the Year Setup checklist?** Today the step is done when the year is the current year (§2.3). Blocks the step's real definition.
 
 ## 10. Working rules
 
@@ -475,6 +502,7 @@ Owner decisions are answers from the product owner. "Technical" decisions were m
 - Probes and tests use existing credentials only. Never create MySQL or Redis users, grant privileges, or use root or provisioning credentials outside the `edunexus:client:*` commands.
 - Ask only when a decision is a product choice. Make technical decisions yourself, following the existing conventions, and record them in §8.
 - `AGENTS.md`'s install step is already done: `laravel/boost` is a dependency. Do not run `composer require` for it again. This follows the rule above on dependency changes.
+- **Override for the classroom rework.** Classroom rework phases R1–R8 were committed without tests and without running the test suite; tests are owed in R9 (§7, §8 T6). No existing test or query-count budget is edited or deleted in those phases. The other rules above still apply to them: docs in the same commit, one commit per phase, shared components only.
 
 ## 11. Data model
 
@@ -562,9 +590,10 @@ All under `/api/v1`. `entitled` is the module gate; `can` the permission. Full l
 | --- | --- |
 | Auth | `auth/login`, `auth/logout`, `auth/tokens`, `auth/tokens/current`, `me`, `branding` |
 | Users and roles | `users` (list, create), `users/{id}/roles`, `users/{id}/subjects`, `roles` (read) |
-| Academic | `academic-years` (list, show, `next`, `{id}/make-current`), `academic-years/{id}/classes`, `classes/{id}` (update, delete, subjects, subject teacher), `sections` (show, store, update, delete, subject teacher), `subjects` (list, create, update, teachers), `academic-years/{id}/periods` (list, create), `periods/{id}` (update, delete), `sections/{id}/timetable` (show, set, clear), `me/timetable`, `me/teaching`, `teachers`, `teachers/workload`, `academic-years/{id}/holidays` (list, create), `holidays/{id}` (delete) |
+| Academic | `academic-years` (list, show, `next`, `{id}/make-current`), `academic-years/{id}/classes`, `classes/{id}` (update, delete, subjects, subject teacher), `sections` (show, store, update, delete, subject teacher), `subjects` (list, create, update, teachers), `academic-years/{id}/periods` (list, create), `periods/{id}` (update, delete), `sections/{id}/timetable` (show, set, clear), `me/timetable`, `me/teaching`, `teachers`, `teachers/workload`, `academic-years/{id}/holidays` (list, create), `holidays/{id}` (delete), `academic-years/{id}/setup-status` |
 | Students | `students` (list, create, show, update), `students/{id}/guardians` (add, remove), `students/{id}/enrollments`, `enrollments/{id}`, `students/{id}/attendance`, `students/{id}/scores`, `students/{id}/fees` |
 | Admissions | `admissions` (list, create, show, update), `admissions/{id}/decision`, `admissions/{id}/admit` |
-| Attendance | `sections/{id}/attendance` (show, save) |
+| Attendance | `sections/{id}/attendance` (show, save), `attendance/day-summary` |
 | Examinations | `academic-years/{id}/exams` (list, create), `exams/{id}` (show, update, delete), `exams/{id}/classes/{class}/subjects/{subject}/max-marks`, `exams/{id}/marks` (show, save) |
 | Fees | `fee-heads` (list, create), `fee-dues` (create), `enrollments/{id}/payments` (collect), `fee-entries/{id}/reverse`, `receipts/{id}`, `sections/{id}/fees` |
+| Settings | `settings` (show, save; `settings.manage`) |
