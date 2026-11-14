@@ -40,3 +40,9 @@ The percentage counts each record as one unit, so in session or period mode a st
 ## Guardians can be told about absences
 
 When a student is newly marked absent, the primary guardian is sent a notice after the attendance is saved. The default driver sends nothing and only writes to the application log. A client that wants WhatsApp notices sets `EDUNEXUS_GUARDIAN_NOTIFIER=whatsapp` and the `WHATSAPP_*` values in its `.env`.
+
+## Marks are entered per classroom, and published exams are locked
+
+Marks are entered from the classroom's **Exams & marks** tab, one subject at a time. The tab shows, for every subject, who teaches it and whether its marks have been submitted.
+
+An exam can be **published**. Its marks and maximum marks then cannot change until someone with the unlock permission reopens it. Publishing and reopening ask for confirmation.

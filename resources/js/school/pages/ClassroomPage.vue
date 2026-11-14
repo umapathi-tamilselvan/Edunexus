@@ -7,6 +7,7 @@ import EmptyState from '../../components/EmptyState.vue';
 import FormField from '../../components/FormField.vue';
 import InitialsAvatar from '../../components/InitialsAvatar.vue';
 import LoadingState from '../../components/LoadingState.vue';
+import MarksSheet from '../../components/MarksSheet.vue';
 import PageHeader from '../../components/PageHeader.vue';
 import SearchField from '../../components/SearchField.vue';
 import SegmentedTabs from '../../components/SegmentedTabs.vue';
@@ -144,7 +145,7 @@ watch(() => route.params.sectionId, load);
             </section>
 
             <section v-else-if="tab === 'marks'" class="card">
-                <EmptyState icon="layers" title="Marks are not entered here yet" description="Exam marks for this classroom will be entered on this tab. It is not built yet." />
+                <MarksSheet :section-id="section.id" />
             </section>
 
             <section v-else class="card">

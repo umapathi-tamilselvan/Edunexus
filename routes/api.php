@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\V1\Auth\TokenController;
 use App\Http\Controllers\Api\V1\BrandingController;
 use App\Http\Controllers\Api\V1\Examination\ExamController;
 use App\Http\Controllers\Api\V1\Examination\ExamMarkController;
+use App\Http\Controllers\Api\V1\Examination\ExamPublicationController;
 use App\Http\Controllers\Api\V1\Examination\SubjectScoreController;
 use App\Http\Controllers\Api\V1\Fee\FeeController;
 use App\Http\Controllers\Api\V1\MeController;
@@ -162,6 +163,11 @@ Route::middleware(['auth:sanctum', 'can:settings.manage'])->group(function () {
 | Fees: an append-only ledger per enrollment, in integer paise. Dues and
 | payments are reversed, never changed; receipts are numbered without gaps.
 */
+Route::middleware(['auth:sanctum', 'entitled:examination'])->group(function () {
+    Route::middleware('can:exam.publish')->post('exams/{exam}/publish', [ExamPublicationController::class, 'publish'])->name('exams.publish');
+    Route::middleware('can:exam.unlock')->post('exams/{exam}/unlock', [ExamPublicationController::class, 'unlock'])->name('exams.unlock');
+});
+
 Route::middleware(['auth:sanctum', 'entitled:fee'])->group(function () {
     Route::middleware('can:fee.view')->group(function () {
         Route::get('fee-heads', [FeeController::class, 'heads'])->name('fee-heads.index');
@@ -202,6 +208,7 @@ Route::middleware(['auth:sanctum', 'entitled:examination'])->group(function () {
         Route::get('academic-years/{academicYear}/exams', [ExamController::class, 'index'])->name('exams.index');
         Route::get('exams/{exam}', [ExamController::class, 'show'])->name('exams.show');
         Route::get('exams/{exam}/marks', [ExamMarkController::class, 'index'])->name('exams.marks.index');
+        Route::get('exams/{exam}/sections/{section}/mark-sheets', [ExamMarkController::class, 'sheets'])->name('exams.mark-sheets.index');
         Route::get('students/{student}/scores', SubjectScoreController::class)->middleware('entitled:student')->name('students.scores');
     });
 

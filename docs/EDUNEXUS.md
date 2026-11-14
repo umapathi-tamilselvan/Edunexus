@@ -66,7 +66,8 @@ For each screen: who sees it, what they do, status.
 | Subjects `/settings/subjects` | `academic.view` | adds and edits subjects; picks teachers for each | built |
 | Subject teachers `/settings/subject-teachers` | `academic.view` | assigns teachers per section or per class; workload tab | built |
 | Users `/settings/users` | `user.manage` | creates users; sets roles and subjects a teacher teaches | built |
-| Exams, Marks entry, Results | `exam.view`, `exam.manage`, `exam.enter_marks` | exam list; marks sheet; results | not built (API only) |
+| Exams and marks, in a classroom `/classrooms/{id}` (Exams & marks tab) | `exam.view`; entering marks needs `exam.enter_marks` for the subject, or `exam.manage`; publishing needs `exam.publish`, reopening `exam.unlock` | exam picker; subject picker limited to what the user may enter; marks grid with absent; submission status of every subject; publish and reopen (with confirmation) | built (R4) |
+| Exam list and results | `exam.view`, `exam.manage` | exam list and create screens; results | exam list not built (API only); results in R5 |
 | Fee screens | `fee.view`, `fee.collect`, `fee.reverse` | dues, collection, receipts, defaulters | not built (backend staged and committed; no screen) |
 | Staff, Staff attendance | `staff.view`, `staff.manage` | staff list; daily staff attendance | planned |
 | Terms | `academic.view` | term names and dates per year | planned |
@@ -74,7 +75,7 @@ For each screen: who sees it, what they do, status.
 | Year Setup `/settings/year-setup` | `academic.view` (the links it offers need `academic.manage`) | checklist (§2.3) | built |
 | Client settings `/settings/client` | `settings.manage` | values in §6 | built (step 1.5, with R1) |
 | Class `/settings/classes/{id}` | `academic.view`; creating classrooms and editing the teacher grid need `academic.manage`; placing students needs `student.manage` | creates classrooms (A, B, C…) with one capacity; places the class's students into them (§3.4); sets the class teacher and each subject's teacher per classroom in one grid (§3.3) | built (R2) |
-| Classroom `/classrooms/{id}` | `academic.view` | tabs: Students (paged list), Teachers (who teaches what here, read-only; changed on the class page), Attendance (today's status), Exams & marks, Results | partial (R2); Exams & marks and Results are empty until R4 and R5 |
+| Classroom `/classrooms/{id}` | `academic.view` | tabs: Students (paged list), Teachers (who teaches what here, read-only; changed on the class page), Attendance (the sheet for a chosen day, and session or period by mode), Exams & marks (R4), Results (empty until R5) | partial (R4); Results empty until R5 |
 | Roles | `role.manage` | permissions per role | planned (read-only today) |
 
 ### 2.3 Year Setup checklist
@@ -175,10 +176,12 @@ Each role gets its own home. The Teacher home and the Principal home are **built
 
 ### 3.6 Exams and scores
 
-**Built (API).**
+**Built.**
 
 - Exams belong to an academic year. Names are unique per year. The exam's maximum applies to every subject unless a paper overrides it for one class and subject (`exam_papers`).
-- Marks are entered one section and one subject at a time. Each student gets a mark from 0 to the paper's maximum, or is absent. A blank mark removes the entry.
+- Marks are entered one section and one subject at a time, from the classroom's Exams & marks tab (R4). Each student gets a mark from 0 to the paper's maximum, or is absent. A blank mark removes the entry.
+- A save is one bulk write: one read of the entries, one upsert, at most one delete, and every change audited (D30). A save that carries any mark or absence **submits** the subject's sheet (`exam_mark_sheets`). The first submission sets the time; later saves change only who entered it (D29). The classroom shows, for every subject, who teaches it and whether it is submitted.
+- **Publishing (R4).** `exam.publish` publishes an exam: from then on its marks and its maximum marks cannot change. `exam.unlock` reopens it. Publishing records the time, not who published (D31).
 - Anyone with `exam.manage` enters marks for any section. A user with `exam.enter_marks` enters marks only for a section they teach that subject to.
 - An exam's maximum and a paper's maximum cannot drop below marks already entered under them. A paper set back to the exam's maximum is removed.
 - An exam with marks cannot be deleted. The exam response carries `has_marks` (true once any mark exists). It replaced `marks_count` in step 0.4.
@@ -198,7 +201,7 @@ Example: 40/50 (80%) and 90/100 (90%) average 85%, a score of 4.3.
 - Term results: the same formula within a term, per subject (step 5.1). The lifetime score stays next to the term score.
 - Marks have an optional due date per exam (`exams.marks_due_on`).
 - Exams belong to a term (`exams.term_id`).
-- Report cards, grading scales and mark locking come later. The `exam.publish` and `exam.unlock` permissions exist but nothing uses them.
+- Report cards and grading scales come later.
 
 ### 3.7 Fees
 
@@ -334,7 +337,7 @@ Permissions are fixed in code (`App\Domain\Identity\Enums\Permission`). Roles ho
 | `settings.manage` | route middleware (`can:settings.manage`) on the settings endpoint | Admin, Super Admin |
 | `role.manage`, `audit.view` | **nowhere yet** | Admin, Super Admin (and Principal for audit view) |
 | `staff.view`, `staff.manage` | **nowhere yet** | Principal, Admin, Super Admin |
-| `exam.publish`, `exam.unlock` | **nowhere yet** | Principal, Admin, Super Admin |
+| `exam.publish`, `exam.unlock` | route middleware on the publish and unlock endpoints (R4) | Principal, Admin, Super Admin |
 | `fee.concession_approve`, `communication.send`, `report.view` | **nowhere yet** | see the role table in code |
 
 Guardian and Student roles hold no permissions. Roles of clients created before a permission existed keep their old permissions until edited.
@@ -400,7 +403,7 @@ One commit per step, full suite green before each. Commits and behaviour changes
 | R1 | client settings (above) | this commit |
 | R2 | classroom setup: create classrooms, distribute students, teacher grid per class, Classrooms page (Students, Teachers, Attendance, Exams & marks, Results tabs); timetable becomes optional outside period mode | this commit (Exams & marks and Results are empty until R4 and R5; R9 owes the tests) |
 | R3 | attendance modes: daily, session, period; `periods.session`; AttendancePolicy by mode; percentage in units (replaces Q1); absence alerts through `GuardianNotifier` | this commit (no tests; R9 owes them) |
-| R4 | marks entry per classroom (step 2.4): `exam_mark_sheets`, bulk save, publish and unlock | not started |
+| R4 | marks entry per classroom (step 2.4): `exam_mark_sheets`, bulk save, publish and unlock | this commit (no tests; R9 owes them) |
 | R5 | scale of 10 for academic and attendance scores, shown per subject and overall (replaces Q9); Q19 | not started |
 | R6 | teacher home "My classrooms" | not started |
 | R7 | guardian login by OTP, and guardian endpoints scoped to linked children | not started |
@@ -478,6 +481,10 @@ Owner decisions are answers from the product owner. "Technical" decisions were m
 | D26 | Absence notices are a queued job after the save commits, sent through a `GuardianNotifier` interface. The default driver writes to the log and sends nothing, so no client is messaged by accident | technical (R3) |
 | D27 | WhatsApp is a driver configured per client in `.env`, not a setting, because its credentials are secrets | technical (R3) |
 | D28 | Half day is refused in session mode only, as the brief asks. Period mode accepts it | owner (R3 brief) |
+| D29 | A mark sheet is submitted by any save with a mark or an absence. The first submission sets `submitted_at`; later saves change only `entered_by` | technical (R4) |
+| D30 | Bulk marks saves are audited with BulkAudit. New marks need their ids, so their creation is audited after one read-back of those ids; that is one more read than the attendance save makes | technical (R4) |
+| D31 | Publishing records when, not who (`exams` has no published_by). Audited exam changes come with step 2.6 | technical (R4) |
+| D32 | A published exam's maximum marks are locked with its marks, in both the exam update and the per-class maximum | technical (R4) |
 | Q1 | Attendance is per day, per session or per period, chosen by `attendance.mode`. The `period` column holds 0 for the day or the period's id (R3). Replaces the earlier per-day answer | owner (R3 brief) |
 | Q2 | Leave is excluded from the attendance percentage; release note | owner |
 | Q3 | Late counts 1, half day 0.5 | owner |
@@ -573,9 +580,10 @@ Conventions: every table has `id` and timestamps unless noted. Foreign keys are 
 
 | Table | Key columns and rules |
 | --- | --- |
-| `exams` | academic_year_id, name (unique per year), max_marks, starts_on, ends_on. Planned: `term_id`, `marks_due_on` |
+| `exams` | academic_year_id, name (unique per year), max_marks, starts_on, ends_on, published_at (R4; null until published). Planned: `term_id`, `marks_due_on` |
 | `exam_papers` | exam_id, class_id, subject_id, max_marks; unique (exam, class, subject) |
 | `exam_marks` | exam_id, enrollment_id, subject_id, marks (decimal 5,2, null when absent), is_absent, recorded_by; unique (exam, enrollment, subject) |
+| `exam_mark_sheets` (R4) | exam_id, section_id, subject_id, entered_by (nullable), submitted_at (first submission); unique (exam, section, subject) |
 
 **Fees (built, backend)**
 
@@ -592,7 +600,6 @@ Conventions: every table has `id` and timestamps unless noted. Foreign keys are 
 | `attendance_sheets` | one per section and day: submitter, first-save time; unique (section, date) | 0.5 |
 | `class_teacher_assignments` | section, teacher, from and to dates | 5.1 |
 | `terms` | per year: name, sequence, starts_on, ends_on; unique (year, sequence) | 2.1 |
-| `exam_mark_sheets` | exam, section, subject, entered_by, submitted_at; unique (exam, section, subject) | 2.4 |
 | `staff` | person; optional `user_id` (unique); employee code; name; phone (encrypted, hashed); designation; department; joined and left dates | 3.1 |
 | `staff_attendance` | staff, date, status, remark, marked_by; unique (staff, date) | 3.2 |
 | `student_subject_term_scores` | enrollment, term, subject, section, exams count, percentage, trend, recomputed time; unique (enrollment, term, subject) | 5.1 |
@@ -612,6 +619,6 @@ All under `/api/v1`. `entitled` is the module gate; `can` the permission. Full l
 | Students | `students` (list, create, show, update), `students/{id}/guardians` (add, remove), `students/{id}/enrollments`, `enrollments/{id}`, `students/{id}/attendance`, `students/{id}/scores`, `students/{id}/fees`, `classes/{id}/students/distribute` |
 | Admissions | `admissions` (list, create, show, update), `admissions/{id}/decision`, `admissions/{id}/admit` |
 | Attendance | `sections/{id}/attendance` (show with `date` and `period_id`; save with `date`, `period_id` and `entries`), `attendance/day-summary` |
-| Examinations | `academic-years/{id}/exams` (list, create), `exams/{id}` (show, update, delete), `exams/{id}/classes/{class}/subjects/{subject}/max-marks`, `exams/{id}/marks` (show, save) |
+| Examinations | `academic-years/{id}/exams` (list, create), `exams/{id}` (show, update, delete), `exams/{id}/classes/{class}/subjects/{subject}/max-marks`, `exams/{id}/marks` (show, save), `exams/{id}/sections/{section}/mark-sheets` (subject status), `exams/{id}/publish`, `exams/{id}/unlock` |
 | Fees | `fee-heads` (list, create), `fee-dues` (create), `enrollments/{id}/payments` (collect), `fee-entries/{id}/reverse`, `receipts/{id}`, `sections/{id}/fees` |
 | Settings | `settings` (show, save; `settings.manage`) |

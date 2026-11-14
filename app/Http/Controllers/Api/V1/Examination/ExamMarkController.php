@@ -7,6 +7,7 @@ use App\Domain\Academic\Models\Subject;
 use App\Domain\Examination\Actions\RecordExamMarks;
 use App\Domain\Examination\Models\Exam;
 use App\Domain\Examination\Models\ExamMark;
+use App\Domain\Examination\Models\ExamMarkSheet;
 use App\Domain\Identity\Enums\Permission;
 use App\Domain\Student\Models\StudentEnrollment;
 use App\Http\Controllers\Controller;
@@ -72,6 +73,50 @@ class ExamMarkController extends Controller
                     'marks' => $marks->get($enrollment->id)?->marks,
                     'is_absent' => $marks->get($enrollment->id)->is_absent ?? false,
                 ]),
+            ],
+        ]);
+    }
+
+    /**
+     * Each subject of the classroom's class for the exam: who teaches it,
+     * whether its marks have been submitted and by whom, and whether the user
+     * may enter them. Every class teacher sees every subject's status.
+     */
+    public function sheets(Request $request, Exam $exam, Section $section): JsonResponse
+    {
+        $section->loadMissing('schoolClass');
+
+        if ($section->schoolClass->academic_year_id !== $exam->academic_year_id) {
+            throw ValidationException::withMessages(['section_id' => "{$section->schoolClass->name} {$section->name} is not in {$exam->name}'s academic year."]);
+        }
+
+        $user = $request->user();
+        $subjects = $section->schoolClass->subjects()->orderBy('name')->get(['subjects.id', 'subjects.code', 'subjects.name']);
+        $teachers = $section->subjectTeachers()->with('teacher:id,name')->get()->keyBy('subject_id');
+        $sheets = ExamMarkSheet::query()
+            ->where('exam_id', $exam->id)
+            ->where('section_id', $section->id)
+            ->with('enteredBy:id,name')
+            ->get()
+            ->keyBy('subject_id');
+
+        return response()->json([
+            'data' => [
+                'exam' => ['id' => $exam->id, 'name' => $exam->name, 'is_published' => $exam->isPublished(), 'published_at' => $exam->published_at?->toIso8601String()],
+                'subjects' => $subjects->map(function (Subject $subject) use ($user, $section, $teachers, $sheets): array {
+                    $sheet = $sheets->get($subject->id);
+                    $teacher = $teachers->get($subject->id)?->teacher;
+
+                    return [
+                        'id' => $subject->id,
+                        'code' => $subject->code,
+                        'name' => $subject->name,
+                        'teacher' => $teacher ? ['id' => $teacher->id, 'name' => $teacher->name] : null,
+                        'submitted_at' => $sheet?->submitted_at?->toIso8601String(),
+                        'entered_by' => $sheet?->enteredBy ? ['id' => $sheet->enteredBy->id, 'name' => $sheet->enteredBy->name] : null,
+                        'can_enter' => $user->can('enterMarks', [Exam::class, $section, $subject]),
+                    ];
+                })->values(),
             ],
         ]);
     }

@@ -25,6 +25,8 @@ class ExamResource extends JsonResource
             'starts_on' => $this->starts_on?->toDateString(),
             'ends_on' => $this->ends_on?->toDateString(),
             'has_marks' => $this->whenExistsLoaded('marks', fn (bool $exists): bool => $exists),
+            'is_published' => $this->isPublished(),
+            'published_at' => $this->published_at?->toIso8601String(),
         ];
     }
 }
