@@ -6,6 +6,7 @@ import AdmissionsPage from './pages/AdmissionsPage.vue';
 import AttendancePage from './pages/AttendancePage.vue';
 import ClassPage from './pages/ClassPage.vue';
 import ClassroomPage from './pages/ClassroomPage.vue';
+import ClassroomsPage from './pages/ClassroomsPage.vue';
 import ClientSettingsPage from './pages/ClientSettingsPage.vue';
 import DashboardPage from './pages/DashboardPage.vue';
 import LoginPage from './pages/LoginPage.vue';
@@ -51,6 +52,7 @@ export const router = createRouter({
         { path: '/users', redirect: '/settings/users' },
         { path: '/settings/client', name: 'client-settings', component: ClientSettingsPage, meta: { permission: 'settings.manage' } },
         { path: '/settings/classes/:classId', name: 'class', component: ClassPage, meta: { permission: 'academic.view', module: 'academic' } },
+        { path: '/people/classrooms', name: 'classrooms', component: ClassroomsPage, meta: { permission: 'academic.view', module: 'academic' } },
         { path: '/classrooms/:sectionId', name: 'classroom', component: ClassroomPage, meta: { permission: 'academic.view', module: 'academic' } },
 
         { path: '/:pathMatch(.*)*', redirect: '/home' },

@@ -44,6 +44,14 @@ export const navigation = computed(() =>
             visible: session.hasModule('student') && session.canAny(STUDENT_VIEW),
         },
         {
+            to: '/people/classrooms',
+            label: 'Classrooms',
+            icon: 'layers',
+            area: 'People',
+            description: 'Each classroom of the year: its students, teachers, attendance, marks and results.',
+            visible: session.hasModule('academic') && session.can('academic.view'),
+        },
+        {
             to: '/people/admissions',
             label: 'Admissions',
             icon: 'admissions',

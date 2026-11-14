@@ -42,7 +42,7 @@ Navigation is grouped by what a role does each day. Routes keep their paths wher
 | --- | --- |
 | Home | Home per role (below) |
 | Daily | Attendance, My timetable, Substitutions (later), Staff attendance (planned) |
-| People | Students, Student profile, Staff (planned), Guardians (partial), Admissions |
+| People | Students, Student profile, Classrooms, Staff (planned), Guardians (partial), Admissions |
 | Assessment | Exams, Marks entry, Results, Terms (planned), Report cards (later) |
 | Finance | Fee structures, Dues, Collection, Receipts, Defaulters (planned) |
 | Insights | Student performance, Class performance, Teacher performance (planned) |
@@ -75,6 +75,7 @@ For each screen: who sees it, what they do, status.
 | Year Setup `/settings/year-setup` | `academic.view` (the links it offers need `academic.manage`) | checklist (§2.3) | built |
 | Client settings `/settings/client` | `settings.manage` | values in §6 | built (step 1.5, with R1) |
 | Class `/settings/classes/{id}` | `academic.view`; creating classrooms and editing the teacher grid need `academic.manage`; placing students needs `student.manage` | creates classrooms (A, B, C…) with one capacity; places the class's students into them (§3.4); sets the class teacher and each subject's teacher per classroom in one grid (§3.3) | built (R2) |
+| Classrooms `/people/classrooms` | `academic.view` | lists each class's classrooms for the selected year, with students, class teacher and capacity; opens a classroom or its class | built (sidebar under People) |
 | Classroom `/classrooms/{id}` | `academic.view` | tabs: Students (paged list), Teachers (who teaches what here, read-only; changed on the class page), Attendance (the sheet for a chosen day, and session or period by mode), Exams & marks (R4), Results (empty until R5) | partial (R4); Results empty until R5 |
 | Roles | `role.manage` | permissions per role | planned (read-only today) |
 
