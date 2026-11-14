@@ -46,3 +46,9 @@ When a student is newly marked absent, the primary guardian is sent a notice aft
 Marks are entered from the classroom's **Exams & marks** tab, one subject at a time. The tab shows, for every subject, who teaches it and whether its marks have been submitted.
 
 An exam can be **published**. Its marks and maximum marks then cannot change until someone with the unlock permission reopens it. Publishing and reopening ask for confirmation.
+
+## Scores are out of 10, and academic and attendance scores are separate
+
+Scores are now out of the client's score scale (`results.scale`, default **10**, previously 5). The student's scores endpoint returns an object with the academic score (overall and per subject) and the attendance score side by side. The previous list shape is gone, so clients that read the list must read `academic.subjects` instead. The two scores are not combined; whether they should be is an open question (Q19).
+
+Each classroom has a **Results** tab with each student's academic score per subject and overall, and their attendance score for the year.

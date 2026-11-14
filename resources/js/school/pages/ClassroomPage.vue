@@ -9,6 +9,7 @@ import InitialsAvatar from '../../components/InitialsAvatar.vue';
 import LoadingState from '../../components/LoadingState.vue';
 import MarksSheet from '../../components/MarksSheet.vue';
 import PageHeader from '../../components/PageHeader.vue';
+import ResultsTable from '../../components/ResultsTable.vue';
 import SearchField from '../../components/SearchField.vue';
 import SegmentedTabs from '../../components/SegmentedTabs.vue';
 import TablePagination from '../../components/TablePagination.vue';
@@ -149,7 +150,7 @@ watch(() => route.params.sectionId, load);
             </section>
 
             <section v-else class="card">
-                <EmptyState icon="layers" title="Results are not shown here yet" description="Results for this classroom will appear on this tab once they are built." />
+                <ResultsTable :section-id="section.id" />
             </section>
         </template>
     </div>

@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\V1\BrandingController;
 use App\Http\Controllers\Api\V1\Examination\ExamController;
 use App\Http\Controllers\Api\V1\Examination\ExamMarkController;
 use App\Http\Controllers\Api\V1\Examination\ExamPublicationController;
+use App\Http\Controllers\Api\V1\Examination\SectionResultsController;
 use App\Http\Controllers\Api\V1\Examination\SubjectScoreController;
 use App\Http\Controllers\Api\V1\Fee\FeeController;
 use App\Http\Controllers\Api\V1\MeController;
@@ -209,6 +210,7 @@ Route::middleware(['auth:sanctum', 'entitled:examination'])->group(function () {
         Route::get('exams/{exam}', [ExamController::class, 'show'])->name('exams.show');
         Route::get('exams/{exam}/marks', [ExamMarkController::class, 'index'])->name('exams.marks.index');
         Route::get('exams/{exam}/sections/{section}/mark-sheets', [ExamMarkController::class, 'sheets'])->name('exams.mark-sheets.index');
+        Route::get('sections/{section}/results', SectionResultsController::class)->name('sections.results');
         Route::get('students/{student}/scores', SubjectScoreController::class)->middleware('entitled:student')->name('students.scores');
     });
 

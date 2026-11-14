@@ -67,7 +67,7 @@ For each screen: who sees it, what they do, status.
 | Subject teachers `/settings/subject-teachers` | `academic.view` | assigns teachers per section or per class; workload tab | built |
 | Users `/settings/users` | `user.manage` | creates users; sets roles and subjects a teacher teaches | built |
 | Exams and marks, in a classroom `/classrooms/{id}` (Exams & marks tab) | `exam.view`; entering marks needs `exam.enter_marks` for the subject, or `exam.manage`; publishing needs `exam.publish`, reopening `exam.unlock` | exam picker; subject picker limited to what the user may enter; marks grid with absent; submission status of every subject; publish and reopen (with confirmation) | built (R4) |
-| Exam list and results | `exam.view`, `exam.manage` | exam list and create screens; results | exam list not built (API only); results in R5 |
+| Exam list and results | `exam.view`, `exam.manage` | exam list and create screens; results per classroom (academic and attendance scores, §3.6) | exam list not built (API only); results built per classroom (R5) |
 | Fee screens | `fee.view`, `fee.collect`, `fee.reverse` | dues, collection, receipts, defaulters | not built (backend staged and committed; no screen) |
 | Staff, Staff attendance | `staff.view`, `staff.manage` | staff list; daily staff attendance | planned |
 | Terms | `academic.view` | term names and dates per year | planned |
@@ -188,14 +188,17 @@ Each role gets its own home. The Teacher home and the Principal home are **built
 - An exam with marks cannot be deleted. The exam response carries `has_marks` (true once any mark exists). It replaced `marks_count` in step 0.4.
 - Changes to exams and papers are not yet audited (step 2.6). Marks are audited.
 
-**Score out of 5 (built, lifetime).** Every exam a student has taken, in any year, counts equally:
+**Scores out of the client's scale (built, R5).** The scale is `results.scale` (default 10, §6). Two scores are kept apart and never combined:
 
 ```
 percentage of one exam = mark ÷ that paper's maximum × 100        (absent exams are left out)
-score out of 5         = average of those percentages ÷ 100 × 5, one decimal
+academic score         = average of those percentages ÷ 100 × scale, one decimal
+attendance score       = attendance percentage ÷ 100 × scale, one decimal
 ```
 
-Example: 40/50 (80%) and 90/100 (90%) average 85%, a score of 4.3.
+Every exam counts equally, in any year, for a student's academic score (`students/{id}/scores`). The student's **overall** academic score is the average over all their exams, not an average of subject scores (D34). A classroom's results (`sections/{id}/results`) cover the classroom's year only (D33).
+
+Example: 40/50 (80%) and 90/100 (90%) average 85%, a score of 8.5 out of 10.
 
 **Planned.**
 
@@ -355,7 +358,7 @@ Stored in the client's `settings` table and read through `OrganizationContext`. 
 | `attendance.mode` | `daily` (`daily`, `session` or `period`) | Admin | how attendance is marked (§3.5) | built; editable (R3) |
 | `attendance.edit_window_days` | 0 | Admin | how far back a teacher can change attendance | built; editable |
 | `attendance.cutoff_time` | `10:00` local | Admin | teacher on-time attendance (§3.9) | stored; not yet used |
-| `results.scale` | 10 (integer 1–100) | Admin | the score out of which academic and attendance scores are shown (R5) | stored; not yet used |
+| `results.scale` | 10 (integer 1–100) | Admin | the score out of which academic and attendance scores are shown (§3.6) | built; editable (R5) |
 | `school.timezone` | `Asia/Kolkata` | Admin | local-time rules (§3.9) | stored; not yet used |
 | `weekly_off_days` | `["sunday"]` | Admin | attendance refusal and school days | stored; not yet used |
 | `insights.section_rank_enabled` | `false` | Admin | section rank (§3.9) | stored; not yet used |
@@ -405,7 +408,7 @@ One commit per step, full suite green before each. Commits and behaviour changes
 | R2 | classroom setup: create classrooms, distribute students, teacher grid per class, Classrooms page (Students, Teachers, Attendance, Exams & marks, Results tabs); timetable becomes optional outside period mode | this commit (Exams & marks and Results are empty until R4 and R5; R9 owes the tests) |
 | R3 | attendance modes: daily, session, period; `periods.session`; AttendancePolicy by mode; percentage in units (replaces Q1); absence alerts through `GuardianNotifier` | this commit (no tests; R9 owes them) |
 | R4 | marks entry per classroom (step 2.4): `exam_mark_sheets`, bulk save, publish and unlock | this commit (no tests; R9 owes them) |
-| R5 | scale of 10 for academic and attendance scores, shown per subject and overall (replaces Q9); Q19 | not started |
+| R5 | scale of 10 for academic and attendance scores, shown per subject and overall (replaces Q9); Q19 | this commit (no tests; R9 owes them) |
 | R6 | teacher home "My classrooms" | not started |
 | R7 | guardian login by OTP, and guardian endpoints scoped to linked children | not started |
 | R8 | navigation: Classrooms under People; old section pages route to the classroom page; final doc pass | not started |
@@ -486,6 +489,9 @@ Owner decisions are answers from the product owner. "Technical" decisions were m
 | D30 | Bulk marks saves are audited with BulkAudit. New marks need their ids, so their creation is audited after one read-back of those ids; that is one more read than the attendance save makes | technical (R4) |
 | D31 | Publishing records when, not who (`exams` has no published_by). Audited exam changes come with step 2.6 | technical (R4) |
 | D32 | A published exam's maximum marks are locked with its marks, in both the exam update and the per-class maximum | technical (R4) |
+| D33 | A classroom's results cover its year. The student's score (`students/{id}/scores`) stays lifetime, as §3.6 says. The two can differ for a student with several years | technical (R5) |
+| D34 | The overall academic score averages all exam percentages, every exam counting equally, not the subject scores. It matches the rule in §3.6 | technical (R5) |
+| D35 | `students/{id}/scores` returns an object: `scale`, `academic` (overall and subjects) and `attendance`, side by side. Its previous list shape is gone. The existing score tests assert the old shape and are owed in R9 | technical (R5) |
 | Q1 | Attendance is per day, per session or per period, chosen by `attendance.mode`. The `period` column holds 0 for the day or the period's id (R3). Replaces the earlier per-day answer | owner (R3 brief) |
 | Q2 | Leave is excluded from the attendance percentage; release note | owner |
 | Q3 | Late counts 1, half day 0.5 | owner |
@@ -494,7 +500,7 @@ Owner decisions are answers from the product owner. "Technical" decisions were m
 | Q6 | At-risk: attendance < 75, overall < 35, trend drop ≥ 15 | owner |
 | Q7 | Terms: school 3, college 2 semesters, coaching 1 | owner |
 | Q8 | Insights visibility | owner (see D16) |
-| Q9 | The lifetime score out of 5 stays next to the term score | owner |
+| Q9 | The lifetime score out of the client's scale (`results.scale`, default 10) stays next to the term score. Academic and attendance scores are kept apart. Replaces the out-of-5 answer | owner (R5 brief) |
 | Q10 | A teacher needs a login for v4.0 | owner |
 | Q11 | Optional `marks_due_on`; attendance cut-off 10:00 local; `school.timezone` Asia/Kolkata; timestamps stored in UTC | owner |
 | Q12 | No Sunday holidays; weekly off days setting, default Sunday | owner |
@@ -517,6 +523,7 @@ Owner decisions are answers from the product owner. "Technical" decisions were m
 4. **Q20: Which home does an Admin see?** Today Admin and Super Admin see the Principal home (§2.4). Blocks the Admin home.
 5. **Q21: What does "Admissions open" mean on the Year Setup checklist?** Today the step is done when the year is the current year (§2.3). Blocks the step's real definition.
 6. **Q22: How does a new student get a class before a section?** Admission places a student in a section at once (§3.4), and a student created without an enrolment has no class. "Distribute students" (D21) uses last year's class as the link, so a new intake has no class to be placed from. Which link should a new student carry (for example, a class on the student record set at admission), or should promotion (step 7.3) do this?
+7. **Q19: Should an overall performance score combine academics and attendance, and with what weights?** Academic and attendance scores are shown apart until this is answered (R5).
 
 ## 10. Working rules
 
@@ -620,6 +627,6 @@ All under `/api/v1`. `entitled` is the module gate; `can` the permission. Full l
 | Students | `students` (list, create, show, update), `students/{id}/guardians` (add, remove), `students/{id}/enrollments`, `enrollments/{id}`, `students/{id}/attendance`, `students/{id}/scores`, `students/{id}/fees`, `classes/{id}/students/distribute` |
 | Admissions | `admissions` (list, create, show, update), `admissions/{id}/decision`, `admissions/{id}/admit` |
 | Attendance | `sections/{id}/attendance` (show with `date` and `period_id`; save with `date`, `period_id` and `entries`), `attendance/day-summary` |
-| Examinations | `academic-years/{id}/exams` (list, create), `exams/{id}` (show, update, delete), `exams/{id}/classes/{class}/subjects/{subject}/max-marks`, `exams/{id}/marks` (show, save), `exams/{id}/sections/{section}/mark-sheets` (subject status), `exams/{id}/publish`, `exams/{id}/unlock` |
+| Examinations | `academic-years/{id}/exams` (list, create), `exams/{id}` (show, update, delete), `exams/{id}/classes/{class}/subjects/{subject}/max-marks`, `exams/{id}/marks` (show, save), `exams/{id}/sections/{section}/mark-sheets` (subject status), `exams/{id}/publish`, `exams/{id}/unlock`, `sections/{section}/results` (academic and attendance scores for the year), `students/{id}/scores` (academic and attendance scores, lifetime) |
 | Fees | `fee-heads` (list, create), `fee-dues` (create), `enrollments/{id}/payments` (collect), `fee-entries/{id}/reverse`, `receipts/{id}`, `sections/{id}/fees` |
 | Settings | `settings` (show, save; `settings.manage`) |

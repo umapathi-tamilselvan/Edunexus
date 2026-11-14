@@ -5,29 +5,30 @@ namespace App\Domain\Examination\Actions;
 use App\Domain\Examination\Models\ExamMark;
 use App\Domain\Examination\Models\ExamPaper;
 use App\Domain\Student\Models\Student;
-use Illuminate\Support\Collection;
+use App\Support\OrganizationContext;
 
 /**
- * A student's score out of 5 in each subject, consolidated from every exam
- * they have taken in any year.
+ * A student's academic score in each subject, out of the client's score
+ * scale (results.scale, default 10), consolidated from every exam they have
+ * taken in any year. Lifetime measure: the attendance score is kept apart
+ * (AttendanceScores), and the two are never combined here.
  *
- * Every exam counts equally: each exam's marks become a percentage of that
- * paper's maximum, the percentages are averaged, and the average is scaled
- * to 5. Exams the student was absent for are left out rather than counted
- * as zero.
+ * Every exam counts equally: each mark becomes a percentage of its paper's
+ * maximum, the percentages are averaged, and the average is scaled to the
+ * client's scale. Exams the student was absent for are left out rather than
+ * counted as zero.
  */
 class ConsolidateSubjectScores
 {
+    public function __construct(private OrganizationContext $organization) {}
+
     /**
-     * @return list<array{
-     *     subject: array{id: int, code: string, name: string},
-     *     score: float,
-     *     average_percentage: float,
-     *     exams: list<array{exam_id: int, exam: string, academic_year: string, marks: float, max_marks: int, percentage: float}>
-     * }>
+     * @return array{scale: int, overall: array{score: float, average_percentage: float}|null, subjects: list<array{subject: array{id: int, code: string, name: string}, score: float, average_percentage: float, exams: list<array{exam_id: int, exam: string, academic_year: string, marks: float, max_marks: int, percentage: float}>}>}
      */
     public function handle(Student $student): array
     {
+        $scale = (int) $this->organization->settingOrDefault('results.scale');
+
         $marks = ExamMark::query()
             ->whereIn('enrollment_id', $student->enrollments()->select('id'))
             ->where('is_absent', false)
@@ -40,37 +41,13 @@ class ConsolidateSubjectScores
             ->get()
             ->keyBy(fn (ExamPaper $paper): string => "{$paper->exam_id}-{$paper->class_id}-{$paper->subject_id}");
 
-        return $marks
-            ->groupBy('subject_id')
-            ->map(function (Collection $subjectMarks) use ($papers): array {
-                $exams = $subjectMarks
-                    ->sortBy(fn (ExamMark $mark): string => ($mark->exam->starts_on ?? $mark->exam->academicYear->starts_on)->toDateString().$mark->exam->name)
-                    ->map(function (ExamMark $mark) use ($papers): array {
-                        $maxMarks = $papers->get("{$mark->exam_id}-{$mark->enrollment->section->class_id}-{$mark->subject_id}")?->max_marks ?? $mark->exam->max_marks;
+        $subjects = SubjectAverages::bySubject($marks, $papers, $scale, fn (): string => 'lifetime')->get('lifetime', collect());
+        $overall = SubjectAverages::overall($marks, $papers);
 
-                        return [
-                            'exam_id' => $mark->exam_id,
-                            'exam' => $mark->exam->name,
-                            'academic_year' => $mark->exam->academicYear->name,
-                            'marks' => $mark->marks,
-                            'max_marks' => $maxMarks,
-                            'percentage' => $mark->marks / $maxMarks * 100,
-                        ];
-                    })
-                    ->values();
-
-                $average = $exams->avg('percentage');
-                $subject = $subjectMarks->first()->subject;
-
-                return [
-                    'subject' => ['id' => $subject->id, 'code' => $subject->code, 'name' => $subject->name],
-                    'score' => round($average / 100 * 5, 1),
-                    'average_percentage' => round($average, 1),
-                    'exams' => $exams->map(fn (array $exam): array => [...$exam, 'percentage' => round($exam['percentage'], 1)])->all(),
-                ];
-            })
-            ->sortBy('subject.name')
-            ->values()
-            ->all();
+        return [
+            'scale' => $scale,
+            'overall' => $overall === null ? null : ['score' => round($overall / 100 * $scale, 1), 'average_percentage' => $overall],
+            'subjects' => $subjects->all(),
+        ];
     }
 }
