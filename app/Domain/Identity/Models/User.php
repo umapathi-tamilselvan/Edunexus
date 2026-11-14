@@ -26,7 +26,7 @@ use Spatie\Permission\Traits\HasRoles;
  * @property string $email
  * @property int|null $subject_id One of the subjects the user teaches. Kept in
  *                                step with subjects() only so the previous
- *                                release still works; dropped in v3.3.
+ *                                release still works; planned for removal (docs/EDUNEXUS.md).
  */
 #[Fillable(['name', 'email', 'password', 'subject_id'])]
 #[Hidden(['password', 'remember_token'])]
