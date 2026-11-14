@@ -118,6 +118,7 @@ Each role gets its own home. The Teacher home and the Principal home are **built
 - Years never overlap. A new year must start after the year before it ends.
 - `POST academic-years/next` opens the year after the current one and copies classes, sections with their capacities, class subjects and the bell schedule. Class teachers, subject teachers and the timetable are not copied. Only one year can be open ahead of the current one. It does not become current until `make-current`.
 - Admissions are open or closed per year. An admin switches the year's `admissions_open` on or off (D44); the Year Setup step "Admissions open" is done while it is on. The switch does not block applications.
+- **Final class (D49).** When a year becomes current, the year that closed has its final class (the highest sort order) completed: its students who are not enrolled in the year that starts get status `left`. Students who are enrolled next year keep their status. The change is audited.
 - Years are never edited or created by hand. Their names and dates are not patched.
 - A request works in the year named by the `X-Academic-Year` header, else the current year. An unknown year is a 422.
 - **Terms (planned).** Each year has terms: school 3, college 2 semesters, coaching one "Full year" term. Names and dates are editable per client. Dates default to an even split by months. The terms step of Year Setup must be confirmed by an admin before exams can be created in that year.
@@ -508,6 +509,7 @@ Owner decisions are answers from the product owner. "Technical" decisions were m
 | D46 | Publishing records who published as well as when (`exams.published_by`). This revises D31; the audit of exam changes still waits for step 2.6 | owner (product, via the technical change list) |
 | D47 | Guardian code requests are limited per phone hash (3 a minute) and per IP (20 a minute), as two separate limits. In production, a request is refused with 503 and a clear message when no working notifier is configured (the log driver sends nothing, so it does not count) | technical (owner-requested) |
 | D48 | `students/{id}/scores` must stay within its existing query budget. Its budget is not raised; the query count is brought down in R9 | technical (owner-requested, R9) |
+| D49 | Owner (final class): students in the final class (highest sort order) of a year that closes end with status `left` when they are not enrolled in the year that starts. The change happens when a year becomes current. Status `left` is used because there is no `completed` status | owner (answer to the final-class question) |
 | D40 | No redirects were needed in R8: the only section-level page is the classroom page, which replaces no earlier page. The old section cards stay on the Academic page, linked to the class page | technical (R8) |
 | Q1 | Attendance is per day, per session or per period, chosen by `attendance.mode`. The `period` column holds 0 for the day or the period's id (R3). Replaces the earlier per-day answer | owner (R3 brief) |
 | Q2 | Leave is excluded from the attendance percentage; release note | owner |

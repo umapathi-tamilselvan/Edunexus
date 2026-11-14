@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\DB;
  */
 class MakeAcademicYearCurrent
 {
-    public function __construct(private AcademicYearContext $academicYear) {}
+    public function __construct(private AcademicYearContext $academicYear, private CompleteFinalClass $completeFinalClass) {}
 
     public function handle(AcademicYear $year): AcademicYear
     {
@@ -21,6 +21,13 @@ class MakeAcademicYearCurrent
 
             AcademicYear::query()->whereKeyNot($year->getKey())->where('is_current', true)->update(['is_current' => false]);
             AcademicYear::query()->whereKey($year->getKey())->update(['is_current' => true]);
+
+            // The year before this one has closed: its final class is complete (D49).
+            $closedYear = AcademicYear::query()->where('starts_on', '<', $year->starts_on)->orderByDesc('starts_on')->first();
+
+            if ($closedYear !== null) {
+                $this->completeFinalClass->handle($closedYear, $year);
+            }
 
             // Bulk updates fire no model events, so the cached years are forgotten here.
             $this->academicYear->forgetYears();

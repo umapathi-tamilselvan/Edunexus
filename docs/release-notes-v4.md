@@ -84,3 +84,7 @@ Previously, distribution moved returning students into the **same** class (match
 ## Subject teachers can mark the daily sheet, and each sheet records who submitted it
 
 In daily mode a subject teacher of a section can now mark its daily attendance, as well as the class teacher. Each attendance sheet records who submitted it and when; later edits by someone else do not change that.
+
+## Students in the final class leave when the year closes
+
+When a new year becomes current, students in the final class of the year that closed, and not enrolled in the new year, are marked **left**. Students who move up are not affected.
