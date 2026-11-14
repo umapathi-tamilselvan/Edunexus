@@ -173,7 +173,7 @@ Each role gets its own home. **Planned** except the generic dashboard.
 - Marks are entered one section and one subject at a time. Each student gets a mark from 0 to the paper's maximum, or is absent. A blank mark removes the entry.
 - Anyone with `exam.manage` enters marks for any section. A user with `exam.enter_marks` enters marks only for a section they teach that subject to.
 - An exam's maximum and a paper's maximum cannot drop below marks already entered under them. A paper set back to the exam's maximum is removed.
-- An exam with marks cannot be deleted.
+- An exam with marks cannot be deleted. The exam response carries `has_marks` (true once any mark exists). It replaced `marks_count` in step 0.4.
 - Changes to exams and papers are not yet audited (step 2.6). Marks are audited.
 
 **Score out of 5 (built, lifetime).** Every exam a student has taken, in any year, counts equally:
@@ -369,12 +369,12 @@ One commit per step, full suite green before each. Commits and behaviour changes
 | 0.1 | attendance and holiday tests | `b66e53b` |
 | 0.2 | fee ledger tests | `17b464e` |
 | 0.3 | teacher visibility: set-based subquery and two indexes; tests for subject-teacher, timetable and year visibility | `ab44dfe` |
+| 0.4 | exam list and detail show `has_marks` (boolean, `withExists`) in place of `marks_count`; the flag decides whether an exam can be deleted | this commit (its hash is recorded in the next commit) |
 
 **Remaining, in order**
 
 | Step | What | Size | Status |
 | --- | --- | --- | --- |
-| 0.4 | `has_marks` (boolean, `withExists`) replaces `marks_count` on exams; the one exam test updated | S | not started |
 | 0.5 | `attendance_records.section_id` and `academic_year_id` snapshot; `attendance_sheets` table; backfill | M | waiting on owner answer Q14 |
 | 0.6 | leave excluded from the attendance percentage; `docs/release-notes-v4.md` in the same commit; update the leave test | S | not started |
 | 1.1 | navigation grouped into the six areas; old paths redirect | S | not started |

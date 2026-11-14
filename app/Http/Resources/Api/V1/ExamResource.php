@@ -24,7 +24,7 @@ class ExamResource extends JsonResource
             'max_marks' => $this->max_marks,
             'starts_on' => $this->starts_on?->toDateString(),
             'ends_on' => $this->ends_on?->toDateString(),
-            'marks_count' => $this->whenCounted('marks'),
+            'has_marks' => $this->whenExistsLoaded('marks', fn (bool $exists): bool => $exists),
         ];
     }
 }
