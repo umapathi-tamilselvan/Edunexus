@@ -40,7 +40,7 @@ class MyClassrooms
     {
         $sections = Section::query()
             ->taughtBy($user, $year->id)
-            ->with(['schoolClass:id,name,sort_order', 'classTeacher:id,name'])
+            ->with(['schoolClass:id,name,sort_order,academic_year_id', 'classTeacher:id,name'])
             ->withCount(['enrollments as enrolled_count' => fn ($enrollments) => $enrollments->where('status', EnrollmentStatus::Active)])
             ->get()
             ->sortBy(fn (Section $section): string => sprintf('%05d%s%s', $section->schoolClass->sort_order, $section->schoolClass->name, $section->name))
