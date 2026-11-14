@@ -12,8 +12,8 @@ use Illuminate\Support\Collection;
  * one, else the exam's maximum), every exam counts equally, and absent or
  * blank marks are left out rather than counted as zero.
  *
- * The marks passed in must have exam (with academicYear), subject and
- * enrollment.section loaded.
+ * The marks passed in must have exam (with academicYear) and subject loaded,
+ * and enrollment_class_id selected (the class of the mark's enrolment).
  */
 final class SubjectAverages
 {
@@ -24,7 +24,7 @@ final class SubjectAverages
      */
     public static function percentage(ExamMark $mark, Collection $papers): float
     {
-        $classId = $mark->enrollment->class_id;
+        $classId = $mark->enrollment_class_id;
         $maxMarks = $papers->get("{$mark->exam_id}-{$classId}-{$mark->subject_id}")?->max_marks ?? $mark->exam->max_marks;
 
         return (float) $mark->marks / $maxMarks * 100;
@@ -81,7 +81,7 @@ final class SubjectAverages
                 'exam' => $mark->exam->name,
                 'academic_year' => $mark->exam->academicYear->name,
                 'marks' => $mark->marks,
-                'max_marks' => $papers->get("{$mark->exam_id}-{$mark->enrollment->class_id}-{$mark->subject_id}")?->max_marks ?? $mark->exam->max_marks,
+                'max_marks' => $papers->get("{$mark->exam_id}-{$mark->enrollment_class_id}-{$mark->subject_id}")?->max_marks ?? $mark->exam->max_marks,
                 'percentage' => round(self::percentage($mark, $papers), 1),
             ])
             ->values();

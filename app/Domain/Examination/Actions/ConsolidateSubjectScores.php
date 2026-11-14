@@ -33,11 +33,13 @@ class ConsolidateSubjectScores
         $scale = (int) $this->organization->settingOrDefault('results.scale');
 
         $marks = ExamMark::query()
-            ->whereIn('enrollment_id', $student->enrollments()->when($academicYearId, fn ($enrollments) => $enrollments->where('academic_year_id', $academicYearId))->select('id'))
+            ->join('student_enrollments', 'student_enrollments.id', '=', 'exam_marks.enrollment_id')
+            ->select('exam_marks.*', 'student_enrollments.class_id as enrollment_class_id')
+            ->whereIn('exam_marks.enrollment_id', $student->enrollments()->when($academicYearId, fn ($enrollments) => $enrollments->where('academic_year_id', $academicYearId))->select('id'))
             ->where('is_absent', false)
             ->whereNotNull('marks')
             ->when($publishedOnly, fn ($query) => $query->whereHas('exam', fn ($exams) => $exams->whereNotNull('published_at')))
-            ->with(['exam.academicYear', 'subject', 'enrollment.section'])
+            ->with(['exam:id,name,max_marks,starts_on,academic_year_id', 'exam.academicYear:id,name,starts_on', 'subject:id,code,name'])
             ->get();
 
         $papers = ExamPaper::query()
