@@ -4,9 +4,11 @@ namespace App\Http\Controllers\Api\V1\Academic;
 
 use App\Domain\Academic\Actions\CopyAcademicYearForward;
 use App\Domain\Academic\Actions\MakeAcademicYearCurrent;
+use App\Domain\Academic\Actions\SetAdmissionsOpen;
 use App\Domain\Academic\Actions\YearSetupStatus;
 use App\Domain\Academic\Models\AcademicYear;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\V1\Academic\SetAdmissionsOpenRequest;
 use App\Http\Resources\Api\V1\AcademicYearResource;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -59,5 +61,13 @@ class AcademicYearController extends Controller
     public function makeCurrent(AcademicYear $academicYear, MakeAcademicYearCurrent $makeCurrent): AcademicYearResource
     {
         return new AcademicYearResource($makeCurrent->handle($academicYear));
+    }
+
+    /**
+     * Switches admissions on or off for the year (D44).
+     */
+    public function setAdmissions(SetAdmissionsOpenRequest $request, AcademicYear $academicYear, SetAdmissionsOpen $setAdmissionsOpen): AcademicYearResource
+    {
+        return new AcademicYearResource($setAdmissionsOpen->handle($academicYear, $request->boolean('open')));
     }
 }

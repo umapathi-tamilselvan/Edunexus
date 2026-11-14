@@ -23,7 +23,7 @@ The core modules for every type: Academic, Admission, Student, Staff, Attendance
 | Role | Who | Daily work |
 | --- | --- | --- |
 | Super Admin | the client's first user | Creates every other login; can grant the Super Admin role. Cannot be removed as the last Super Admin. |
-| Admin | office staff | Setup, people, admissions, fees. Holds every permission. |
+| Admin | office staff | Setup, people, admissions, fees. Holds every permission. Home: the office home (§2.4). |
 | Principal | head of the institution | Oversight, approvals, insights. Every permission except role and settings management. |
 | Teacher | class teachers and subject teachers | Marks attendance for their sections, enters marks for the subjects they teach, sees their own timetable and their students. |
 | Accountant | fee office | Collects payments, issues receipts, reverses entries, sees students and fee balances. |
@@ -94,13 +94,13 @@ Each step shows done, or what is missing. A step never blocks another: an admin 
 | 7 | Timetable | every section has a timetable | built; optional unless attendance mode is period (R2, R3) |
 | 8 | Bell schedule | the year has periods and a teaching period; in session mode, a session is set on them | built |
 | 9 | Holidays and weekly off days | holidays added; weekly off days set (default Sunday) | holidays built; weekly off planned |
-| 10 | Open admissions | the year is the current year (product question Q21, §9) | built |
+| 10 | Admissions open | the year's admissions-open switch is on (D44; set on the Academic page) | built |
 
 The status endpoint (`GET academic-years/{id}/setup-status`) and the checklist page (`/settings/year-setup`) are **built** (step 1.3). The status of each step is what the checklist shows; nothing is blocked.
 
 ### 2.4 Home per role
 
-Each role gets its own home. The Teacher home and the Principal home are **built** (step 1.2). Principal, Admin and Super Admin see the Principal home, until the Admin home is decided (Q20, §9). The Guardian home is the mobile app (R7). The Accountant home is **planned**; other roles see the generic dashboard.
+Each role gets its own home. The Teacher home and the Principal home are **built** (step 1.2). Principal sees the leadership home. Admin and Super Admin see the office home (Q20, D43). Admin and Super Admin get the **office home** (D43, built): Year Setup progress, classrooms without a class teacher, and pending admissions, with fee collection added once Finance exists. The Guardian home is the mobile app (R7). The Accountant home is **planned**; other roles see the generic dashboard.
 
 | Role | Shows |
 | --- | --- |
@@ -117,6 +117,7 @@ Each role gets its own home. The Teacher home and the Principal home are **built
 - Exactly one academic year is current. A year starts on the 1st of the institution's start month (`academic_year.start_month`) and is named after it (`2026-27`).
 - Years never overlap. A new year must start after the year before it ends.
 - `POST academic-years/next` opens the year after the current one and copies classes, sections with their capacities, class subjects and the bell schedule. Class teachers, subject teachers and the timetable are not copied. Only one year can be open ahead of the current one. It does not become current until `make-current`.
+- Admissions are open or closed per year. An admin switches the year's `admissions_open` on or off (D44); the Year Setup step "Admissions open" is done while it is on. The switch does not block applications.
 - Years are never edited or created by hand. Their names and dates are not patched.
 - A request works in the year named by the `X-Academic-Year` header, else the current year. An unknown year is a 422.
 - **Terms (planned).** Each year has terms: school 3, college 2 semesters, coaching one "Full year" term. Names and dates are editable per client. Dates default to an even split by months. The terms step of Year Setup must be confirmed by an admin before exams can be created in that year.
@@ -581,7 +582,7 @@ Conventions: every table has `id` and timestamps unless noted. Foreign keys are 
 
 | Table | Key columns and rules |
 | --- | --- |
-| `academic_years` | name (unique), starts_on, ends_on, is_current (one at a time) |
+| `academic_years` | name (unique), starts_on, ends_on, is_current (one at a time), admissions_open (default off; D44) |
 | `classes` | academic_year_id, name, sort_order; unique (year, name) |
 | `sections` | class_id, name, capacity, class_teacher_id (nullable, → users); unique (class, name) |
 | `subjects` | code (unique), name |
@@ -647,11 +648,12 @@ All under `/api/v1`. `entitled` is the module gate; `can` the permission. Full l
 | --- | --- |
 | Auth | `auth/login`, `auth/logout`, `auth/tokens`, `auth/tokens/current`, `me`, `branding` |
 | Users and roles | `users` (list, create), `users/{id}/roles`, `users/{id}/subjects`, `roles` (read) |
-| Academic | `academic-years` (list, show, `next`, `{id}/make-current`), `academic-years/{id}/classes`, `classes/{id}` (update, delete, subjects, subject teacher), `sections` (show, store, update, delete, subject teacher), `subjects` (list, create, update, teachers), `academic-years/{id}/periods` (list, create), `periods/{id}` (update, delete), `sections/{id}/timetable` (show, set, clear), `me/timetable`, `me/teaching`, `teachers`, `teachers/workload`, `academic-years/{id}/holidays` (list, create), `holidays/{id}` (delete), `academic-years/{id}/setup-status`, `classes/{id}/teacher-grid` (show, save), `classes/{id}/classrooms` (create) |
+| Academic | `academic-years` (list, show, `next`, `{id}/make-current`), `academic-years/{id}/classes`, `classes/{id}` (update, delete, subjects, subject teacher), `sections` (show, store, update, delete, subject teacher), `subjects` (list, create, update, teachers), `academic-years/{id}/periods` (list, create), `periods/{id}` (update, delete), `sections/{id}/timetable` (show, set, clear), `me/timetable`, `me/teaching`, `teachers`, `teachers/workload`, `academic-years/{id}/holidays` (list, create), `holidays/{id}` (delete), `academic-years/{id}/setup-status`, `academic-years/{id}/admissions` (set open or closed; `academic.manage`), `classes/{id}/teacher-grid` (show, save), `classes/{id}/classrooms` (create) |
 | Students | `students` (list, create, show, update), `students/{id}/guardians` (add, remove), `students/{id}/enrollments`, `enrollments/{id}`, `students/{id}/attendance`, `students/{id}/scores`, `students/{id}/fees`, `classes/{id}/students/distribute` |
 | Admissions | `admissions` (list, create, show, update), `admissions/{id}/decision`, `admissions/{id}/admit` |
 | Attendance | `sections/{id}/attendance` (show with `date` and `period_id`; save with `date`, `period_id` and `entries`), `attendance/day-summary` |
 | Examinations | `academic-years/{id}/exams` (list, create), `exams/{id}` (show, update, delete), `exams/{id}/classes/{class}/subjects/{subject}/max-marks`, `exams/{id}/marks` (show, save), `exams/{id}/sections/{section}/mark-sheets` (subject status), `exams/{id}/publish`, `exams/{id}/unlock`, `me/classrooms` (the teacher's classrooms and today's due attendance and marks), `sections/{section}/results` (academic and attendance scores for the year), `students/{id}/scores` (academic and attendance scores, lifetime) |
 | Fees | `fee-heads` (list, create), `fee-dues` (create), `enrollments/{id}/payments` (collect), `fee-entries/{id}/reverse`, `receipts/{id}`, `sections/{id}/fees` |
 | Settings | `settings` (show, save; `settings.manage`) |
+| Office home (D43) | `home/office` (Year Setup progress, classrooms without a class teacher, pending admissions) |
 | Guardian (R7) | `guardian/otp` (send a code), `guardian/otp/verify` (sign in), `guardian/children`, `guardian/children/{student}/attendance`, `guardian/children/{student}/marks`, `guardian/children/{student}/scores` (each child checked by GuardianPolicy) |

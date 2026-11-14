@@ -6,14 +6,19 @@ import RoleBadge from '../../components/RoleBadge.vue';
 import { navigation } from '../navigation';
 import { session } from '../session';
 import LeadershipHome from './homes/LeadershipHome.vue';
+import OfficeHome from './homes/OfficeHome.vue';
 import TeacherHome from './homes/TeacherHome.vue';
 
 const school = window.EduNexus;
 const shortcuts = computed(() => navigation.value.filter((link) => link.to !== '/home'));
 
-/** Principals, admins and super admins get the school at a glance; teachers get their day. Everyone else gets the general home. */
+/** Admins and super admins get the office home, principals the leadership home, teachers their day. Everyone else gets the general home. */
 const home = computed(() => {
-    if (session.hasRole('Principal') || session.hasRole('Admin') || session.hasRole('Super Admin')) {
+    if (session.hasRole('Admin') || session.hasRole('Super Admin')) {
+        return 'office';
+    }
+
+    if (session.hasRole('Principal')) {
         return 'leadership';
     }
 
@@ -22,7 +27,8 @@ const home = computed(() => {
 </script>
 
 <template>
-    <LeadershipHome v-if="home === 'leadership'" />
+    <OfficeHome v-if="home === 'office'" />
+    <LeadershipHome v-else-if="home === 'leadership'" />
     <TeacherHome v-else-if="home === 'teacher'" />
 
     <div v-else class="flex flex-col gap-5 lg:gap-7.5">

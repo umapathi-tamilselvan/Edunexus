@@ -207,6 +207,14 @@ function removeHoliday(holiday) {
 
 const canOpenNextYear = computed(() => canManage.value && academicYear.years[0]?.is_current === true);
 
+/** Switches admissions on or off for the year (D44). */
+function toggleAdmissions() {
+    run(() => http.put(`/api/v1/academic-years/${year.value.id}/admissions`, { open: !year.value.admissions_open }), {
+        success: () => (year.value.admissions_open ? `Admissions are closed for ${year.value.name}.` : `Admissions are open for ${year.value.name}.`),
+        onSuccess: reloadYear,
+    });
+}
+
 function makeCurrent() {
     run(() => http.post(`/api/v1/academic-years/${year.value.id}/make-current`), {
         success: `${year.value.name} is now the current year.`,
@@ -234,6 +242,7 @@ function openNextYear() {
             title="Academic setup"
             :description="year ? `${year.name}: ${terms.classes.toLowerCase()}, ${terms.sections.toLowerCase()} and subjects. Pick another year at the top.` : `Academic years, ${terms.classes.toLowerCase()}, ${terms.sections.toLowerCase()} and subjects.`"
         >
+            <button v-if="canManage && year" type="button" class="btn-secondary" :disabled="busy" @click="toggleAdmissions">{{ year.admissions_open ? 'Close admissions' : 'Open admissions' }}</button>
             <button v-if="canManage && year && !year.is_current" type="button" class="btn-secondary" :disabled="busy" @click="makeCurrent">Make {{ year.name }} current</button>
             <button v-if="canOpenNextYear" type="button" class="btn-primary" :disabled="busy" @click="openNextYear">
                 <AppIcon name="plus" class="size-4" />

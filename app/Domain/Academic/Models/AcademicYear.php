@@ -23,8 +23,9 @@ use Illuminate\Support\Carbon;
  * @property Carbon $starts_on
  * @property Carbon $ends_on
  * @property bool $is_current
+ * @property bool $admissions_open
  */
-#[Fillable(['name', 'starts_on', 'ends_on'])]
+#[Fillable(['name', 'starts_on', 'ends_on', 'admissions_open'])]
 #[UseFactory(AcademicYearFactory::class)]
 class AcademicYear extends Model
 {
@@ -36,6 +37,7 @@ class AcademicYear extends Model
      */
     protected $attributes = [
         'is_current' => false,
+        'admissions_open' => false,
     ];
 
     protected static function booted(): void

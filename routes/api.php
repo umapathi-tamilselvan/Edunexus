@@ -24,6 +24,7 @@ use App\Http\Controllers\Api\V1\Examination\SubjectScoreController;
 use App\Http\Controllers\Api\V1\Fee\FeeController;
 use App\Http\Controllers\Api\V1\Guardian\GuardianAuthController;
 use App\Http\Controllers\Api\V1\Guardian\GuardianChildrenController;
+use App\Http\Controllers\Api\V1\Home\OfficeHomeController;
 use App\Http\Controllers\Api\V1\MeController;
 use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\Settings\ClientSettingsController;
@@ -69,6 +70,7 @@ Route::prefix('auth')->name('auth.')->group(function () {
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('me', MeController::class)->name('me');
+    Route::get('home/office', OfficeHomeController::class)->name('home.office');
 
     Route::get('roles', [RoleController::class, 'index'])->name('roles.index');
     Route::apiResource('users', UserController::class)->only(['index', 'store']);
@@ -103,6 +105,7 @@ Route::middleware(['auth:sanctum', 'entitled:academic'])->group(function () {
     Route::middleware('can:academic.manage')->group(function () {
         Route::post('academic-years/next', [AcademicYearController::class, 'next'])->name('academic-years.next');
         Route::post('academic-years/{academicYear}/make-current', [AcademicYearController::class, 'makeCurrent'])->name('academic-years.make-current');
+        Route::put('academic-years/{academicYear}/admissions', [AcademicYearController::class, 'setAdmissions'])->name('academic-years.admissions.update');
 
         Route::post('academic-years/{academicYear}/classes', [SchoolClassController::class, 'store'])->name('classes.store');
         Route::patch('classes/{schoolClass}', [SchoolClassController::class, 'update'])->name('classes.update');

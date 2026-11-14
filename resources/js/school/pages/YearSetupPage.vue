@@ -19,7 +19,7 @@ const fixes = {
     bell_schedule: { to: '/daily/timetable', label: 'Add periods' },
     timetable: { to: '/daily/timetable', label: 'Fill the timetable' },
     holidays: { to: '/settings/academic', label: 'Add holidays' },
-    admissions: { to: '/people/admissions', label: 'Open admissions' },
+    admissions: { to: '/settings/academic', label: 'Open admissions' },
 };
 
 const { busy, error, message, run } = useBusyNotice();

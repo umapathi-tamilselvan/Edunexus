@@ -97,8 +97,8 @@ class YearSetupStatus
             [
                 'key' => 'admissions',
                 'label' => 'Admissions open',
-                'done' => $year->is_current,
-                'detail' => $year->is_current ? 'This is the current year.' : 'Make this the current year when it starts.',
+                'done' => $year->admissions_open,
+                'detail' => $year->admissions_open ? 'Admissions are open for this year.' : 'Switch admissions on when this year is ready to take applications.',
             ],
         ];
     }

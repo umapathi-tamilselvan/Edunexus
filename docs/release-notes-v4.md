@@ -68,3 +68,9 @@ Guardians see each linked child's attendance (the year's summary, today, and a c
 Sign-in codes are limited to three requests a minute per phone number, and separately to twenty a minute per IP address. On a production school with no message service set up, a code request is refused with a clear message instead of appearing to succeed.
 
 A published exam now records who published it as well as when. A parent's app shows the year's scores; the lifetime scores stay on the staff profile.
+
+## Admin and Super Admin get an office home; admissions have an open switch
+
+Admin and Super Admin land on an **office home**: Year Setup progress, the classrooms that have no class teacher, and the applications waiting for a decision. Principals keep the leadership home.
+
+Each academic year now has an **admissions open** switch, on the Academic page. The Year Setup step "Admissions open" is done when it is on. Every existing year starts with it off, so that step is open until an admin switches it on.
