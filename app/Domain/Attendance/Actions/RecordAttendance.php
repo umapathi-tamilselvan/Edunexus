@@ -6,6 +6,7 @@ use App\Domain\Academic\Models\Section;
 use App\Domain\Attendance\Enums\AttendanceStatus;
 use App\Domain\Attendance\Jobs\AbsenceAlert;
 use App\Domain\Attendance\Models\AttendanceRecord;
+use App\Domain\Attendance\Models\AttendanceSheet;
 use App\Domain\Identity\Models\User;
 use App\Support\BulkAudit;
 use App\Support\OrganizationContext;
@@ -61,6 +62,8 @@ class RecordAttendance
         $newlyAbsent = [];
 
         $counts = DB::transaction(function () use ($day, $period, $entries, $markedBy, &$newlyAbsent): array {
+            $submitted = collect($entries)->contains(fn (array $entry): bool => $entry['status'] !== null);
+
             $marked = AttendanceRecord::query()
                 ->whereIn('enrollment_id', array_map(fn (array $entry): int => (int) $entry['enrollment_id'], $entries))
                 ->where('date', $day)
@@ -111,6 +114,23 @@ class RecordAttendance
 
             if ($rows !== []) {
                 AttendanceRecord::query()->upsert($rows, ['enrollment_id', 'date', 'period'], ['status', 'remark', 'marked_by']);
+            }
+
+            // The sheet records who submitted it: the first save sets it, later saves keep it (D41).
+            if ($submitted) {
+                AttendanceSheet::query()->upsert(
+                    [[
+                        'section_id' => $section->id,
+                        'date' => $day,
+                        'period' => $period,
+                        'submitted_by' => $markedBy->id,
+                        'submitted_at' => now(),
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]],
+                    ['section_id', 'date', 'period'],
+                    ['updated_at'],
+                );
             }
 
             if ($cleared !== []) {

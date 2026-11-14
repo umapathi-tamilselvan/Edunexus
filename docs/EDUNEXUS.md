@@ -160,6 +160,7 @@ Each role gets its own home. The Teacher home and the Principal home are **built
 
 **Built.**
 
+- A sheet records who submitted it and when (`attendance_sheets`, D41). The first save sets both; later edits do not change them. A sheet saved before this release gets its submitter at its next save.
 - Attendance is taken in one of three modes, chosen by the client (`attendance.mode`, §6). **Daily** (the default): one sheet per section per day. **Session**: one sheet per session, morning or afternoon, per section per day. **Period**: one sheet per timetable period, per section per day (R3).
 - A session is the teaching periods that share a session value (`periods.session`: morning or afternoon). Its sheet is recorded against its first teaching period by sort order. A period with no session belongs to no session.
 - In period mode the sheet is for a period the section has on the timetable that weekday. Year Setup then requires the timetable (§2.3).
@@ -167,7 +168,7 @@ Each role gets its own home. The Teacher home and the Principal home are **built
 - A sheet is saved in one write: one read, one upsert, at most one delete. Changes to saved records are audited in bulk with old and new values. Unchanged saves write nothing.
 - A day cannot be marked if it is a holiday (the holiday's name is shown), in the future, or outside the selected year.
 - A holiday cannot be added to a day that already has attendance. Clear the attendance first.
-- Who may mark (`AttendancePolicy`, by mode). Anyone with `attendance.edit_late` (Principal, Admin, Super Admin) may mark any day. Otherwise, with `attendance.mark`: in daily mode, the section's class teacher; in session mode, the class teacher or the teacher of the session's first period on the timetable; in period mode, the teacher of that period on the timetable. Every such teacher marks within the edit window (`attendance.edit_window_days`, default 0: the day itself).
+- Who may mark (`AttendancePolicy`, by mode). Anyone with `attendance.edit_late` (Principal, Admin, Super Admin) may mark any day. Otherwise, with `attendance.mark`: in daily mode, the section's class teacher or a subject teacher of it (D41); in session mode, the class teacher or the teacher of the session's first period on the timetable; in period mode, the teacher of that period on the timetable. Every such teacher marks within the edit window (`attendance.edit_window_days`, default 0: the day itself).
 - Units. A unit is one record: a day, a session or a period. Present and late count 1, half day 0.5, absent 0. **Leave is left out** of both attended and marked units, so it does not change the percentage (release note). The summary keeps the field names `days_marked` and `days_attended`; they count units (D24).
 - A student's summary (`students/{id}/attendance`): units marked, units attended, the percentage, the count per status, and the last 30 missed units, each with its session or period id when there is one.
 - When a save marks a student absent who was not absent before, the student's primary guardian gets a notice after the save commits. It is sent by the `AbsenceAlert` job on the `critical` queue (3 tries, 5 s then 30 s backoff, 60 s timeout) through `GuardianNotifier`. The driver is `log` by default, which writes to the application log and sends nothing. `whatsapp` sends the WhatsApp Business API template named in the client's `.env` (`WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_ABSENCE_TEMPLATE`, `WHATSAPP_TEMPLATE_LANGUAGE`; `EDUNEXUS_GUARDIAN_NOTIFIER=whatsapp` selects it). A driver that fails makes the job retry.
@@ -175,7 +176,6 @@ Each role gets its own home. The Teacher home and the Principal home are **built
 **Planned.**
 
 - Weekly off days (`weekly_off_days`, default Sunday) cannot be marked; they are excluded like holidays.
-- A sheet record (`attendance_sheets`) stores who submitted the sheet and when. The first save sets both; later edits do not change them.
 - Attendance rows keep the section and academic year the student was in when marked (step 0.5, waiting on owner answer Q14).
 - Staff attendance is per day (§3.8).
 
@@ -607,6 +607,7 @@ Conventions: every table has `id` and timestamps unless noted. Foreign keys are 
 
 | Table | Key columns and rules |
 | --- | --- |
+| `attendance_sheets` (D41) | section_id, date, period (0 = whole day), submitted_by, submitted_at (set by the first save); unique (section, date, period). Step 0.5's snapshot columns and backfill are not part of it |
 | `attendance_records` | enrollment_id, date, period (0 = whole day; otherwise the `periods.id` of the session or period, R3), status (varchar 20; the enum is in code), remark, marked_by; unique (enrollment, date, period); index (date, status). Planned additions: `section_id`, `academic_year_id` (step 0.5) |
 
 **Examinations (built)**
@@ -630,7 +631,6 @@ Conventions: every table has `id` and timestamps unless noted. Foreign keys are 
 
 | Table | Purpose | Phase |
 | --- | --- | --- |
-| `attendance_sheets` | one per section and day: submitter, first-save time; unique (section, date) | 0.5 |
 | `class_teacher_assignments` | section, teacher, from and to dates | 5.1 |
 | `terms` | per year: name, sequence, starts_on, ends_on; unique (year, sequence) | 2.1 |
 | `staff` | person; optional `user_id` (unique); employee code; name; phone (encrypted, hashed); designation; department; joined and left dates | 3.1 |

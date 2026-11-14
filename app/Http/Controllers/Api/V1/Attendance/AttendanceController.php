@@ -8,6 +8,7 @@ use App\Domain\Attendance\Actions\RecordAttendance;
 use App\Domain\Attendance\Actions\SummarizeAttendance;
 use App\Domain\Attendance\Enums\AttendanceStatus;
 use App\Domain\Attendance\Models\AttendanceRecord;
+use App\Domain\Attendance\Models\AttendanceSheet;
 use App\Domain\Student\Enums\EnrollmentStatus;
 use App\Domain\Student\Models\Student;
 use App\Domain\Student\Models\StudentEnrollment;
@@ -61,6 +62,13 @@ class AttendanceController extends Controller
             ->orderBy('roll_no')
             ->get();
 
+        $sheet = $stored === null ? null : AttendanceSheet::query()
+            ->where('section_id', $section->id)
+            ->where('date', $day)
+            ->where('period', $stored)
+            ->with('submittedBy:id,name')
+            ->first();
+
         $closed = RecordAttendance::closedReason($section, $date);
         $access = $stored === null
             ? Response::deny($mode === 'session'
@@ -80,6 +88,10 @@ class AttendanceController extends Controller
                 'section' => ['id' => $section->id, 'name' => $section->name, 'class' => ['id' => $section->schoolClass->id, 'name' => $section->schoolClass->name]],
                 'periods' => $options,
                 'period_id' => $periodId,
+                'submitted' => $sheet === null ? null : [
+                    'by' => $sheet->submittedBy === null ? null : ['id' => $sheet->submittedBy->id, 'name' => $sheet->submittedBy->name],
+                    'at' => $sheet->submitted_at->toIso8601String(),
+                ],
                 'can_mark' => $closed === null && $access->allowed(),
                 'closed_reason' => $closed ?? ($access->allowed() ? null : $access->message()),
                 'summary' => $summary,

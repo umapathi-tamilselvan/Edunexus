@@ -3,6 +3,7 @@
 namespace App\Domain\Attendance\Policies;
 
 use App\Domain\Academic\Models\Section;
+use App\Domain\Academic\Models\SectionSubjectTeacher;
 use App\Domain\Academic\Models\TimetableEntry;
 use App\Domain\Attendance\Models\AttendanceRecord;
 use App\Domain\Identity\Enums\Permission;
@@ -19,7 +20,7 @@ class AttendancePolicy
      * Anyone with attendance.edit_late marks any section on any day. With
      * attendance.mark, who may mark depends on the attendance mode:
      *
-     * - daily: the section's class teacher;
+     * - daily: the section's class teacher or a subject teacher of it (D41);
      * - session: the class teacher, or the teacher of the session's first period;
      * - period: the teacher of that period on the timetable.
      *
@@ -54,8 +55,16 @@ class AttendancePolicy
         return match ($this->organization->settingOrDefault('attendance.mode')) {
             'session' => $isClassTeacher || $this->slotTeacherId($section, $date, $period) === $user->id,
             'period' => $this->slotTeacherId($section, $date, $period) === $user->id,
-            default => $isClassTeacher,
+            default => $isClassTeacher || $this->teachesSection($user, $section),
         };
+    }
+
+    /**
+     * Whether the user is a subject teacher of the section (D41).
+     */
+    private function teachesSection(User $user, Section $section): bool
+    {
+        return SectionSubjectTeacher::query()->where('section_id', $section->id)->where('teacher_id', $user->id)->exists();
     }
 
     /**
@@ -79,7 +88,7 @@ class AttendancePolicy
         return match ($this->organization->settingOrDefault('attendance.mode')) {
             'session' => 'Only the class teacher, or the teacher of this session\'s first period, marks it.',
             'period' => 'Only the teacher of this period on the timetable marks it.',
-            default => 'Only this section\'s class teacher marks its attendance.',
+            default => 'Only this section\'s class teacher and subject teachers mark its attendance.',
         };
     }
 }

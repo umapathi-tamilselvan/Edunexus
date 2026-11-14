@@ -80,3 +80,7 @@ Each academic year now has an **admissions open** switch, on the Academic page. 
 A student's enrolment now records its class first. Admissions take the application's class; a section can be given at admission or left for later. **Distribute students** moves last year's students into the next class (by sort order) and places every student of the class who has no section into its classrooms.
 
 Previously, distribution moved returning students into the **same** class (matched by name). That is corrected.
+
+## Subject teachers can mark the daily sheet, and each sheet records who submitted it
+
+In daily mode a subject teacher of a section can now mark its daily attendance, as well as the class teacher. Each attendance sheet records who submitted it and when; later edits by someone else do not change that.

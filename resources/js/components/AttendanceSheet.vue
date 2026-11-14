@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
-import { formatDate } from '../lib/format';
+import { formatDate, formatDateTime } from '../lib/format';
 import { http } from '../lib/http';
 import { useBusyNotice } from '../school/composables/useBusyNotice';
 import { terms } from '../school/terms';
@@ -114,6 +114,10 @@ watch(
     <div class="flex flex-col">
         <AlertMessage v-if="notice" tone="success" class="m-5 lg:mx-7.5">{{ notice }}</AlertMessage>
         <AlertMessage v-if="error.message" class="m-5 lg:mx-7.5">{{ message }}</AlertMessage>
+
+        <p v-if="sheet?.submitted" class="px-5 pt-4 text-2sm text-gray-600 lg:px-7.5">
+            Submitted by {{ sheet.submitted.by?.name ?? 'an earlier user' }} on {{ formatDateTime(sheet.submitted.at) }}.
+        </p>
 
         <div v-if="sheet && (sheet.periods.length || sheet.mode !== 'daily')" class="flex flex-wrap items-end justify-between gap-3 px-5 pt-4 lg:px-7.5">
             <FormField v-if="sheet.periods.length" :label="periodNoun" class="w-full sm:w-64">
