@@ -61,7 +61,7 @@ class RecordAttendance
         $day = $date->toDateString();
         $newlyAbsent = [];
 
-        $counts = DB::transaction(function () use ($day, $period, $entries, $markedBy, &$newlyAbsent): array {
+        $counts = DB::transaction(function () use ($section, $day, $period, $entries, $markedBy, &$newlyAbsent): array {
             $submitted = collect($entries)->contains(fn (array $entry): bool => $entry['status'] !== null);
 
             $marked = AttendanceRecord::query()
