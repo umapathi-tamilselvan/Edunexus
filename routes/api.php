@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\V1\Academic\AcademicYearController;
 use App\Http\Controllers\Api\V1\Academic\ClassroomController;
 use App\Http\Controllers\Api\V1\Academic\HolidayController;
+use App\Http\Controllers\Api\V1\Academic\MyClassroomsController;
 use App\Http\Controllers\Api\V1\Academic\PeriodController;
 use App\Http\Controllers\Api\V1\Academic\SchoolClassController;
 use App\Http\Controllers\Api\V1\Academic\SectionController;
@@ -83,6 +84,7 @@ Route::middleware(['auth:sanctum', 'entitled:academic'])->group(function () {
 
     Route::get('me/timetable', [TimetableController::class, 'mine'])->name('timetable.mine');
     Route::get('me/teaching', [SectionSubjectTeacherController::class, 'mine'])->name('teaching.mine');
+    Route::get('me/classrooms', MyClassroomsController::class)->name('me.classrooms');
 
     Route::middleware('can:academic.manage')->group(function () {
         Route::post('academic-years/next', [AcademicYearController::class, 'next'])->name('academic-years.next');

@@ -104,7 +104,7 @@ Each role gets its own home. The Teacher home and the Principal home are **built
 
 | Role | Shows |
 | --- | --- |
-| Teacher | today's attendance sheets they are responsible for; their timetable for today; marks due in the next 14 days (a fixed constant) |
+| Teacher (built, R6) | My classrooms: where they are class teacher first, then where they teach; attendance not yet taken today, by mode (whole day, session or period); marks not entered for unpublished exams ending within 14 days; their periods today |
 | Principal | today's attendance by section, with sheets not yet submitted; admissions by status; fee collection today (after Finance) |
 | Admin | Year Setup progress; open admissions |
 | Accountant | collections today; defaulters |
@@ -409,7 +409,7 @@ One commit per step, full suite green before each. Commits and behaviour changes
 | R3 | attendance modes: daily, session, period; `periods.session`; AttendancePolicy by mode; percentage in units (replaces Q1); absence alerts through `GuardianNotifier` | this commit (no tests; R9 owes them) |
 | R4 | marks entry per classroom (step 2.4): `exam_mark_sheets`, bulk save, publish and unlock | this commit (no tests; R9 owes them) |
 | R5 | scale of 10 for academic and attendance scores, shown per subject and overall (replaces Q9); Q19 | this commit (no tests; R9 owes them) |
-| R6 | teacher home "My classrooms" | not started |
+| R6 | teacher home "My classrooms" | this commit (no tests; R9 owes them) |
 | R7 | guardian login by OTP, and guardian endpoints scoped to linked children | not started |
 | R8 | navigation: Classrooms under People; old section pages route to the classroom page; final doc pass | not started |
 | R9 | tests and query-count budgets for R1–R8 | owed |
@@ -492,6 +492,7 @@ Owner decisions are answers from the product owner. "Technical" decisions were m
 | D33 | A classroom's results cover its year. The student's score (`students/{id}/scores`) stays lifetime, as §3.6 says. The two can differ for a student with several years | technical (R5) |
 | D34 | The overall academic score averages all exam percentages, every exam counting equally, not the subject scores. It matches the rule in §3.6 | technical (R5) |
 | D35 | `students/{id}/scores` returns an object: `scale`, `academic` (overall and subjects) and `attendance`, side by side. Its previous list shape is gone. The existing score tests assert the old shape and are owed in R9 | technical (R5) |
+| D36 | Marks due on the teacher's home are exams not yet published that end within `home.marks_due_window_days` (14, §6) or have no end date. There is no due date field yet (`exams.marks_due_on`, step 2.2) | technical (R6) |
 | Q1 | Attendance is per day, per session or per period, chosen by `attendance.mode`. The `period` column holds 0 for the day or the period's id (R3). Replaces the earlier per-day answer | owner (R3 brief) |
 | Q2 | Leave is excluded from the attendance percentage; release note | owner |
 | Q3 | Late counts 1, half day 0.5 | owner |
@@ -627,6 +628,6 @@ All under `/api/v1`. `entitled` is the module gate; `can` the permission. Full l
 | Students | `students` (list, create, show, update), `students/{id}/guardians` (add, remove), `students/{id}/enrollments`, `enrollments/{id}`, `students/{id}/attendance`, `students/{id}/scores`, `students/{id}/fees`, `classes/{id}/students/distribute` |
 | Admissions | `admissions` (list, create, show, update), `admissions/{id}/decision`, `admissions/{id}/admit` |
 | Attendance | `sections/{id}/attendance` (show with `date` and `period_id`; save with `date`, `period_id` and `entries`), `attendance/day-summary` |
-| Examinations | `academic-years/{id}/exams` (list, create), `exams/{id}` (show, update, delete), `exams/{id}/classes/{class}/subjects/{subject}/max-marks`, `exams/{id}/marks` (show, save), `exams/{id}/sections/{section}/mark-sheets` (subject status), `exams/{id}/publish`, `exams/{id}/unlock`, `sections/{section}/results` (academic and attendance scores for the year), `students/{id}/scores` (academic and attendance scores, lifetime) |
+| Examinations | `academic-years/{id}/exams` (list, create), `exams/{id}` (show, update, delete), `exams/{id}/classes/{class}/subjects/{subject}/max-marks`, `exams/{id}/marks` (show, save), `exams/{id}/sections/{section}/mark-sheets` (subject status), `exams/{id}/publish`, `exams/{id}/unlock`, `me/classrooms` (the teacher's classrooms and today's due attendance and marks), `sections/{section}/results` (academic and attendance scores for the year), `students/{id}/scores` (academic and attendance scores, lifetime) |
 | Fees | `fee-heads` (list, create), `fee-dues` (create), `enrollments/{id}/payments` (collect), `fee-entries/{id}/reverse`, `receipts/{id}`, `sections/{id}/fees` |
 | Settings | `settings` (show, save; `settings.manage`) |

@@ -52,3 +52,7 @@ An exam can be **published**. Its marks and maximum marks then cannot change unt
 Scores are now out of the client's score scale (`results.scale`, default **10**, previously 5). The student's scores endpoint returns an object with the academic score (overall and per subject) and the attendance score side by side. The previous list shape is gone, so clients that read the list must read `academic.subjects` instead. The two scores are not combined; whether they should be is an open question (Q19).
 
 Each classroom has a **Results** tab with each student's academic score per subject and overall, and their attendance score for the year.
+
+## The teacher's home shows their classrooms and what is due
+
+The teacher's home lists **My classrooms**: the classrooms where they are class teacher first, then the ones where they teach. It shows attendance not yet taken today (for the whole day, a session or a period, by the school's attendance mode) and marks not yet entered for exams that are not published and end within 14 days.
