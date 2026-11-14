@@ -1,6 +1,6 @@
 # EduNexus ERP — Architecture Plan v3.2
 
-Oct 25, 2026 · Umapathi
+Oct 25, 2026 · Umapathi · corrected Nov 14, 2026 against the code (attendance, fees, roles, guardian login)
 
 **Revision note.** v3 replaces the v2 multi-tenant design (one deployment for every school, school picked from the hostname, central database). EduNexus now follows the BizFlow model: one deployment per client, configured by that client's own env files (`<code>.env` and `<code>.env.secure`) and backed by its own MySQL database and user. The fees section is unchanged from v2.
 
@@ -16,7 +16,7 @@ v3.2 prepares EduNexus for 10,000–15,000 concurrent users across all clients, 
 | 2 | Redis for sessions, cache, queues (Horizon) and rate limiting, with a per-client key prefix and Redis user; throttled token `last_used_at` | [Queues](#queues-notifications-storage-and-audit), [Security](#security-and-compliance) | built |
 | 3 | Academic year as context: start-month setting, automatic first year, next year with copy-forward, year switcher; the year create and edit endpoints are retired | [Core data model](#core-data-model) | built |
 | 4 | A teacher teaches one or more subjects; class-level subject teachers; timetable slots default to the subject teacher; workload matrix; Subjects and Subject teachers pages | [Core data model](#core-data-model) | built |
-| 5 | Minimal attendance (section-day sheets) and fee (dues, payments, receipts) modules | [Core data model](#core-data-model), [Fees](#fees-and-finance-ledger) | planned |
+| 5 | Minimal attendance (section-day sheets) and fee (dues, payments, receipts) modules | [Core data model](#core-data-model), [Fees](#fees-and-finance-ledger) | partly built: attendance built (commit `245d471`, untested until step 0.1); fees staged, not committed |
 | 6 | Database: indexes for hot queries, bulk upserts for attendance and marks sheets, queued audits, score and fee-balance projections, cursor pagination | [Performance and scale](#performance-and-scale) | planned |
 | 7 | Caching invalidated by model events: branding (ETag), `/me`, settings and terminology, timetables, a teacher's sections | [Performance and scale](#performance-and-scale) | planned |
 | 8 | Octane readiness: no request state outlives a request | [Performance and scale](#performance-and-scale) | planned |
@@ -218,11 +218,11 @@ app/
 | `section_subject_teachers` | section_id, subject_id, teacher_id | Who teaches each subject to a section; unique on (section_id, subject_id) |
 | `exams`, `exam_papers`, `exam_marks` | see [Examinations](#examinations) | Marks hang off the enrollment |
 | `students` | admission_no, name, dob, gender, photo | Identity only, no class column |
-| `guardians` | name, phone, email, user_id | One login sees all linked children |
+| `guardians` | name, phone, email, user_id | One login sees all linked children. **Not working yet:** `user_id` exists, but no code writes it and the Guardian role holds no permissions |
 | `guardian_student` | guardian_id, student_id, relation, is_primary | Enables sibling discounts |
 | `student_enrollments` | student_id, academic_year_id, section_id, roll_no, status | Unique on (student_id, academic_year_id) |
-| `attendance_records` | enrollment_id, date, period, status, marked_by | Unique on (enrollment_id, date, period). **v3.2 · planned** (not built in v3.1) |
-| `holidays` | academic_year_id, date, name | Excluded from attendance percentages. **v3.2 · planned** (not built in v3.1) |
+| `attendance_records` | enrollment_id, date, period, status, marked_by | Unique on (enrollment_id, date, period). **v3.2 · built** (commit `245d471`). Per day in use; `period` is kept for a later option |
+| `holidays` | academic_year_id, date, name | Excluded from attendance percentages. **v3.2 · built** (commit `245d471`) |
 
 **Rules built in Phase 2.**
 
@@ -294,11 +294,11 @@ The academic year is a context every screen and endpoint works in, instead of so
 
 **Attendance edits.** Teachers can edit within a configurable window (default same day). Later edits need admin rights and are audited.
 
-**v3.2 · planned.** A minimal attendance module: a section's sheet for one day is marked and saved in one bulk upsert, holidays are excluded, and the edit window above applies.
+**v3.2 · built** (commit `245d471`). A section's sheet for one day is saved with one SELECT, one upsert and at most one delete; holidays and days outside the year are refused; the edit window above applies; changes are audited in bulk. Its routes have no tests yet (step 0.1). Planned: the `attendance_sheets` table, weekly off days and leave excluded from percentages (analysis v4).
 
 ## Fees and finance ledger
 
-**v3.2 · planned.** A minimal version of this ledger (dues, payments and gapless receipts per enrollment) is built in v3.2; the rest of this section stays the design.
+**v3.2 · partly built.** A minimal version of this ledger (dues, payments, gapless receipts and reversals per enrollment) is written but **staged, not committed**. It has no SPA screen and no tests until step 0.2. The rest of this section stays the design.
 
 Fees are an append-only ledger per enrollment. Balances are derived from entries, never stored as an editable column.
 
@@ -366,7 +366,7 @@ Exams the student was absent for are left out rather than counted as zero. For e
 
 **No registration.** A client's first and only seeded user is its Super Admin, created by `edunexus:client:create`. Users with the `user.manage` permission create every other login, assign roles and set the subjects teachers teach through the API (`POST /api/v1/users`, `PUT /api/v1/users/{id}/roles`, `PUT /api/v1/users/{id}/subjects`).
 
-**RBAC.** Spatie Permission in the client database, guard `web` for both cookie and token requests. Permissions are fixed in code (`App\Domain\Identity\Enums\Permission`, e.g. `attendance.mark`, `fee.collect`). Roles are seeded per institution type and editable by the client; reseeding never overwrites a client's edits. A teacher's access is further scoped by policy: the Teacher role holds `student.view_assigned`, which shows only students enrolled, in the selected year (current by default), in sections where they are class teacher, subject teacher, or teach a timetable period. `student.view` (Accountant, Principal, Admin) shows every student. Guardian phone numbers are masked except for users with `student.manage`. Roles of clients created before this permission existed keep their previous Teacher permissions until edited.
+**RBAC.** Spatie Permission in the client database, guard `web` for both cookie and token requests. Permissions are fixed in code (`App\Domain\Identity\Enums\Permission`, e.g. `attendance.mark`, `fee.collect`). Roles are seeded per institution type. They are **not yet editable** by the client: `RoleController` is read-only, and no route writes role permissions (planned). Reseeding never overwrites a client's edits. A teacher's access is further scoped by policy: the Teacher role holds `student.view_assigned`, which shows only students enrolled, in the selected year (current by default), in sections where they are class teacher, subject teacher, or teach a timetable period. `student.view` (Accountant, Principal, Admin) shows every student. Guardian phone numbers are masked except for users with `student.manage`. Roles of clients created before this permission existed keep their previous Teacher permissions until edited.
 
 **Exam permissions.** Teachers hold `exam.view` and `exam.enter_marks`. `exam.manage` (create and change exams, set paper maximums, enter any section's marks) was added in v3.1. New clients' Principal role gets it. Existing clients add it with `edunexus:client:migrate --seed`: Super Admin and Admin pick it up automatically, while an existing Principal role keeps its permissions until a client admin grants it.
 
@@ -393,6 +393,7 @@ Exams the student was absent for are left out rather than counted as zero. For e
 | Students, student profile | `/students`, `/students/{id}` | `student.view`, `student.view_assigned` or `student.manage`; module `student` |
 | Admissions | `/admissions` | `admission.manage`; module `admission` |
 | Timetable | `/timetable` | `academic.view`; module `academic` |
+| Attendance (v3.2, built in `245d471`) | `/attendance` | `attendance.view`; module `attendance` |
 | Subject teachers, with a Workload tab (v3.2) | `/subject-teachers` | `academic.view`; module `academic` (changes need `academic.manage`) |
 | Academic setup (years, classes, sections, class subjects) | `/academic` | `academic.view`; module `academic` |
 | Subjects and their teachers (v3.2) | `/subjects` | `academic.view`; module `academic` (changes need `academic.manage`) |
