@@ -258,7 +258,7 @@ Example: 40/50 (80%) and 90/100 (90%) average 85%, a score of 8.5 out of 10.
 
 **Teacher, per term.** Measure only what the teacher controls. Each measure shows its count, and anything the teacher is not responsible for is reported separately.
 
-- **Attendance on time** = sheets the teacher submitted on time ÷ sheets they were responsible for. Responsible: each school day in the term up to today, for each section where they were class teacher on that day. Not a holiday or a weekly off day. On time: submitted by the teacher, on that day, at or before the cut-off (`attendance.cutoff_time`, default 10:00 local). Reported separately: sheets marked by someone else; days with no sheet.
+- **Attendance on time** = sheets the teacher submitted on time ÷ sheets they were responsible for. Responsible: each school day in the term up to today, for each section where they were class teacher on that day. Not a holiday or a weekly off day. Sheets saved before the submitter was recorded (D41) are reported as "submitter unknown" and are not counted against the class teacher (D51). On time: submitted by the teacher, on that day, at or before the cut-off (`attendance.cutoff_time`, default 10:00 local). Reported separately: sheets marked by someone else; days with no sheet.
 - **Marks on time** = mark sheets the teacher entered by the due date ÷ mark sheets they were responsible for. Responsible: each exam with a due date in the term, for each section and subject they teach. Reported separately: sheets entered by someone else; sheets not entered.
 - **Periods per week** = the teacher's periods on the timetable, breaks excluded, overrides included.
 - **Own section averages**: shown on the teacher's own page, with no comparison to other sections. Principal and Admin see the comparison.
@@ -424,7 +424,8 @@ One commit per step, full suite green before each. Commits and behaviour changes
 
 | Step | What | Size | Status |
 | --- | --- | --- | --- |
-| 0.5 | `attendance_records.section_id` and `academic_year_id` snapshot; `attendance_sheets` table; backfill | M | waiting on owner answer Q14; not started |
+| 0.5 | the `attendance_records.section_id` and `academic_year_id` snapshot columns, and their backfill (the `attendance_sheets` table is done, D41) | M | waiting on owner answer Q14; not started |
+| 0.7 | make `student_enrollments.class_id` required | S | after every client is migrated (D10, D45, D52) |
 | 1.6 | branding ETag | S | not started |
 | 2.1 | `terms` table, CRUD, defaults per type, admin confirmation before exams | M | not started |
 | 2.2 | `exams.term_id`, `exams.marks_due_on`, backfill, validation | S | not started |
@@ -512,6 +513,8 @@ Owner decisions are answers from the product owner. "Technical" decisions were m
 | D48 | `students/{id}/scores` must stay within its existing query budget. Its budget is not raised; the query count is brought down in R9 | technical (owner-requested, R9) |
 | D49 | Owner (final class): students in the final class (highest sort order) of a year that closes end with status `left` when they are not enrolled in the year that starts. The change happens when a year becomes current. Status `left` is used because there is no `completed` status | owner (answer to the final-class question) |
 | D50 | Owner (admissions switch): when a year's admissions are off, new applications are refused. Existing applications can still be decided and admitted | owner (answer to the admissions-switch question) |
+| D51 | Owner (sheets without a submitter): a sheet saved before the submitter was recorded is reported as "submitter unknown" on the teacher on-time measures (§3.9), and is not counted against the class teacher | owner (answer to the please-check list) |
+| D52 | Owner: keep the `attendance_sheets` table. Step 0.5 is now only the snapshot columns and their backfill. Making `student_enrollments.class_id` required is a roadmap step (0.7), after every client is migrated | owner (answer to the please-check list) |
 | D40 | No redirects were needed in R8: the only section-level page is the classroom page, which replaces no earlier page. The old section cards stay on the Academic page, linked to the class page | technical (R8) |
 | Q1 | Attendance is per day, per session or per period, chosen by `attendance.mode`. The `period` column holds 0 for the day or the period's id (R3). Replaces the earlier per-day answer | owner (R3 brief) |
 | Q2 | Leave is excluded from the attendance percentage; release note | owner |
