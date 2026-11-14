@@ -11,23 +11,17 @@ export async function loadYearStructure(yearId) {
 }
 
 /**
- * Every teacher with the subjects they teach: [{ id, name, subjects }].
- */
-export async function loadTeachers() {
-    const { data } = await http.get('/api/v1/teachers');
-
-    return data.data;
-}
-
-/**
- * Flat list of sections for dropdowns: [{ id, label, classId }].
+ * Flat list of sections for dropdowns: [{ id, label, classId, className, enrolled, capacity, full }].
  */
 export function sectionOptions(year) {
     return (year?.classes ?? []).flatMap((schoolClass) =>
         schoolClass.sections.map((section) => ({
             id: section.id,
             classId: schoolClass.id,
+            className: schoolClass.name,
             label: `${schoolClass.name} ${section.name}`,
+            enrolled: section.enrolled_count,
+            capacity: section.capacity,
             full: section.capacity !== null && section.enrolled_count >= section.capacity,
         })),
     );

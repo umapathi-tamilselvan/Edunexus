@@ -299,10 +299,11 @@ Built for deployed clients. Local and tests use database and array drivers.
 ### 4.6 SPA
 
 - Vue 3, vue-router in history mode, served by the same deployment at every non-API path. Same-origin, so no CORS.
-- Stores: `session` (user, permissions, modules), `academicYear` (selected year, sent as `X-Academic-Year`), `terms` (institution vocabulary).
-- Shared components in `resources/js/components`: AppHeader, AppSidebar, AppIcon, AppLogo, UserMenu, AcademicYearSwitcher, PageHeader, AlertMessage, EmptyState, LoadingState, FormField, SearchField, SegmentedTabs, TablePagination, RoleBadge, InitialsAvatar, LoginCard.
-- Shared helpers: `school/academic.js` (year structure, teacher list), `school/navigation.js` (the one list of pages), `lib/http.js`, `lib/errors.js`, `lib/money.js` (paise formatting; not yet used by pages).
-- Missing and to be built once in `resources/js/components` before any screen needs them: teacher picker, section picker, confirm dialog, modal, date and money formatter, loading/busy wrapper.
+- Stores: `session` (user, permissions, modules), `academicYear` (selected year, sent as `X-Academic-Year`), `terms` (institution vocabulary), `subjectsAndTeachers` (subjects and teachers, loaded once and shared; `invalidate()` after a change).
+- Shared components in `resources/js/components`: AppHeader, AppSidebar, AppIcon, AppLogo, UserMenu, AcademicYearSwitcher, PageHeader, AlertMessage, EmptyState, LoadingState, FormField, SearchField, SegmentedTabs, TablePagination, RoleBadge, InitialsAvatar, LoginCard, ConfirmDialog (every removal and every other destructive action asks first), Drawer (every form opens in a drawer; full width on phones), TeacherPicker (single: type a name; multiple: search and tick; compact: a select for dense grids), SectionPicker (sections grouped by class; optionally with enrolment counts), CheckboxChips (tick chips for roles, subjects and the like).
+- Shared composables in `resources/js/school/composables`: `useBusyNotice` (busy, success, and error state; `run()` for every request), `useListQuery` (search with a debounce, filters, paging), `useYearStructure` (the selected year's structure, reloaded when the year changes).
+- Shared helpers: `school/academic.js` (year structure and section options), `school/weekdays.js` (the weekday lists), `school/navigation.js` (the one list of pages), `lib/format.js` (dates as "1 Jun 2026", date-times in the browser's zone, rupees), `lib/http.js`, `lib/errors.js`, `lib/money.js` (paise arithmetic).
+- Pages do not copy pickers, dialogs, formatters or loading logic. A missing shared piece is built once in `resources/js/components` first.
 
 ## 5. Permissions and roles
 
@@ -369,7 +370,8 @@ One commit per step, full suite green before each. Commits and behaviour changes
 | 0.2 | fee ledger tests | `17b464e` |
 | 0.3 | teacher visibility: set-based subquery and two indexes; tests for subject-teacher, timetable and year visibility | `ab44dfe` |
 | 0.4 | exam list and detail show `has_marks` (boolean, `withExists`) in place of `marks_count`; the flag decides whether an exam can be deleted | `9010172` |
-| 0.6 | leave is left out of the attendance percentage and days marked; release notes created (`docs/release-notes-v4.md`) | this commit (its hash is recorded in the next commit) |
+| 0.6 | leave is left out of the attendance percentage and days marked; release notes created (`docs/release-notes-v4.md`) | `f1ad0c2` |
+| 1.0 | shared SPA pieces (confirm dialog, drawer, teacher and section pickers, checkbox chips, subjects and teachers store, busy and list and year composables, date and rupee formatters); every page moved onto them; forms in drawers, removals confirmed | this commit (its hash is recorded in the next commit) |
 
 **Remaining, in order**
 

@@ -1,14 +1,15 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import AlertMessage from '../../components/AlertMessage.vue';
 import EmptyState from '../../components/EmptyState.vue';
 import FormField from '../../components/FormField.vue';
 import LoadingState from '../../components/LoadingState.vue';
 import PageHeader from '../../components/PageHeader.vue';
-import { parseError } from '../../lib/errors';
+import SectionPicker from '../../components/SectionPicker.vue';
+import { formatDate } from '../../lib/format';
 import { http } from '../../lib/http';
-import { loadYearStructure, sectionOptions } from '../academic';
-import { academicYear } from '../academicYear';
+import { useBusyNotice } from '../composables/useBusyNotice';
+import { useYearStructure } from '../composables/useYearStructure';
 import { session } from '../session';
 import { terms } from '../terms';
 
@@ -23,19 +24,18 @@ const statuses = [
 /** Today in the browser's time zone, as YYYY-MM-DD. */
 const today = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 
-const year = ref(null);
+const { year, sections: allSections, loading: yearLoading } = useYearStructure();
+const { busy, notice, error, message, run } = useBusyNotice();
+
 const taughtSectionIds = ref(null);
-const sectionId = ref('');
+const sectionId = ref(null);
 const date = ref(today);
 const sheet = ref(null);
+const sheetLoading = ref(false);
 // Status and remark per enrollment, edited locally until saved.
 const marks = ref({});
-const loading = ref(true);
-const saving = ref(false);
-const notice = ref('');
-const pageError = ref('');
 
-const sections = computed(() => sectionOptions(year.value).filter((section) => taughtSectionIds.value === null || taughtSectionIds.value.includes(section.id)));
+const sections = computed(() => allSections.value.filter((section) => taughtSectionIds.value === null || taughtSectionIds.value.includes(section.id)));
 const changed = computed(() => sheet.value?.students.some((row) => marks.value[row.enrollment_id].status !== row.status || (marks.value[row.enrollment_id].remark || null) !== row.remark) ?? false);
 const summary = computed(() => {
     const counts = Object.fromEntries([...statuses.map((status) => [status.value, 0]), ['unmarked', 0]]);
@@ -48,9 +48,7 @@ const summary = computed(() => {
  * Those who change any day see every section; others see the sections
  * they teach, as class teacher or subject teacher.
  */
-async function loadSections() {
-    year.value = academicYear.selectedId ? await loadYearStructure(academicYear.selectedId) : null;
-
+async function loadTaughtSections() {
     if (session.can('attendance.edit_late') || session.can('student.view')) {
         taughtSectionIds.value = null;
 
@@ -66,8 +64,8 @@ async function loadSections() {
 }
 
 async function loadSheet() {
-    notice.value = '';
-    pageError.value = '';
+    // Only the error is cleared: the saved message stays on screen after the reload.
+    error.value = { message: '', fields: {} };
 
     if (!sectionId.value || !date.value) {
         sheet.value = null;
@@ -75,16 +73,16 @@ async function loadSheet() {
         return;
     }
 
-    loading.value = true;
+    sheetLoading.value = true;
 
     try {
         sheet.value = (await http.get(`/api/v1/sections/${sectionId.value}/attendance`, { params: { date: date.value } })).data.data;
         marks.value = Object.fromEntries(sheet.value.students.map((row) => [row.enrollment_id, { status: row.status, remark: row.remark ?? '' }]));
-    } catch (error) {
-        pageError.value = parseError(error).message;
+    } catch (failure) {
+        error.value = { message: failure.response?.data?.message ?? 'The attendance sheet could not be loaded.', fields: {} };
         sheet.value = null;
     } finally {
-        loading.value = false;
+        sheetLoading.value = false;
     }
 }
 
@@ -98,39 +96,37 @@ function markUnmarkedPresent() {
     });
 }
 
-async function save() {
-    saving.value = true;
-    notice.value = '';
-    pageError.value = '';
+function save() {
+    const entries = sheet.value.students.map((row) => ({
+        enrollment_id: row.enrollment_id,
+        status: marks.value[row.enrollment_id].status,
+        remark: marks.value[row.enrollment_id].remark || null,
+    }));
 
-    try {
-        const entries = sheet.value.students.map((row) => ({
-            enrollment_id: row.enrollment_id,
-            status: marks.value[row.enrollment_id].status,
-            remark: marks.value[row.enrollment_id].remark || null,
-        }));
-        await http.put(`/api/v1/sections/${sectionId.value}/attendance`, { date: date.value, entries });
-        await loadSheet();
-        notice.value = `Attendance for ${sheet.value.section.class.name} ${sheet.value.section.name} on ${date.value} saved.`;
-    } catch (error) {
-        const parsed = parseError(error);
-        pageError.value = Object.values(parsed.fields)[0] ?? parsed.message;
-    } finally {
-        saving.value = false;
-    }
+    return run(() => http.put(`/api/v1/sections/${sectionId.value}/attendance`, { date: date.value, entries }), {
+        success: () => `Attendance for ${sheet.value.section.class.name} ${sheet.value.section.name} on ${formatDate(date.value)} saved.`,
+        onSuccess: loadSheet,
+    });
 }
 
+// The first section the user may mark is shown; picking another loads its sheet.
+watch(
+    sections,
+    (list) => {
+        if (!list.some((section) => section.id === sectionId.value)) {
+            sectionId.value = list[0]?.id ?? null;
+        }
+    },
+);
+
+watch(sectionId, loadSheet);
+watch(date, loadSheet);
+
 onMounted(async () => {
-    try {
+    await run(async () => {
         await terms.load();
-        await loadSections();
-        sectionId.value = sections.value[0]?.id ?? '';
-        await loadSheet();
-    } catch (error) {
-        pageError.value = parseError(error).message;
-    } finally {
-        loading.value = false;
-    }
+        await loadTaughtSections();
+    });
 });
 </script>
 
@@ -139,19 +135,14 @@ onMounted(async () => {
         <PageHeader title="Attendance" :description="year ? `Daily attendance in ${year.name}.` : 'Daily attendance.'" />
 
         <AlertMessage v-if="notice" tone="success">{{ notice }}</AlertMessage>
-        <AlertMessage v-if="pageError">{{ pageError }}</AlertMessage>
+        <AlertMessage v-if="error.message">{{ message }}</AlertMessage>
 
         <section class="card">
             <div class="card-header items-end">
                 <div class="flex flex-wrap items-end gap-3">
-                    <FormField :label="`${terms.class} and ${terms.section.toLowerCase()}`" class="w-full sm:w-56">
-                        <select v-model="sectionId" class="input" :disabled="saving" @change="loadSheet">
-                            <option v-if="!sections.length" value="">No {{ terms.sections.toLowerCase() }} to mark</option>
-                            <option v-for="section in sections" :key="section.id" :value="section.id">{{ section.label }}</option>
-                        </select>
-                    </FormField>
+                    <SectionPicker v-model="sectionId" :label="`${terms.class} and ${terms.section.toLowerCase()}`" :sections="sections" :placeholder="sections.length ? 'Choose a section' : `No ${terms.sections.toLowerCase()} to mark`" :disabled="busy" class="w-full sm:w-56" />
                     <FormField label="Day" class="w-full sm:w-44">
-                        <input v-model="date" type="date" class="input" :max="today" :disabled="saving" @change="loadSheet" />
+                        <input v-model="date" type="date" class="input" :max="today" :disabled="busy" />
                     </FormField>
                 </div>
                 <div v-if="sheet?.students.length" class="flex flex-wrap gap-1.5 text-xs">
@@ -162,7 +153,7 @@ onMounted(async () => {
 
             <AlertMessage v-if="sheet && !sheet.can_mark && sheet.closed_reason" tone="warning" class="m-5 lg:mx-7.5">{{ sheet.closed_reason }}</AlertMessage>
 
-            <LoadingState v-if="loading" />
+            <LoadingState v-if="yearLoading || sheetLoading" />
 
             <EmptyState
                 v-else-if="!sections.length"
@@ -200,7 +191,7 @@ onMounted(async () => {
                                         :class="marks[row.enrollment_id].status === status.value ? status.on : 'border-gray-300 bg-white text-gray-600 hover:border-gray-400'"
                                         :title="status.label"
                                         :aria-pressed="marks[row.enrollment_id].status === status.value"
-                                        :disabled="!sheet.can_mark || saving"
+                                        :disabled="!sheet.can_mark || busy"
                                         @click="setStatus(row, status.value)"
                                     >
                                         {{ status.short }}
@@ -208,7 +199,7 @@ onMounted(async () => {
                                 </div>
                             </td>
                             <td>
-                                <input v-model="marks[row.enrollment_id].remark" class="input h-8" maxlength="255" :disabled="!sheet.can_mark || saving || !marks[row.enrollment_id].status" placeholder="Optional" />
+                                <input v-model="marks[row.enrollment_id].remark" class="input h-8" maxlength="255" :disabled="!sheet.can_mark || busy || !marks[row.enrollment_id].status" placeholder="Optional" :aria-label="`Remark for ${row.student.name}`" />
                             </td>
                         </tr>
                     </tbody>
@@ -218,8 +209,8 @@ onMounted(async () => {
             <div v-if="sheet?.can_mark && sheet.students.length" class="card-footer justify-between">
                 <p class="text-2sm text-gray-600">P present · A absent · L late · H half day · Lv leave. Click a status again to clear it.</p>
                 <div class="flex gap-2.5">
-                    <button type="button" class="btn-secondary" :disabled="saving || !summary.unmarked" @click="markUnmarkedPresent">Mark the rest present</button>
-                    <button type="button" class="btn-primary" :disabled="saving || !changed" @click="save">{{ saving ? 'Saving…' : 'Save attendance' }}</button>
+                    <button type="button" class="btn-secondary" :disabled="busy || !summary.unmarked" @click="markUnmarkedPresent">Mark the rest present</button>
+                    <button type="button" class="btn-primary" :disabled="busy || !changed" @click="save">{{ busy ? 'Saving…' : 'Save attendance' }}</button>
                 </div>
             </div>
         </section>
