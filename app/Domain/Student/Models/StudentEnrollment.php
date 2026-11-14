@@ -3,6 +3,7 @@
 namespace App\Domain\Student\Models;
 
 use App\Domain\Academic\Models\AcademicYear;
+use App\Domain\Academic\Models\SchoolClass;
 use App\Domain\Academic\Models\Section;
 use App\Domain\Attendance\Models\AttendanceRecord;
 use App\Domain\Examination\Models\ExamMark;
@@ -29,7 +30,7 @@ use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
  * @property int|null $roll_no
  * @property EnrollmentStatus $status
  */
-#[Fillable(['student_id', 'academic_year_id', 'section_id', 'roll_no', 'status'])]
+#[Fillable(['student_id', 'academic_year_id', 'class_id', 'section_id', 'roll_no', 'status'])]
 #[UseFactory(StudentEnrollmentFactory::class)]
 class StudentEnrollment extends Model implements AuditableContract
 {
@@ -95,5 +96,15 @@ class StudentEnrollment extends Model implements AuditableContract
     public function feeEntries(): HasMany
     {
         return $this->hasMany(FeeEntry::class, 'enrollment_id');
+    }
+
+    /**
+     * The class the student is enrolled in. Set even before a section (D45).
+     *
+     * @return BelongsTo<SchoolClass, $this>
+     */
+    public function schoolClass(): BelongsTo
+    {
+        return $this->belongsTo(SchoolClass::class, 'class_id');
     }
 }

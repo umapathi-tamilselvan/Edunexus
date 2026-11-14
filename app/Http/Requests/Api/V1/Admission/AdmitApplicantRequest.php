@@ -14,7 +14,7 @@ class AdmitApplicantRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'section_id' => ['required', 'integer', Rule::exists('sections', 'id')],
+            'section_id' => ['nullable', 'integer', Rule::exists('sections', 'id')],
             'admission_no' => ['nullable', 'string', 'max:30', Rule::unique('students', 'admission_no')],
             'roll_no' => ['nullable', 'integer', 'min:1', 'max:999'],
             'consent_given' => ['accepted'],

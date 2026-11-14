@@ -154,7 +154,7 @@ class AttendanceController extends Controller
         return response()->json([
             'data' => $enrollment === null ? null : [
                 'academic_year' => ['id' => $enrollment->academicYear->id, 'name' => $enrollment->academicYear->name],
-                'section' => ['id' => $enrollment->section->id, 'name' => $enrollment->section->name, 'class' => $enrollment->section->schoolClass->name],
+                'section' => $enrollment->section === null ? null : ['id' => $enrollment->section->id, 'name' => $enrollment->section->name, 'class' => $enrollment->section->schoolClass->name],
                 ...$summary,
                 'at_risk' => $summary['percentage'] !== null && $summary['percentage'] < (int) $organization->settingOrDefault('insights.at_risk.attendance_below'),
             ],

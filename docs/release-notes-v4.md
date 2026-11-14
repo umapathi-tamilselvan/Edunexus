@@ -74,3 +74,9 @@ A published exam now records who published it as well as when. A parent's app sh
 Admin and Super Admin land on an **office home**: Year Setup progress, the classrooms that have no class teacher, and the applications waiting for a decision. Principals keep the leadership home.
 
 Each academic year now has an **admissions open** switch, on the Academic page. The Year Setup step "Admissions open" is done when it is on. Every existing year starts with it off, so that step is open until an admin switches it on.
+
+## Students have a class before a section, and move up a class by sort order
+
+A student's enrolment now records its class first. Admissions take the application's class; a section can be given at admission or left for later. **Distribute students** moves last year's students into the next class (by sort order) and places every student of the class who has no section into its classrooms.
+
+Previously, distribution moved returning students into the **same** class (matched by name). That is corrected.

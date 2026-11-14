@@ -51,7 +51,7 @@ const pendingUnlink = ref(null);
 
 const yearEnrollment = computed(() => student.value?.enrollments.find((enrollment) => enrollment.academic_year.id === year.value?.id) ?? null);
 /** The student's own section stays choosable when the class is full. */
-const placementSections = computed(() => yearSections.value.map((section) => (section.id === yearEnrollment.value?.section.id ? { ...section, full: false } : section)));
+const placementSections = computed(() => yearSections.value.map((section) => (section.id === yearEnrollment.value?.section?.id ? { ...section, full: false } : section)));
 
 const drawerTitle = computed(() => {
     if (!drawer.value) {
@@ -98,7 +98,7 @@ function open(kind) {
     } else if (kind === 'guardian') {
         Object.assign(guardianForm, { name: '', phone: '', email: '', relation: 'mother', is_primary: false });
     } else {
-        Object.assign(placementForm, { section_id: yearEnrollment.value?.section.id ?? null, roll_no: yearEnrollment.value?.roll_no ?? '' });
+        Object.assign(placementForm, { section_id: yearEnrollment.value?.section?.id ?? null, roll_no: yearEnrollment.value?.roll_no ?? '' });
     }
 }
 
@@ -139,7 +139,7 @@ function savePlacement() {
         // An empty roll number keeps the current one, or takes the next free
         // one when moving section.
         const payload = rollNo === null ? {} : { roll_no: rollNo };
-        if (placementForm.section_id !== yearEnrollment.value.section.id) {
+        if (placementForm.section_id !== (yearEnrollment.value.section?.id ?? null)) {
             payload.section_id = placementForm.section_id;
         }
 
@@ -245,9 +245,9 @@ onMounted(load);
                     <ul v-if="student.enrollments.length" class="divide-y divide-gray-200">
                         <li v-for="enrollment in student.enrollments" :key="enrollment.id" class="flex items-center justify-between gap-3 px-5 py-4 text-2sm lg:px-7.5">
                             <div class="flex flex-col gap-0.5">
-                                <span class="font-medium text-gray-900">{{ enrollment.class.name }} {{ enrollment.section.name }}</span>
+                                <span class="font-medium text-gray-900">{{ enrollment.class?.name }}{{ enrollment.section ? ` ${enrollment.section.name}` : '' }}</span>
                                 <span class="text-gray-600">
-                                    {{ enrollment.academic_year.name }}<template v-if="enrollment.roll_no"> · Roll {{ enrollment.roll_no }}</template>
+                                    {{ enrollment.academic_year.name }}<template v-if="!enrollment.section"> · Not placed in a section yet</template><template v-if="enrollment.roll_no"> · Roll {{ enrollment.roll_no }}</template>
                                 </span>
                             </div>
                             <span class="capitalize" :class="enrollmentTone[enrollment.status] ?? 'badge-neutral'">{{ enrollment.status }}</span>

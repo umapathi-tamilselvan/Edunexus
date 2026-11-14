@@ -29,7 +29,7 @@ class AdmitApplicant
 
     public function handle(
         AdmissionApplication $application,
-        Section $section,
+        ?Section $section,
         string $consentMethod,
         User $actor,
         ?string $admissionNo = null,
@@ -45,7 +45,7 @@ class AdmitApplicant
                 ]);
             }
 
-            if ($section->class_id !== $application->class_id) {
+            if ($section !== null && $section->class_id !== $application->class_id) {
                 throw ValidationException::withMessages([
                     'section_id' => 'Choose a section of the class the student applied for.',
                 ]);
@@ -63,7 +63,8 @@ class AdmitApplicant
                     'relation' => $application->guardian_relation->value,
                     'is_primary' => true,
                 ]],
-                enrollment: ['section_id' => $section->id, 'roll_no' => $rollNo],
+                // The class is always carried; a section is optional and can be given later by distribution (D45).
+                enrollment: $section === null ? ['class_id' => $application->class_id] : ['section_id' => $section->id, 'roll_no' => $rollNo],
             );
 
             GuardianConsent::query()->create([

@@ -51,8 +51,8 @@ class StudentController extends Controller
             ->when($filters['section_id'] ?? $filters['class_id'] ?? null, fn (Builder $query) => $query->whereHas('enrollments', fn (Builder $enrollments) => $enrollments
                 ->where('academic_year_id', $yearId)
                 ->when($filters['section_id'] ?? null, fn (Builder $query, int $sectionId) => $query->where('section_id', $sectionId))
-                ->when($filters['class_id'] ?? null, fn (Builder $query, int $classId) => $query->whereHas('section', fn (Builder $section) => $section->where('class_id', $classId)))))
-            ->with(['enrollments' => fn ($enrollments) => $enrollments->where('academic_year_id', $yearId)->with(['academicYear', 'section.schoolClass'])])
+                ->when($filters['class_id'] ?? null, fn (Builder $query, int $classId) => $query->where('class_id', $classId))))
+            ->with(['enrollments' => fn ($enrollments) => $enrollments->where('academic_year_id', $yearId)->with(['academicYear', 'schoolClass', 'section.schoolClass'])])
             ->orderBy('name')
             ->paginate(50);
 
@@ -79,7 +79,7 @@ class StudentController extends Controller
 
         return new StudentResource($student->load([
             'guardians',
-            'enrollments' => fn ($enrollments) => $enrollments->with(['academicYear', 'section.schoolClass'])->latest('id'),
+            'enrollments' => fn ($enrollments) => $enrollments->with(['academicYear', 'schoolClass', 'section.schoolClass'])->latest('id'),
         ]));
     }
 

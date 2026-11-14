@@ -83,7 +83,11 @@ function createStudent() {
 function placement(student) {
     const enrollment = student.enrollments?.[0];
 
-    return enrollment ? `${enrollment.class.name} ${enrollment.section.name}` : 'Not enrolled';
+    if (!enrollment) {
+        return 'Not enrolled';
+    }
+
+    return enrollment.section ? `${enrollment.class.name} ${enrollment.section.name}` : `${enrollment.class.name}, not placed yet`;
 }
 
 onMounted(async () => {

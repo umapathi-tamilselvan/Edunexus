@@ -33,7 +33,7 @@ class GuardianChildrenController extends Controller
             ->whereHas('guardians', fn (Builder $guardians) => $guardians->where('user_id', $request->user()->id))
             ->with(['enrollments' => fn ($enrollments) => $enrollments
                 ->whereHas('academicYear', fn (Builder $years) => $years->where('is_current', true))
-                ->with(['section.schoolClass'])])
+                ->with(['schoolClass', 'section'])])
             ->orderBy('name')
             ->get();
 
@@ -46,8 +46,8 @@ class GuardianChildrenController extends Controller
                     'name' => $student->name,
                     'admission_no' => $student->admission_no,
                     'current' => $enrollment === null ? null : [
-                        'class' => $enrollment->section->schoolClass->name,
-                        'section' => $enrollment->section->name,
+                        'class' => $enrollment->schoolClass?->name,
+                        'section' => $enrollment->section?->name,
                         'roll_no' => $enrollment->roll_no,
                     ],
                 ];
@@ -74,7 +74,6 @@ class GuardianChildrenController extends Controller
             return response()->json(['data' => null]);
         }
 
-        $enrollment->section->loadMissing('schoolClass');
         $today = today();
         $month = Carbon::createFromFormat('Y-m', $validated['month'] ?? $today->format('Y-m'))->startOfMonth();
         $todaysRecords = $enrollment->attendance()->where('date', $today->toDateString())->get()->keyBy('period');
@@ -87,7 +86,7 @@ class GuardianChildrenController extends Controller
                 'starts_at' => $option['starts_at'],
                 'ends_at' => $option['ends_at'],
                 'status' => $todaysRecords->get($option['id'])?->status?->value,
-            ], $attendancePeriods->options($enrollment->section, $today));
+            ], $enrollment->section === null ? [] : $attendancePeriods->options($enrollment->section, $today));
 
         $monthEntries = $enrollment->attendance()
             ->whereBetween('date', [$month->toDateString(), $month->copy()->endOfMonth()->toDateString()])
@@ -105,7 +104,7 @@ class GuardianChildrenController extends Controller
         return response()->json([
             'data' => [
                 'academic_year' => ['id' => $enrollment->academicYear->id, 'name' => $enrollment->academicYear->name],
-                'section' => ['id' => $enrollment->section->id, 'name' => $enrollment->section->name, 'class' => $enrollment->section->schoolClass->name],
+                'section' => $enrollment->section === null ? null : ['id' => $enrollment->section->id, 'name' => $enrollment->section->name, 'class' => $enrollment->section->schoolClass->name],
                 'mode' => $attendancePeriods->mode(),
                 'summary' => $summarize->handle($enrollment),
                 'today' => ['date' => $today->toDateString(), 'entries' => $todaysEntries],
@@ -127,8 +126,6 @@ class GuardianChildrenController extends Controller
             return response()->json(['data' => []]);
         }
 
-        $enrollment->section->loadMissing('schoolClass');
-
         $exams = Exam::query()
             ->where('academic_year_id', $enrollment->academic_year_id)
             ->whereNotNull('published_at')
@@ -143,7 +140,7 @@ class GuardianChildrenController extends Controller
             ->get();
 
         $papers = ExamPaper::query()
-            ->where('class_id', $enrollment->section->class_id)
+            ->where('class_id', $enrollment->class_id)
             ->whereIn('exam_id', $exams->modelKeys())
             ->get()
             ->keyBy(fn (ExamPaper $paper): string => "{$paper->exam_id}-{$paper->subject_id}");

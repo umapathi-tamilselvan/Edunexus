@@ -70,11 +70,13 @@ function closeDrawer() {
 const classLabel = computed(() => details.value?.class.name ?? '');
 
 function summaryOfPlacement(result) {
+    const moved = result.promoted ? `${result.promoted} moved up from the class below. ` : '';
+
     if (result.placed === 0 && result.left_over === 0) {
-        return 'No students need a classroom this year.';
+        return `${moved}No students are waiting for a classroom.`.trim();
     }
 
-    const placed = `${result.placed} ${result.placed === 1 ? 'student' : 'students'} placed.`;
+    const placed = `${moved}${result.placed} ${result.placed === 1 ? 'student' : 'students'} placed.`;
 
     return result.left_over ? `${placed} ${result.left_over} have no seat left: add a classroom or raise a capacity.` : placed;
 }
@@ -258,7 +260,7 @@ watch(() => route.params.classId, load);
         <Drawer
             :open="drawer === 'distribute'"
             :title="`Distribute students into ${classLabel}`"
-            description="Students enrolled in this class last year, and not yet this year, are placed in the classrooms in name order, each up to its capacity."
+            description="Students who moved up from the class below, and students admitted to this class without a classroom, are placed in its classrooms in name order, each up to its capacity."
             @close="closeDrawer"
         >
             <form id="placement-form" class="flex flex-col gap-4" @submit.prevent="submitPlacement">

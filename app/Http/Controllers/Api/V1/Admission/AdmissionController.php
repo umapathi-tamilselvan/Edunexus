@@ -104,7 +104,7 @@ class AdmissionController extends Controller
     {
         return new AdmissionApplicationResource($admitApplicant->handle(
             application: $admission,
-            section: Section::query()->findOrFail($request->validated('section_id')),
+            section: $request->validated('section_id') === null ? null : Section::query()->findOrFail($request->validated('section_id')),
             consentMethod: $request->validated('consent_method'),
             actor: $request->user(),
             admissionNo: $request->validated('admission_no'),

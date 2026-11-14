@@ -87,7 +87,7 @@ class FeeController extends Controller
             'data' => $enrollment === null ? null : [
                 'enrollment_id' => $enrollment->id,
                 'academic_year' => ['id' => $enrollment->academicYear->id, 'name' => $enrollment->academicYear->name],
-                'section' => ['id' => $enrollment->section->id, 'name' => $enrollment->section->name, 'class' => $enrollment->section->schoolClass->name],
+                'section' => $enrollment->section === null ? null : ['id' => $enrollment->section->id, 'name' => $enrollment->section->name, 'class' => $enrollment->section->schoolClass->name],
                 ...$feeAccount->handle($enrollment),
             ],
         ]);
@@ -182,8 +182,8 @@ class FeeController extends Controller
             'enrollment' => [
                 'id' => $receipt->enrollment->id,
                 'academic_year' => $receipt->enrollment->academicYear->name,
-                'class' => $receipt->enrollment->section->schoolClass->name,
-                'section' => $receipt->enrollment->section->name,
+                'class' => $receipt->enrollment->section?->schoolClass->name ?? $receipt->enrollment->schoolClass?->name,
+                'section' => $receipt->enrollment->section?->name,
                 'roll_no' => $receipt->enrollment->roll_no,
             ],
         ];

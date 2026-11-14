@@ -24,7 +24,7 @@ final class SubjectAverages
      */
     public static function percentage(ExamMark $mark, Collection $papers): float
     {
-        $classId = $mark->enrollment->section->class_id;
+        $classId = $mark->enrollment->class_id;
         $maxMarks = $papers->get("{$mark->exam_id}-{$classId}-{$mark->subject_id}")?->max_marks ?? $mark->exam->max_marks;
 
         return (float) $mark->marks / $maxMarks * 100;
@@ -81,7 +81,7 @@ final class SubjectAverages
                 'exam' => $mark->exam->name,
                 'academic_year' => $mark->exam->academicYear->name,
                 'marks' => $mark->marks,
-                'max_marks' => $papers->get("{$mark->exam_id}-{$mark->enrollment->section->class_id}-{$mark->subject_id}")?->max_marks ?? $mark->exam->max_marks,
+                'max_marks' => $papers->get("{$mark->exam_id}-{$mark->enrollment->class_id}-{$mark->subject_id}")?->max_marks ?? $mark->exam->max_marks,
                 'percentage' => round(self::percentage($mark, $papers), 1),
             ])
             ->values();

@@ -325,8 +325,8 @@ async function confirmWithdraw() {
                 </template>
 
                 <template v-else-if="drawer?.kind === 'admit'">
-                    <AlertMessage v-if="!admitSections.length" tone="warning">{{ drawer.application.class.name }} has no {{ terms.sections.toLowerCase() }} yet. Add one in Academic setup first.</AlertMessage>
-                    <SectionPicker v-model="admitForm.section_id" :label="terms.section" :sections="admitSections" show-counts :error="fieldError('section_id')" />
+                    <AlertMessage v-if="!admitSections.length" tone="warning">{{ drawer.application.class.name }} has no {{ terms.sections.toLowerCase() }} yet. The student can still be admitted and placed later.</AlertMessage>
+                    <SectionPicker v-model="admitForm.section_id" :label="`${terms.section} (optional)`" :sections="admitSections" show-counts :error="fieldError('section_id')" />
                     <FormField label="Admission no." hint="Empty = the next number." :error="fieldError('admission_no')">
                         <input v-model="admitForm.admission_no" class="input" />
                     </FormField>
