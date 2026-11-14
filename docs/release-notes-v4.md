@@ -88,3 +88,7 @@ In daily mode a subject teacher of a section can now mark its daily attendance, 
 ## Students in the final class leave when the year closes
 
 When a new year becomes current, students in the final class of the year that closed, and not enrolled in the new year, are marked **left**. Students who move up are not affected.
+
+## New applications are refused while admissions are closed
+
+When a year's admissions are switched off, a new application for that year is refused with a message. Applications already made can still be decided and admitted.
