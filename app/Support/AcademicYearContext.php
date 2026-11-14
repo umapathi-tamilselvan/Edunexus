@@ -20,7 +20,7 @@ final class AcademicYearContext
 {
     public const HEADER = 'X-Academic-Year';
 
-    private const CACHE_KEY = 'academic_years';
+    private const CACHE_KEY = 'academic_years:v2';
 
     private ?int $selectedId = null;
 
