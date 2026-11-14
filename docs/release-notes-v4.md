@@ -92,3 +92,7 @@ When a new year becomes current, students in the final class of the year that cl
 ## New applications are refused while admissions are closed
 
 When a year's admissions are switched off, a new application for that year is refused with a message. Applications already made can still be decided and admitted.
+
+## Guardians can ask for at most ten sign-in codes a day
+
+A phone number can be sent at most ten sign-in codes in a day, in addition to the per-minute limit. Checking a code is not counted.

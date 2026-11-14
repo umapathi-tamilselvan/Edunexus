@@ -82,6 +82,13 @@ class AppServiceProvider extends ServiceProvider
             Limit::perMinute(20)->by('ip:'.$request->ip()),
         ]);
 
+        // Requesting a code also has a daily cap per phone hash (D47); checking a code does not.
+        RateLimiter::for('guardian-otp-send', fn (Request $request): array => [
+            Limit::perMinute(3)->by('phone:'.Guardian::hashPhone((string) $request->input('phone'))),
+            Limit::perDay(10)->by('phone-day:'.Guardian::hashPhone((string) $request->input('phone'))),
+            Limit::perMinute(20)->by('ip:'.$request->ip()),
+        ]);
+
         RateLimiter::for('login', fn (Request $request): array => [
             Limit::perMinute(5)->by(strtolower((string) $request->input('email')).'|'.$request->ip()),
             Limit::perMinute(300)->by((string) $request->ip()),

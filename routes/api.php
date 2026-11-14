@@ -48,7 +48,7 @@ Route::get('branding', BrandingController::class)->name('branding');
 
 // Guardian sign-in by phone code (§3.4, R7). Guardians hold no permissions:
 // they see only their linked children, checked by GuardianPolicy.
-Route::post('guardian/otp', [GuardianAuthController::class, 'sendCode'])->middleware('throttle:guardian-otp')->name('guardian.otp.send');
+Route::post('guardian/otp', [GuardianAuthController::class, 'sendCode'])->middleware('throttle:guardian-otp-send')->name('guardian.otp.send');
 Route::post('guardian/otp/verify', [GuardianAuthController::class, 'verifyCode'])->middleware('throttle:guardian-otp')->name('guardian.otp.verify');
 
 Route::middleware('auth:sanctum')->prefix('guardian')->name('guardian.')->group(function () {
