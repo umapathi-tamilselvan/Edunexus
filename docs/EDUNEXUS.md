@@ -43,7 +43,7 @@ Navigation is grouped by what a role does each day. Routes keep their paths wher
 | Home | Home per role (below) |
 | Daily | Attendance, My timetable, Substitutions (later), Staff attendance (planned) |
 | People | Students, Student profile, Classrooms, Staff (planned), Guardians (partial), Admissions |
-| Assessment | Exams, Marks entry, Results, Terms (planned), Report cards (later) |
+| Assessment | Exams and marks and Results, both in the classroom (R4, R5); Exam list (planned); Terms (planned); Report cards (later) |
 | Finance | Fee structures, Dues, Collection, Receipts, Defaulters (planned) |
 | Insights | Student performance, Class performance, Teacher performance (planned) |
 | Settings | Year Setup, Classes and sections, Subjects, Bell schedule, Roles, Users, Client settings |
@@ -251,7 +251,7 @@ Example: 40/50 (80%) and 90/100 (90%) average 85%, a score of 8.5 out of 10.
 - **Trend** = latest exam's percentage minus the previous exam's, in the same subject and term. Blank with fewer than two exams.
 - **Overall term percentage** = average of the subject percentages (unweighted).
 - **Section rank** (off by default; client setting): ranked among students who have a value; the rest are shown as unranked. Ties share a rank.
-- **At-risk flag** (client settings): true if attendance percentage < 75, or overall term percentage < 35, or any subject's trend ≤ −15 (a drop of 15 points or more between two exams).
+- **At-risk flag** (client settings `insights.at_risk.*`, §6; defaults 75, 35 and 15): true if attendance percentage < 75, or overall term percentage < 35, or any subject's trend ≤ −15 (a drop of 15 points or more between two exams).
 
 **Teacher, per term.** Measure only what the teacher controls. Each measure shows its count, and anything the teacher is not responsible for is reported separately.
 
@@ -319,7 +319,7 @@ Built for deployed clients. Local and tests use database and array drivers.
 
 - Vue 3, vue-router in history mode, served by the same deployment at every non-API path. Same-origin, so no CORS.
 - Stores: `session` (user, permissions, modules), `academicYear` (selected year, sent as `X-Academic-Year`), `terms` (institution vocabulary), `subjectsAndTeachers` (subjects and teachers, loaded once and shared; `invalidate()` after a change).
-- Shared components in `resources/js/components`: AppHeader, AppSidebar, AppIcon, AppLogo, UserMenu, AcademicYearSwitcher, PageHeader, AlertMessage, EmptyState, LoadingState, FormField, SearchField, SegmentedTabs, TablePagination, RoleBadge, InitialsAvatar, LoginCard, ConfirmDialog (every removal and every other destructive action asks first), Drawer (every form opens in a drawer; full width on phones), TeacherPicker (single: type a name; multiple: search and tick; compact: a select for dense grids), SectionPicker (sections grouped by class; optionally with enrolment counts), CheckboxChips (tick chips for roles, subjects and the like).
+- Shared components in `resources/js/components`: AppHeader, AppSidebar, AppIcon, AppLogo, UserMenu, AcademicYearSwitcher, PageHeader, AlertMessage, EmptyState, LoadingState, FormField, SearchField, SegmentedTabs, TablePagination, RoleBadge, InitialsAvatar, LoginCard, ConfirmDialog (every removal and every other destructive action asks first), Drawer (every form opens in a drawer; full width on phones), TeacherPicker (single: type a name; multiple: search and tick; compact: a select for dense grids), SectionPicker (sections grouped by class; optionally with enrolment counts), CheckboxChips (tick chips for roles, subjects and the like), AttendanceSheet (one section's sheet for a day, and for a session or period by mode; used by the Attendance screen and a classroom), MarksSheet (one classroom's marks for one exam, with publishing), ResultsTable (a classroom's academic and attendance scores).
 - Shared composables in `resources/js/school/composables`: `useBusyNotice` (busy, success, and error state; `run()` for every request), `useListQuery` (search with a debounce, filters, paging), `useYearStructure` (the selected year's structure, reloaded when the year changes).
 - Shared helpers: `school/academic.js` (year structure and section options), `school/weekdays.js` (the weekday lists), `school/navigation.js` (the one list of pages), `lib/format.js` (dates as "1 Jun 2026", date-times in the browser's zone, rupees), `lib/http.js`, `lib/errors.js`, `lib/money.js` (paise arithmetic).
 - Pages do not copy pickers, dialogs, formatters or loading logic. A missing shared piece is built once in `resources/js/components` first.
@@ -427,7 +427,7 @@ One commit per step, full suite green before each. Commits and behaviour changes
 | 2.2 | `exams.term_id`, `exams.marks_due_on`, backfill, validation | S | not started |
 | 2.3 | exams list, create and edit screens | M | not started |
 | 2.4 | marks entry screen with bulk upsert, bulk audit, `exam_mark_sheets` | M | delivered by R4 |
-| 2.5 | results per exam, per class | M | not started |
+| 2.5 | results per exam, per class | M | delivered by R5 (per classroom, for the year) |
 | 2.6 | audit `Exam` and `ExamPaper` | S | not started |
 | 3.1 | `staff` table, backfill, StaffController, People → Staff | M | not started |
 | 3.2 | `staff_attendance` and the per-day marking screen | M | not started |
@@ -499,6 +499,7 @@ Owner decisions are answers from the product owner. "Technical" decisions were m
 | D37 | A guardian's login is created on first sign-in, with no email and an unusable password, and linked to the guardian record. `users.email` becomes nullable for it. Guardians sign in only with codes | technical (R7) |
 | D38 | The sign-in code travels in the queued job's payload for at most its few seconds in the queue. It is never logged outside local and testing, and the log driver says a code was requested, not what it was. Only a keyed hash of the code is stored | technical (R7) |
 | D39 | Guardian sign-in is limited per phone and IP (3 a minute) with a separate limiter, not the email limiter sign-in uses, because a guardian signs in by phone | technical (R7) |
+| D40 | No redirects were needed in R8: the only section-level page is the classroom page, which replaces no earlier page. The old section cards stay on the Academic page, linked to the class page | technical (R8) |
 | Q1 | Attendance is per day, per session or per period, chosen by `attendance.mode`. The `period` column holds 0 for the day or the period's id (R3). Replaces the earlier per-day answer | owner (R3 brief) |
 | Q2 | Leave is excluded from the attendance percentage; release note | owner |
 | Q3 | Late counts 1, half day 0.5 | owner |
