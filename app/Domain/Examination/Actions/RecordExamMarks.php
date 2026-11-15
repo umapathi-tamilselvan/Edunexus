@@ -89,7 +89,7 @@ class RecordExamMarks
                 if (! $isAbsent && $entry['marks'] === null) {
                     if ($mark !== null) {
                         $deleted[] = $mark->id;
-                        $changes[] = ['id' => $mark->id, 'event' => 'deleted', 'old' => self::values($mark->marks, $mark->is_absent), 'new' => []];
+                        $changes[] = ['id' => $mark->id, 'event' => 'deleted', 'old' => self::values($mark->getRawOriginal('marks'), $mark->is_absent), 'new' => []];
                     }
 
                     continue;
@@ -103,7 +103,7 @@ class RecordExamMarks
                 }
 
                 if ($mark !== null) {
-                    $changes[] = ['id' => $mark->id, 'event' => 'updated', 'old' => self::values($mark->marks, $mark->is_absent), 'new' => self::values($marks, $isAbsent)];
+                    $changes[] = ['id' => $mark->id, 'event' => 'updated', 'old' => self::values($mark->getRawOriginal('marks'), $mark->is_absent), 'new' => self::values($marks, $isAbsent)];
                 } else {
                     // Its id is filled in after the upsert, in the same place, so the audit keeps the entry order.
                     $created[$enrollmentId] = count($changes);
@@ -165,7 +165,7 @@ class RecordExamMarks
     /**
      * @return array{marks: float|null, is_absent: bool}
      */
-    private static function values(?float $marks, bool $isAbsent): array
+    private static function values(float|string|null $marks, bool $isAbsent): array
     {
         return ['marks' => $marks, 'is_absent' => $isAbsent];
     }
