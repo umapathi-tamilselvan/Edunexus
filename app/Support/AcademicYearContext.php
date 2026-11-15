@@ -1,0 +1,99 @@
+<?php
+
+namespace App\Support;
+
+use App\Domain\Academic\Models\AcademicYear;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\ValidationException;
+
+/**
+ * The academic year a request works in: the year picked in the
+ * X-Academic-Year header (see the SelectedAcademicYear middleware), else
+ * the current year. Everything a user browses follows it.
+ *
+ * Years change about once a year, so the list of them is cached and
+ * forgotten whenever one is saved. Scoped to one request.
+ */
+final class AcademicYearContext
+{
+    public const HEADER = 'X-Academic-Year';
+
+    /** @var string|null the cache key, derived from the table's columns once per request */
+    private ?string $cacheKey = null;
+
+    private ?int $selectedId = null;
+
+    /** @var Collection<int, AcademicYear>|null */
+    private ?Collection $years = null;
+
+    /**
+     * Work in this year instead of the current one. Checked when the year
+     * is first used, so requests that never use it pay nothing.
+     */
+    public function select(int $yearId): void
+    {
+        $this->selectedId = $yearId;
+    }
+
+    /**
+     * The selected year, else the current year; null only for a client
+     * without academic years.
+     */
+    public function year(): ?AcademicYear
+    {
+        if ($this->selectedId === null) {
+            return $this->current();
+        }
+
+        return $this->years()->get($this->selectedId)
+            ?? throw ValidationException::withMessages(['academic_year' => 'The selected academic year does not exist.']);
+    }
+
+    public function id(): ?int
+    {
+        return $this->year()?->id;
+    }
+
+    public function current(): ?AcademicYear
+    {
+        return $this->years()->first(fn (AcademicYear $year): bool => $year->is_current);
+    }
+
+    /**
+     * Forget the cached years once the change that called this commits, so
+     * no request can cache the old ones again in between.
+     */
+    public function forgetYears(): void
+    {
+        $this->years = null;
+        $key = $this->cacheKey();
+
+        DB::afterCommit(fn () => Cache::forget($key));
+    }
+
+    /**
+     * The cache key is derived from the academic_years columns, so adding a
+     * column changes the key and an old cache entry is never read (see §4).
+     */
+    private function cacheKey(): string
+    {
+        return $this->cacheKey ??= 'academic_years:'.sha1(implode(',', Schema::getColumnListing((new AcademicYear)->getTable())));
+    }
+
+    /**
+     * @return Collection<int, AcademicYear> by id
+     */
+    private function years(): Collection
+    {
+        // Raw attributes rather than models keep the cached value plain data.
+        return $this->years ??= collect(Cache::remember($this->cacheKey(), now()->addHour(), fn (): array => AcademicYear::query()
+            ->get()
+            ->map(fn (AcademicYear $year): array => $year->getAttributes())
+            ->all()))
+            ->map(fn (array $attributes): AcademicYear => (new AcademicYear)->newFromBuilder($attributes))
+            ->keyBy('id');
+    }
+}

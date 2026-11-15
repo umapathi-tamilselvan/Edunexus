@@ -28,7 +28,7 @@ class AdmissionTest extends TestCase
         parent::setUp();
 
         $this->token = $this->issueToken($this->createUser(Role::Admin)->email);
-        $this->class = SchoolClass::factory()->for(AcademicYear::factory()->current()->create(['name' => '2026-27']))->create(['name' => 'Class 1']);
+        $this->class = SchoolClass::factory()->for(AcademicYear::factory()->current()->create(['name' => '2026-27', 'admissions_open' => true]))->create(['name' => 'Class 1']);
     }
 
     /**

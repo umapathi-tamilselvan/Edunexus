@@ -9,11 +9,10 @@ use Illuminate\Database\Eloquent\Attributes\UseFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
- * A subject taught at the institution, offered to classes per year. Each
- * teacher teaches one subject; a subject has many teachers.
+ * A subject taught at the institution, offered to classes per year. A
+ * teacher teaches one or more subjects; a subject has many teachers.
  *
  * @property int $id
  * @property string $code
@@ -35,10 +34,12 @@ class Subject extends Model
     }
 
     /**
-     * @return HasMany<User, $this>
+     * The teachers who teach this subject.
+     *
+     * @return BelongsToMany<User, $this>
      */
-    public function teachers(): HasMany
+    public function teachers(): BelongsToMany
     {
-        return $this->hasMany(User::class)->orderBy('name');
+        return $this->belongsToMany(User::class, 'subject_teacher')->orderBy('name');
     }
 }

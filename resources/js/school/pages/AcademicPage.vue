@@ -2,258 +2,310 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import AlertMessage from '../../components/AlertMessage.vue';
 import AppIcon from '../../components/AppIcon.vue';
+import CheckboxChips from '../../components/CheckboxChips.vue';
+import ConfirmDialog from '../../components/ConfirmDialog.vue';
+import Drawer from '../../components/Drawer.vue';
 import EmptyState from '../../components/EmptyState.vue';
 import FormField from '../../components/FormField.vue';
 import LoadingState from '../../components/LoadingState.vue';
 import PageHeader from '../../components/PageHeader.vue';
-import { parseError } from '../../lib/errors';
+import TeacherPicker from '../../components/TeacherPicker.vue';
+import { formatDate } from '../../lib/format';
 import { http } from '../../lib/http';
-import { loadAcademicYears, loadYearStructure } from '../academic';
+import { academicYear } from '../academicYear';
+import { useBusyNotice } from '../composables/useBusyNotice';
+import { useYearStructure } from '../composables/useYearStructure';
 import { session } from '../session';
+import { subjectsAndTeachers } from '../subjectsAndTeachers';
 import { terms } from '../terms';
 
 const canManage = computed(() => session.can('academic.manage'));
-const emptyError = () => ({ message: '', fields: {} });
+const { year, loading, loadFailed, reload: reloadYear } = useYearStructure();
+const { busy, notice, error, message, run, clear, fieldError } = useBusyNotice();
 
-const years = ref([]);
-const selectedYearId = ref(null);
-const year = ref(null);
-const subjects = ref([]);
-const teachers = ref([]);
-const loading = ref(true);
-const notice = ref('');
-const pageError = ref('');
+const holidays = ref([]);
+const loaded = ref(false);
 
-// Forms: one open at a time, keyed by what they create.
-const openForm = ref(null);
-const busy = ref(false);
-const formError = ref(emptyError());
-const yearForm = reactive({ name: '', starts_on: '', ends_on: '', make_current: false });
+/** The drawer's form: { kind: 'class' | 'section' | 'subjects' | 'holiday', schoolClass? }. */
+const drawer = ref(null);
 const classForm = reactive({ name: '', sort_order: 0 });
-const sectionForm = reactive({ name: '', capacity: 40, class_teacher_id: '' });
-const subjectForm = reactive({ code: '', name: '' });
+const sectionForm = reactive({ name: '', capacity: 40, class_teacher_id: null });
 const classSubjectIds = ref([]);
+const holidayForm = reactive({ date: '', name: '' });
 
-async function loadYears() {
-    years.value = await loadAcademicYears();
-    selectedYearId.value ??= (years.value.find((item) => item.is_current) ?? years.value[0])?.id ?? null;
-}
+/** A removal waiting for the user to confirm it. */
+const pending = ref(null);
 
-async function loadYear() {
-    year.value = selectedYearId.value ? await loadYearStructure(selectedYearId.value) : null;
-}
-
-async function load() {
-    loading.value = true;
-    pageError.value = '';
-
-    try {
-        await Promise.all([terms.load(), loadYears(), loadSubjects(), loadTeachers()]);
-        await loadYear();
-    } catch (error) {
-        pageError.value = parseError(error).message;
-    } finally {
-        loading.value = false;
-    }
-}
-
-async function loadSubjects() {
-    subjects.value = (await http.get('/api/v1/subjects')).data.data;
-}
-
-/** Class teachers can be picked only by users who can list users. */
-async function loadTeachers() {
-    if (!canManage.value || !session.can('user.manage')) {
-        return;
+const drawerTitle = computed(() => {
+    if (!drawer.value) {
+        return '';
     }
 
-    const { data } = await http.get('/api/v1/users');
-    teachers.value = data.data.filter((user) => user.roles.includes('Teacher'));
+    const className = drawer.value.schoolClass?.name ?? '';
+
+    return {
+        class: `Add ${terms.class.toLowerCase()}`,
+        editClass: `Edit ${className}`,
+        section: `Add ${terms.section.toLowerCase()} to ${className}`,
+        editSection: `Edit ${drawer.value.section?.name ? `${className} ${drawer.value.section.name}` : className}`,
+        subjects: `Subjects for ${className}`,
+        holiday: 'Add a holiday',
+    }[drawer.value.kind];
+});
+
+const subjectOptions = computed(() => subjectsAndTeachers.subjects.map((subject) => ({ value: subject.id, label: subject.name })));
+
+const drawerMessage = computed(() => (drawer.value && error.value.message ? message.value : ''));
+
+async function loadHolidays() {
+    holidays.value = academicYear.selectedId ? (await http.get(`/api/v1/academic-years/${academicYear.selectedId}/holidays`)).data.data : [];
 }
 
-function open(key, values = {}) {
-    openForm.value = key;
-    formError.value = emptyError();
-    notice.value = '';
+onMounted(async () => {
+    await run(async () => {
+        await Promise.all([terms.load(), subjectsAndTeachers.loadSubjects(), canManage.value ? subjectsAndTeachers.loadTeachers() : null, loadHolidays()]);
+    });
+    loaded.value = true;
+});
 
-    if (key === 'year') {
-        Object.assign(yearForm, { name: '', starts_on: '', ends_on: '', make_current: false });
-    } else if (key === 'class') {
+function openDrawer(kind, schoolClass = null, section = null) {
+    clear();
+    drawer.value = { kind, schoolClass, section };
+
+    if (kind === 'class') {
         Object.assign(classForm, { name: '', sort_order: (year.value?.classes.length ?? 0) + 1 });
-    } else if (key.startsWith('section:')) {
-        Object.assign(sectionForm, { name: '', capacity: 40, class_teacher_id: '' });
-    } else if (key === 'subject') {
-        Object.assign(subjectForm, { code: '', name: '' });
-    } else if (key.startsWith('subjects:')) {
-        classSubjectIds.value = values.subjectIds ?? [];
+    } else if (kind === 'editClass') {
+        Object.assign(classForm, { name: schoolClass.name, sort_order: schoolClass.sort_order ?? 0 });
+    } else if (kind === 'section') {
+        Object.assign(sectionForm, { name: '', capacity: 40, class_teacher_id: null });
+    } else if (kind === 'editSection') {
+        Object.assign(sectionForm, { name: section.name, capacity: section.capacity, class_teacher_id: section.class_teacher?.id ?? null });
+    } else if (kind === 'subjects') {
+        classSubjectIds.value = schoolClass.subjects.map((subject) => subject.id);
+    } else if (kind === 'holiday') {
+        Object.assign(holidayForm, { date: '', name: '' });
     }
 }
 
-async function submit(request, message, after) {
-    busy.value = true;
-    formError.value = emptyError();
+function closeDrawer() {
+    drawer.value = null;
+}
 
-    try {
-        await request();
-        openForm.value = null;
-        notice.value = message;
-        await after();
-    } catch (error) {
-        formError.value = parseError(error);
-    } finally {
-        busy.value = false;
+function submitDrawer() {
+    const { kind, schoolClass, section } = drawer.value;
+
+    if (kind === 'editClass') {
+        return run(() => http.patch(`/api/v1/classes/${schoolClass.id}`, classForm), {
+            success: `${classForm.name} saved.`,
+            onSuccess: () => {
+                closeDrawer();
+                reloadYear();
+            },
+        });
     }
-}
 
-function createYear() {
-    submit(
-        async () => {
-            const { data } = await http.post('/api/v1/academic-years', yearForm);
-            selectedYearId.value = data.data.id;
-        },
-        `Academic year ${yearForm.name} created.`,
-        async () => {
-            await loadYears();
-            await loadYear();
-        },
-    );
-}
+    if (kind === 'editSection') {
+        const payload = { ...sectionForm, capacity: sectionForm.capacity || null };
 
-function makeCurrent() {
-    submit(() => http.post(`/api/v1/academic-years/${selectedYearId.value}/make-current`), `${year.value.name} is now the current year.`, async () => {
-        await loadYears();
-        await loadYear();
+        return run(() => http.patch(`/api/v1/sections/${section.id}`, payload), {
+            success: `${schoolClass.name} ${sectionForm.name} saved.`,
+            onSuccess: () => {
+                closeDrawer();
+                reloadYear();
+            },
+        });
+    }
+
+    if (kind === 'class') {
+        return run(() => http.post(`/api/v1/academic-years/${year.value.id}/classes`, classForm), {
+            success: `${terms.class} ${classForm.name} added.`,
+            onSuccess: () => {
+                closeDrawer();
+                reloadYear();
+            },
+        });
+    }
+
+    if (kind === 'section') {
+        const payload = { ...sectionForm, capacity: sectionForm.capacity || null };
+
+        return run(() => http.post(`/api/v1/classes/${schoolClass.id}/sections`, payload), {
+            success: `${terms.section} ${schoolClass.name} ${sectionForm.name} added.`,
+            onSuccess: () => {
+                closeDrawer();
+                reloadYear();
+            },
+        });
+    }
+
+    if (kind === 'subjects') {
+        return run(() => http.put(`/api/v1/classes/${schoolClass.id}/subjects`, { subject_ids: classSubjectIds.value }), {
+            success: `Subjects for ${schoolClass.name} saved.`,
+            onSuccess: () => {
+                closeDrawer();
+                reloadYear();
+            },
+        });
+    }
+
+    return run(() => http.post(`/api/v1/academic-years/${year.value.id}/holidays`, holidayForm), {
+        success: `${holidayForm.name} added as a holiday.`,
+        onSuccess: () => {
+            closeDrawer();
+            loadHolidays();
+        },
     });
 }
 
-function createClass() {
-    submit(() => http.post(`/api/v1/academic-years/${selectedYearId.value}/classes`, classForm), `${terms.class} ${classForm.name} added.`, loadYear);
+/** Asks first, then removes: the dialog closes whatever the outcome. */
+function askRemove(config) {
+    pending.value = config;
 }
 
-function createSection(schoolClass) {
-    const payload = { ...sectionForm, class_teacher_id: sectionForm.class_teacher_id || null, capacity: sectionForm.capacity || null };
-    submit(() => http.post(`/api/v1/classes/${schoolClass.id}/sections`, payload), `${terms.section} ${schoolClass.name} ${sectionForm.name} added.`, loadYear);
+async function confirmRemove() {
+    const removal = pending.value;
+    pending.value = null;
+
+    await run(removal.action, {
+        success: removal.success,
+        onSuccess: removal.after,
+    });
 }
 
-function saveClassSubjects(schoolClass) {
-    submit(() => http.put(`/api/v1/classes/${schoolClass.id}/subjects`, { subject_ids: classSubjectIds.value }), `Subjects for ${schoolClass.name} saved.`, loadYear);
+function removeClass(schoolClass) {
+    askRemove({
+        title: `Remove ${schoolClass.name}?`,
+        message: `${schoolClass.name} and its subjects will be removed from ${year.value.name}. This cannot be undone.`,
+        confirmLabel: 'Remove',
+        action: () => http.delete(`/api/v1/classes/${schoolClass.id}`),
+        success: `${schoolClass.name} removed.`,
+        after: reloadYear,
+    });
 }
 
-function createSubject() {
-    submit(() => http.post('/api/v1/subjects', subjectForm), `Subject ${subjectForm.name} added.`, loadSubjects);
+function removeSection(schoolClass, section) {
+    askRemove({
+        title: `Remove ${schoolClass.name} ${section.name}?`,
+        message: 'The section has no students, so nothing else is lost. This cannot be undone.',
+        confirmLabel: 'Remove',
+        action: () => http.delete(`/api/v1/sections/${section.id}`),
+        success: `${schoolClass.name} ${section.name} removed.`,
+        after: reloadYear,
+    });
 }
 
-async function remove(url, message) {
-    notice.value = '';
-    pageError.value = '';
-
-    try {
-        await http.delete(url);
-        notice.value = message;
-        await loadYear();
-    } catch (error) {
-        const parsed = parseError(error);
-        pageError.value = Object.values(parsed.fields)[0] ?? parsed.message;
-    }
+function removeHoliday(holiday) {
+    askRemove({
+        title: `Remove ${holiday.name}?`,
+        message: `${formatDate(holiday.date)} will be a school day again, and attendance can be taken on it.`,
+        confirmLabel: 'Remove',
+        action: () => http.delete(`/api/v1/holidays/${holiday.id}`),
+        success: `${holiday.name} is no longer a holiday.`,
+        after: loadHolidays,
+    });
 }
 
-function changeYear() {
-    openForm.value = null;
-    loadYear();
+const canOpenNextYear = computed(() => canManage.value && academicYear.years[0]?.is_current === true);
+
+/** Switches admissions on or off for the year (D44). */
+function toggleAdmissions() {
+    run(() => http.put(`/api/v1/academic-years/${year.value.id}/admissions`, { open: !year.value.admissions_open }), {
+        success: () => (year.value.admissions_open ? `Admissions are closed for ${year.value.name}.` : `Admissions are open for ${year.value.name}.`),
+        onSuccess: reloadYear,
+    });
 }
 
-onMounted(load);
+/**
+ * Asks first, stating how many final-class students become left (§3.1). The
+ * numbers come from the server's read-only preview, so the dialog matches what happens.
+ */
+async function askMakeCurrent() {
+    const { data } = await http.get(`/api/v1/academic-years/${year.value.id}/make-current-preview`);
+    const preview = data.data;
+    const leaving = preview.students_to_leave;
+
+    pending.value = {
+        title: `Make ${year.value.name} the current year?`,
+        message: preview.closing_year === null
+            ? `${year.value.name} is the first year, so no students will change status.`
+            : leaving > 0
+                ? `${preview.closing_year.name} closes. ${leaving} ${leaving === 1 ? 'student' : 'students'} in ${preview.final_class.name} who are not enrolled in ${year.value.name} will become left. Students who move up are not affected.`
+                : `${preview.closing_year.name} closes. No students will become left.`,
+        confirmLabel: 'Make current',
+        tone: 'primary',
+        action: () => http.post(`/api/v1/academic-years/${year.value.id}/make-current`),
+        success: `${year.value.name} is now the current year.`,
+        after: async () => {
+            await academicYear.load({ force: true });
+            await reloadYear();
+        },
+    };
+}
+
+/** Years are listed newest first, so only the current year can be followed by a new one. */
+function openNextYear() {
+    const current = academicYear.years[0];
+
+    run(() => http.post('/api/v1/academic-years/next'), {
+        success: (data) => `${data.data.name} is open with the ${terms.classes.toLowerCase()}, ${terms.sections.toLowerCase()}, subjects and bell schedule of ${current.name}. Pick it at the top to assign its teachers, and make it current when it starts.`,
+        onSuccess: () => academicYear.load({ force: true }),
+    });
+}
 </script>
 
 <template>
     <div class="flex flex-col gap-5 lg:gap-7.5">
-        <PageHeader title="Academic setup" :description="`Academic years, ${terms.classes.toLowerCase()}, ${terms.sections.toLowerCase()} and subjects.`">
-            <select v-if="years.length" v-model="selectedYearId" class="input w-auto" aria-label="Academic year" @change="changeYear">
-                <option v-for="item in years" :key="item.id" :value="item.id">{{ item.name }}{{ item.is_current ? ' (current)' : '' }}</option>
-            </select>
-            <button v-if="canManage && year && !year.is_current" type="button" class="btn-secondary" :disabled="busy" @click="makeCurrent">Make current</button>
-            <button v-if="canManage" type="button" class="btn-primary" @click="open('year')">
+        <PageHeader
+            title="Academic setup"
+            :description="year ? `${year.name}: ${terms.classes.toLowerCase()}, ${terms.sections.toLowerCase()} and subjects. Pick another year at the top.` : `Academic years, ${terms.classes.toLowerCase()}, ${terms.sections.toLowerCase()} and subjects.`"
+        >
+            <button v-if="canManage && year" type="button" class="btn-secondary" :disabled="busy" @click="toggleAdmissions">{{ year.admissions_open ? 'Close admissions' : 'Open admissions' }}</button>
+            <button v-if="canManage && year && !year.is_current" type="button" class="btn-secondary" :disabled="busy" @click="askMakeCurrent">Make {{ year.name }} current</button>
+            <button v-if="canOpenNextYear" type="button" class="btn-primary" :disabled="busy" @click="openNextYear">
                 <AppIcon name="plus" class="size-4" />
-                New year
+                Open next year
             </button>
         </PageHeader>
 
         <AlertMessage v-if="notice" tone="success">{{ notice }}</AlertMessage>
-        <AlertMessage v-if="pageError">{{ pageError }}</AlertMessage>
+        <AlertMessage v-if="error.message && !drawer">{{ message }}</AlertMessage>
 
-        <form v-if="openForm === 'year'" class="card" @submit.prevent="createYear">
-            <div class="card-header">
-                <h2 class="card-title">New academic year</h2>
-                <button type="button" class="btn-icon btn-sm" aria-label="Close" :disabled="busy" @click="openForm = null">
-                    <AppIcon name="x" class="size-4.5" />
-                </button>
-            </div>
-            <div class="card-body flex flex-col gap-5">
-                <AlertMessage v-if="formError.message">{{ formError.message }}</AlertMessage>
-                <div class="grid gap-5 sm:grid-cols-3">
-                    <FormField label="Name" :error="formError.fields.name" hint="e.g. 2026-27">
-                        <input v-model="yearForm.name" required class="input" />
-                    </FormField>
-                    <FormField label="Starts on" :error="formError.fields.starts_on">
-                        <input v-model="yearForm.starts_on" type="date" required class="input" />
-                    </FormField>
-                    <FormField label="Ends on" :error="formError.fields.ends_on">
-                        <input v-model="yearForm.ends_on" type="date" required class="input" />
-                    </FormField>
-                </div>
-                <label class="flex items-center gap-2 text-2sm text-gray-700">
-                    <input v-model="yearForm.make_current" type="checkbox" class="checkbox" />
-                    Make this the current year
-                </label>
-            </div>
-            <div class="card-footer">
-                <button type="button" class="btn-secondary" :disabled="busy" @click="openForm = null">Cancel</button>
-                <button type="submit" class="btn-primary" :disabled="busy">Create year</button>
-            </div>
-        </form>
+        <LoadingState v-if="!loaded || (loading && !year)" class="card" />
 
-        <LoadingState v-if="loading" class="card" />
+        <div v-else-if="loadFailed" class="card">
+            <EmptyState icon="circle-alert" title="The year could not be loaded" description="Check your connection, then reload the page." />
+        </div>
 
-        <div v-else-if="!years.length" class="card">
-            <EmptyState
-                icon="calendar"
-                title="No academic years yet"
-                :description="`Create the first academic year to start adding ${terms.classes.toLowerCase()} and ${terms.sections.toLowerCase()}.`"
-            />
+        <div v-else-if="!academicYear.years.length" class="card">
+            <EmptyState icon="calendar" title="No academic years yet" description="The first academic year opens when the institution is set up. Ask EduNexus support if it is missing." />
         </div>
 
         <template v-else-if="year">
             <section class="flex flex-col gap-4">
                 <div class="flex flex-wrap items-center justify-between gap-3">
                     <h2 class="text-base font-semibold text-gray-900">{{ terms.classes }} in {{ year.name }}</h2>
-                    <button v-if="canManage && openForm !== 'class'" type="button" class="btn-secondary" @click="open('class')">
+                    <button v-if="canManage" type="button" class="btn-secondary" @click="openDrawer('class')">
                         <AppIcon name="plus" class="size-4" />
                         Add {{ terms.class.toLowerCase() }}
                     </button>
                 </div>
 
-                <form v-if="openForm === 'class'" class="card card-body flex flex-wrap items-end gap-3" @submit.prevent="createClass">
-                    <FormField :label="`${terms.class} name`" :error="formError.fields.name" class="min-w-48 flex-1">
-                        <input v-model="classForm.name" required class="input" :placeholder="`${terms.class} 1`" />
-                    </FormField>
-                    <FormField label="Order" :error="formError.fields.sort_order" class="w-24">
-                        <input v-model.number="classForm.sort_order" type="number" min="0" class="input" />
-                    </FormField>
-                    <button type="button" class="btn-secondary" :disabled="busy" @click="openForm = null">Cancel</button>
-                    <button type="submit" class="btn-primary" :disabled="busy">Add</button>
-                </form>
-
                 <div v-if="!year.classes.length" class="card">
-                    <EmptyState icon="academic" :title="`No ${terms.classes.toLowerCase()} yet`" :description="`No ${terms.classes.toLowerCase()} in this year yet.`" />
+                    <EmptyState
+                        icon="academic"
+                        :title="`No ${terms.classes.toLowerCase()} yet`"
+                        :description="`Add the first ${terms.class.toLowerCase()} of ${year.name}. Its ${terms.sections.toLowerCase()} and subjects come next.`"
+                    />
                 </div>
 
                 <article v-for="schoolClass in year.classes" :key="schoolClass.id" class="card overflow-hidden">
-                    <header class="card-header">
-                        <h3 class="card-title">{{ schoolClass.name }}</h3>
+                    <header class="card-header flex-wrap">
+                        <h3 class="card-title"><RouterLink :to="`/settings/classes/${schoolClass.id}`" class="hover:text-primary">{{ schoolClass.name }}</RouterLink></h3>
                         <div v-if="canManage" class="flex flex-wrap items-center gap-4">
-                            <button type="button" class="btn-link" @click="open(`section:${schoolClass.id}`)">Add {{ terms.section.toLowerCase() }}</button>
-                            <button type="button" class="btn-link" @click="open(`subjects:${schoolClass.id}`, { subjectIds: schoolClass.subjects.map((subject) => subject.id) })">Subjects</button>
-                            <button v-if="!schoolClass.sections.length" type="button" class="btn-link-danger" @click="remove(`/api/v1/classes/${schoolClass.id}`, `${schoolClass.name} removed.`)">Remove</button>
+                            <button type="button" class="btn-link" @click="openDrawer('editClass', schoolClass)">Edit</button>
+                            <button type="button" class="btn-link" @click="openDrawer('section', schoolClass)">Add {{ terms.section.toLowerCase() }}</button>
+                            <button type="button" class="btn-link" @click="openDrawer('subjects', schoolClass)">Subjects</button>
+                            <button v-if="!schoolClass.sections.length" type="button" class="btn-link-danger" @click="removeClass(schoolClass)">Remove</button>
                         </div>
                     </header>
 
@@ -281,95 +333,107 @@ onMounted(load);
                                     </td>
                                     <td>{{ section.class_teacher?.name ?? '—' }}</td>
                                     <td class="text-right">
-                                        <button
-                                            v-if="canManage && section.enrolled_count === 0"
-                                            type="button"
-                                            class="btn-link-danger"
-                                            @click="remove(`/api/v1/sections/${section.id}`, `${schoolClass.name} ${section.name} removed.`)"
-                                        >
-                                            Remove
-                                        </button>
+                                        <div v-if="canManage" class="flex justify-end gap-4">
+                                            <button type="button" class="btn-link" @click="openDrawer('editSection', schoolClass, section)">Edit</button>
+                                            <button v-if="section.enrolled_count === 0" type="button" class="btn-link-danger" @click="removeSection(schoolClass, section)">Remove</button>
+                                        </div>
                                     </td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
 
-                    <form
-                        v-if="openForm === `section:${schoolClass.id}`"
-                        class="flex flex-wrap items-end gap-3 border-t border-gray-200 bg-gray-50 px-5 py-4 lg:px-7.5"
-                        @submit.prevent="createSection(schoolClass)"
-                    >
-                        <FormField :label="`${terms.section} name`" :error="formError.fields.name" class="w-32">
-                            <input v-model="sectionForm.name" required class="input" placeholder="A" />
-                        </FormField>
-                        <FormField label="Capacity" :error="formError.fields.capacity" class="w-28">
-                            <input v-model.number="sectionForm.capacity" type="number" min="1" class="input" />
-                        </FormField>
-                        <FormField v-if="teachers.length" :label="`Class ${terms.teacher.toLowerCase()}`" :error="formError.fields.class_teacher_id" class="min-w-48 flex-1">
-                            <select v-model="sectionForm.class_teacher_id" class="input">
-                                <option value="">None</option>
-                                <option v-for="teacher in teachers" :key="teacher.id" :value="teacher.id">{{ teacher.name }}</option>
-                            </select>
-                        </FormField>
-                        <button type="button" class="btn-secondary" :disabled="busy" @click="openForm = null">Cancel</button>
-                        <button type="submit" class="btn-primary" :disabled="busy">Add</button>
-                    </form>
-
                     <div class="flex flex-wrap items-center gap-1.5 border-t border-gray-200 px-5 py-3.5 text-2sm lg:px-7.5">
                         <span class="mr-1 text-gray-600">Subjects:</span>
                         <span v-for="subject in schoolClass.subjects" :key="subject.id" class="badge-neutral">{{ subject.name }}</span>
                         <span v-if="!schoolClass.subjects.length" class="text-gray-500">none</span>
                     </div>
-
-                    <form
-                        v-if="openForm === `subjects:${schoolClass.id}`"
-                        class="flex flex-col gap-3 border-t border-gray-200 bg-gray-50 px-5 py-4 lg:px-7.5"
-                        @submit.prevent="saveClassSubjects(schoolClass)"
-                    >
-                        <p v-if="!subjects.length" class="text-2sm text-gray-600">Add subjects below first.</p>
-                        <div class="flex flex-wrap gap-2">
-                            <label v-for="subject in subjects" :key="subject.id" class="choice">
-                                <input v-model="classSubjectIds" type="checkbox" :value="subject.id" class="checkbox" />
-                                {{ subject.name }}
-                            </label>
-                        </div>
-                        <div class="flex gap-2.5">
-                            <button type="submit" class="btn-primary btn-sm" :disabled="busy">Save subjects</button>
-                            <button type="button" class="btn-secondary btn-sm" :disabled="busy" @click="openForm = null">Cancel</button>
-                        </div>
-                    </form>
                 </article>
             </section>
 
             <section class="card">
                 <div class="card-header">
-                    <h2 class="card-title">Subjects</h2>
-                    <button v-if="canManage && openForm !== 'subject'" type="button" class="btn-link" @click="open('subject')">
+                    <h2 class="card-title">Holidays in {{ year.name }}</h2>
+                    <button v-if="canManage" type="button" class="btn-link" @click="openDrawer('holiday')">
                         <AppIcon name="plus" class="size-4" />
-                        Add subject
+                        Add holiday
                     </button>
                 </div>
 
-                <form v-if="openForm === 'subject'" class="flex flex-wrap items-end gap-3 border-b border-gray-200 bg-gray-50 px-5 py-4 lg:px-7.5" @submit.prevent="createSubject">
-                    <FormField label="Code" :error="formError.fields.code" class="w-32">
-                        <input v-model="subjectForm.code" required class="input uppercase" placeholder="MATH" />
-                    </FormField>
-                    <FormField label="Name" :error="formError.fields.name" class="min-w-48 flex-1">
-                        <input v-model="subjectForm.name" required class="input" placeholder="Mathematics" />
-                    </FormField>
-                    <button type="button" class="btn-secondary" :disabled="busy" @click="openForm = null">Cancel</button>
-                    <button type="submit" class="btn-primary" :disabled="busy">Add</button>
-                </form>
-
-                <div v-if="subjects.length" class="card-body flex flex-wrap gap-2">
-                    <span v-for="subject in subjects" :key="subject.id" class="inline-flex h-8 items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-2.5 text-2sm text-gray-800">
-                        <span class="font-mono text-xs text-gray-600">{{ subject.code }}</span>
-                        {{ subject.name }}
-                    </span>
-                </div>
-                <EmptyState v-else icon="book" title="No subjects yet" />
+                <ul v-if="holidays.length" class="divide-y divide-gray-200">
+                    <li v-for="holiday in holidays" :key="holiday.id" class="flex items-center justify-between gap-3 px-5 py-3 text-2sm lg:px-7.5">
+                        <span>
+                            <span class="font-medium text-gray-900">{{ holiday.name }}</span>
+                            <span class="ml-2 text-gray-600">{{ formatDate(holiday.date) }}</span>
+                        </span>
+                        <button v-if="canManage" type="button" class="btn-link-danger" @click="removeHoliday(holiday)">Remove</button>
+                    </li>
+                </ul>
+                <EmptyState v-else icon="calendar" title="No holidays yet" description="Add the days the institution is closed. No attendance is taken on a holiday, so it never counts against a student." />
             </section>
         </template>
+
+        <Drawer :open="drawer !== null" :title="drawerTitle" @close="closeDrawer">
+            <form id="academic-drawer-form" class="flex flex-col gap-4" @submit.prevent="submitDrawer">
+                <AlertMessage v-if="drawerMessage">{{ drawerMessage }}</AlertMessage>
+
+                <template v-if="drawer?.kind === 'class' || drawer?.kind === 'editClass'">
+                    <FormField :label="`${terms.class} name`" :error="fieldError('name')">
+                        <input v-model="classForm.name" required class="input" :placeholder="`${terms.class} 1`" />
+                    </FormField>
+                    <FormField label="Order" hint="Classes are listed in this order." :error="fieldError('sort_order')">
+                        <input v-model.number="classForm.sort_order" type="number" min="0" class="input" />
+                    </FormField>
+                </template>
+
+                <template v-else-if="drawer?.kind === 'section' || drawer?.kind === 'editSection'">
+                    <FormField :label="`${terms.section} name`" :error="fieldError('name')">
+                        <input v-model="sectionForm.name" required class="input" placeholder="A" />
+                    </FormField>
+                    <FormField label="Capacity" hint="Leave empty for no limit." :error="fieldError('capacity')">
+                        <input v-model.number="sectionForm.capacity" type="number" min="1" class="input" />
+                    </FormField>
+                    <TeacherPicker
+                        v-if="subjectsAndTeachers.teachers.length"
+                        v-model="sectionForm.class_teacher_id"
+                        :label="`Class ${terms.teacher.toLowerCase()}`"
+                        :teachers="subjectsAndTeachers.teachers"
+                        :error="fieldError('class_teacher_id')"
+                    />
+                </template>
+
+                <template v-else-if="drawer?.kind === 'subjects'">
+                    <p v-if="!subjectsAndTeachers.subjects.length" class="text-2sm text-gray-600">
+                        Add subjects on the <RouterLink to="/settings/subjects" class="btn-link">Subjects</RouterLink> page first.
+                    </p>
+                    <CheckboxChips v-model="classSubjectIds" legend="Subjects offered" :options="subjectOptions" />
+                </template>
+
+                <template v-else-if="drawer?.kind === 'holiday'">
+                    <FormField label="Day" :error="fieldError('date')">
+                        <input v-model="holidayForm.date" type="date" required class="input" :min="year?.starts_on" :max="year?.ends_on" />
+                    </FormField>
+                    <FormField label="Name" :error="fieldError('name')">
+                        <input v-model="holidayForm.name" required class="input" placeholder="Diwali" maxlength="100" />
+                    </FormField>
+                </template>
+            </form>
+
+            <template #footer>
+                <button type="button" class="btn-secondary" :disabled="busy" @click="closeDrawer">Cancel</button>
+                <button type="submit" form="academic-drawer-form" class="btn-primary" :disabled="busy">{{ busy ? 'Saving…' : 'Save' }}</button>
+            </template>
+        </Drawer>
+
+        <ConfirmDialog
+            :open="pending !== null"
+            :title="pending?.title ?? ''"
+            :message="pending?.message ?? ''"
+            :confirm-label="pending?.confirmLabel ?? 'Confirm'"
+            :tone="pending?.tone ?? 'danger'"
+            :busy="busy"
+            @confirm="confirmRemove"
+            @cancel="pending = null"
+        />
     </div>
 </template>

@@ -21,8 +21,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string $ends_at
  * @property bool $is_break
  * @property int $sort_order
+ * @property string|null $session morning, afternoon, or none
  */
-#[Fillable(['name', 'starts_at', 'ends_at', 'is_break', 'sort_order'])]
+#[Fillable(['name', 'starts_at', 'ends_at', 'is_break', 'sort_order', 'session'])]
 #[UseFactory(PeriodFactory::class)]
 class Period extends Model
 {

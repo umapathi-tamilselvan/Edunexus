@@ -3,27 +3,32 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import AlertMessage from '../../components/AlertMessage.vue';
 import AppIcon from '../../components/AppIcon.vue';
+import ConfirmDialog from '../../components/ConfirmDialog.vue';
+import Drawer from '../../components/Drawer.vue';
 import EmptyState from '../../components/EmptyState.vue';
 import FormField from '../../components/FormField.vue';
 import InitialsAvatar from '../../components/InitialsAvatar.vue';
 import LoadingState from '../../components/LoadingState.vue';
 import PageHeader from '../../components/PageHeader.vue';
-import { parseError } from '../../lib/errors';
+import SectionPicker from '../../components/SectionPicker.vue';
+import { formatDate } from '../../lib/format';
 import { http } from '../../lib/http';
-import { loadAcademicYears, loadYearStructure, sectionOptions } from '../academic';
+import { parseError } from '../../lib/errors';
+import { academicYear } from '../academicYear';
+import { useBusyNotice } from '../composables/useBusyNotice';
+import { useYearStructure } from '../composables/useYearStructure';
 import { session } from '../session';
 import { terms } from '../terms';
 
 const route = useRoute();
 const canManage = computed(() => session.can('student.manage'));
+const canSeeStructure = computed(() => canManage.value && session.can('academic.view') && session.hasModule('academic'));
 
 const student = ref(null);
-const year = ref(null);
 const loadError = ref('');
-const notice = ref('');
-const busy = ref(false);
-const formError = ref({ message: '', fields: {} });
-const openForm = ref(null);
+const attendance = ref(null);
+const { year, sections: yearSections, reload: reloadYear } = useYearStructure();
+const { busy, notice, error, message, run, clear, fieldError } = useBusyNotice();
 
 const relations = ['father', 'mother', 'guardian', 'grandparent', 'sibling', 'other'];
 const enrollmentTone = {
@@ -32,12 +37,33 @@ const enrollmentTone = {
     detained: 'badge-warning',
     left: 'badge-neutral',
 };
+const attendanceTone = { absent: 'badge-danger', half_day: 'badge-info', leave: 'badge-neutral' };
+const canSeeAttendance = computed(() => session.hasModule('attendance') && session.can('attendance.view'));
+
 const guardianForm = reactive({ name: '', phone: '', email: '', relation: 'mother', is_primary: false });
 const detailsForm = reactive({ admission_no: '', name: '', date_of_birth: '', gender: 'male' });
-const placementForm = reactive({ section_id: '', roll_no: '' });
+const placementForm = reactive({ section_id: null, roll_no: '' });
 
-const sections = computed(() => sectionOptions(year.value));
-const currentEnrollment = computed(() => student.value?.enrollments.find((enrollment) => enrollment.academic_year.id === year.value?.id) ?? null);
+/** The drawer: { kind: 'details' | 'guardian' | 'placement' }. */
+const drawer = ref(null);
+/** The guardian waiting to be unlinked. */
+const pendingUnlink = ref(null);
+
+const yearEnrollment = computed(() => student.value?.enrollments.find((enrollment) => enrollment.academic_year.id === year.value?.id) ?? null);
+/** The student's own section stays choosable when the class is full. */
+const placementSections = computed(() => yearSections.value.map((section) => (section.id === yearEnrollment.value?.section?.id ? { ...section, full: false } : section)));
+
+const drawerTitle = computed(() => {
+    if (!drawer.value) {
+        return '';
+    }
+
+    return {
+        details: 'Edit details',
+        guardian: 'Link a guardian',
+        placement: yearEnrollment.value ? `Placement in ${year.value?.name}` : `Enroll in ${year.value?.name}`,
+    }[drawer.value.kind];
+});
 
 async function load() {
     loadError.value = '';
@@ -46,80 +72,97 @@ async function load() {
         const [{ data }] = await Promise.all([http.get(`/api/v1/students/${route.params.id}`), terms.load()]);
         student.value = data.data;
 
-        if (canManage.value && session.can('academic.view')) {
-            const current = (await loadAcademicYears()).find((item) => item.is_current);
-            year.value = current ? await loadYearStructure(current.id) : null;
+        if (canSeeStructure.value && academicYear.selectedId) {
+            await reloadYear();
         }
-    } catch (error) {
-        loadError.value = error.response?.status === 403 ? 'You can only view students in your own sections.' : parseError(error).message;
+
+        if (canSeeAttendance.value) {
+            attendance.value = (await http.get(`/api/v1/students/${route.params.id}/attendance`)).data.data;
+        }
+    } catch (failure) {
+        loadError.value = failure.response?.status === 403 ? 'You can only view students of the sections you teach in the selected academic year.' : parseError(failure).message;
     }
 }
 
-function open(key) {
-    openForm.value = key;
-    notice.value = '';
-    formError.value = { message: '', fields: {} };
+function open(kind) {
+    clear();
+    drawer.value = { kind };
 
-    if (key === 'details') {
+    if (kind === 'details') {
         Object.assign(detailsForm, {
             admission_no: student.value.admission_no,
             name: student.value.name,
             date_of_birth: student.value.date_of_birth,
             gender: student.value.gender,
         });
-    } else if (key === 'guardian') {
+    } else if (kind === 'guardian') {
         Object.assign(guardianForm, { name: '', phone: '', email: '', relation: 'mother', is_primary: false });
-    } else if (key === 'placement') {
-        Object.assign(placementForm, { section_id: currentEnrollment.value?.section.id ?? '', roll_no: currentEnrollment.value?.roll_no ?? '' });
+    } else {
+        Object.assign(placementForm, { section_id: yearEnrollment.value?.section?.id ?? null, roll_no: yearEnrollment.value?.roll_no ?? '' });
     }
 }
 
-async function submit(request, message) {
-    busy.value = true;
-    formError.value = { message: '', fields: {} };
+function closeDrawer() {
+    drawer.value = null;
+}
 
-    try {
-        await request();
-        openForm.value = null;
-        notice.value = message;
-        await load();
-    } catch (error) {
-        formError.value = parseError(error);
-    } finally {
-        busy.value = false;
+/** After a change: reload the profile, and close the drawer. */
+async function saved(successMessage) {
+    closeDrawer();
+    await load();
+
+    return successMessage;
+}
+
+function submitDrawer() {
+    if (drawer.value.kind === 'details') {
+        return run(() => http.patch(`/api/v1/students/${student.value.id}`, detailsForm), {
+            success: 'Student details saved.',
+            onSuccess: () => saved(),
+        });
     }
-}
 
-function saveDetails() {
-    submit(() => http.patch(`/api/v1/students/${student.value.id}`, detailsForm), 'Student details saved.');
-}
+    if (drawer.value.kind === 'guardian') {
+        return run(() => http.post(`/api/v1/students/${student.value.id}/guardians`, { ...guardianForm, email: guardianForm.email || null }), {
+            success: `${guardianForm.name} linked as guardian.`,
+            onSuccess: () => saved(),
+        });
+    }
 
-function addGuardian() {
-    submit(() => http.post(`/api/v1/students/${student.value.id}/guardians`, { ...guardianForm, email: guardianForm.email || null }), `${guardianForm.name} linked as guardian.`);
-}
-
-function removeGuardian(guardian) {
-    submit(() => http.delete(`/api/v1/students/${student.value.id}/guardians/${guardian.id}`), `${guardian.name} unlinked.`);
+    return savePlacement();
 }
 
 function savePlacement() {
     const rollNo = placementForm.roll_no === '' ? null : Number(placementForm.roll_no);
 
-    if (currentEnrollment.value) {
+    if (yearEnrollment.value) {
         // An empty roll number keeps the current one, or takes the next free
         // one when moving section.
         const payload = rollNo === null ? {} : { roll_no: rollNo };
-        if (placementForm.section_id !== currentEnrollment.value.section.id) {
+        if (placementForm.section_id !== (yearEnrollment.value.section?.id ?? null)) {
             payload.section_id = placementForm.section_id;
         }
-        submit(() => http.patch(`/api/v1/enrollments/${currentEnrollment.value.id}`, payload), 'Placement updated.');
-    } else {
-        submit(() => http.post(`/api/v1/students/${student.value.id}/enrollments`, { section_id: placementForm.section_id, roll_no: rollNo }), `Enrolled in ${year.value.name}.`);
+
+        return run(() => http.patch(`/api/v1/enrollments/${yearEnrollment.value.id}`, payload), {
+            success: 'Placement updated.',
+            onSuccess: () => saved(),
+        });
     }
+
+    return run(() => http.post(`/api/v1/students/${student.value.id}/enrollments`, { section_id: placementForm.section_id, roll_no: rollNo }), {
+        success: `Enrolled in ${year.value.name}.`,
+        onSuccess: () => saved(),
+    });
 }
 
-function fieldError(...keys) {
-    return keys.map((key) => formError.value.fields[key]).find(Boolean) ?? '';
+async function confirmUnlink() {
+    const guardian = pendingUnlink.value;
+    pendingUnlink.value = null;
+
+    await run(() => http.delete(`/api/v1/students/${student.value.id}/guardians/${guardian.id}`), {
+        success: `${guardian.name} unlinked.`,
+        onSuccess: load,
+    });
 }
 
 onMounted(load);
@@ -127,10 +170,16 @@ onMounted(load);
 
 <template>
     <div class="flex flex-col gap-5 lg:gap-7.5">
-        <PageHeader title="Student profile" :back="{ to: '/students', label: 'All students' }" />
+        <PageHeader title="Student profile" :back="{ to: '/people/students', label: 'All students' }">
+            <button v-if="canManage && student" type="button" class="btn-secondary" :disabled="busy" @click="open('details')">
+                <AppIcon name="pencil" class="size-4" />
+                Edit details
+            </button>
+        </PageHeader>
 
         <AlertMessage v-if="loadError">{{ loadError }}</AlertMessage>
         <AlertMessage v-if="notice" tone="success">{{ notice }}</AlertMessage>
+        <AlertMessage v-if="error.message && !drawer">{{ message }}</AlertMessage>
 
         <LoadingState v-if="!student && !loadError" class="card" />
 
@@ -147,7 +196,7 @@ onMounted(load);
                             </span>
                             <span class="flex items-center gap-1.5">
                                 <AppIcon name="calendar" class="size-4 text-gray-500" />
-                                Born {{ student.date_of_birth }}
+                                Born {{ formatDate(student.date_of_birth) }}
                             </span>
                             <span class="flex items-center gap-1.5 capitalize">
                                 <AppIcon name="students" class="size-4 text-gray-500" />
@@ -155,46 +204,14 @@ onMounted(load);
                             </span>
                         </div>
                     </div>
-                    <button v-if="canManage && openForm !== 'details'" type="button" class="btn-secondary" @click="open('details')">
-                        <AppIcon name="pencil" class="size-4" />
-                        Edit details
-                    </button>
                 </div>
-
-                <form v-if="openForm === 'details'" class="border-t border-gray-200" @submit.prevent="saveDetails">
-                    <div class="card-body flex flex-col gap-5">
-                        <AlertMessage v-if="formError.message">{{ formError.message }}</AlertMessage>
-                        <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-                            <FormField label="Admission no." :error="formError.fields.admission_no">
-                                <input v-model="detailsForm.admission_no" required class="input" />
-                            </FormField>
-                            <FormField label="Full name" :error="formError.fields.name">
-                                <input v-model="detailsForm.name" required class="input" />
-                            </FormField>
-                            <FormField label="Date of birth" :error="formError.fields.date_of_birth">
-                                <input v-model="detailsForm.date_of_birth" type="date" required class="input" />
-                            </FormField>
-                            <FormField label="Gender" :error="formError.fields.gender">
-                                <select v-model="detailsForm.gender" class="input">
-                                    <option value="male">Male</option>
-                                    <option value="female">Female</option>
-                                    <option value="other">Other</option>
-                                </select>
-                            </FormField>
-                        </div>
-                    </div>
-                    <div class="card-footer">
-                        <button type="button" class="btn-secondary" :disabled="busy" @click="openForm = null">Cancel</button>
-                        <button type="submit" class="btn-primary" :disabled="busy">Save</button>
-                    </div>
-                </form>
             </section>
 
             <div class="grid gap-5 lg:grid-cols-2 lg:gap-7.5">
                 <section class="card">
                     <div class="card-header">
                         <h2 class="card-title">Guardians</h2>
-                        <button v-if="canManage && openForm !== 'guardian'" type="button" class="btn-link" @click="open('guardian')">
+                        <button v-if="canManage" type="button" class="btn-link" :disabled="busy" @click="open('guardian')">
                             <AppIcon name="plus" class="size-4" />
                             Add guardian
                         </button>
@@ -212,86 +229,135 @@ onMounted(load);
                                     <p class="text-2sm text-gray-600"><span class="capitalize">{{ guardian.relation }}</span> · {{ guardian.phone }}<template v-if="guardian.email"> · {{ guardian.email }}</template></p>
                                 </div>
                             </div>
-                            <button v-if="canManage && student.guardians.length > 1" type="button" class="btn-link-danger" :disabled="busy" @click="removeGuardian(guardian)">Unlink</button>
+                            <button v-if="canManage && student.guardians.length > 1" type="button" class="btn-link-danger" :disabled="busy" @click="pendingUnlink = guardian">Unlink</button>
                         </li>
                     </ul>
-
-                    <form v-if="openForm === 'guardian'" class="border-t border-gray-200" @submit.prevent="addGuardian">
-                        <div class="card-body flex flex-col gap-4">
-                            <AlertMessage v-if="formError.message">{{ formError.message }}</AlertMessage>
-                            <div class="grid gap-4 sm:grid-cols-2">
-                                <FormField label="Name" :error="formError.fields.name">
-                                    <input v-model="guardianForm.name" required class="input" />
-                                </FormField>
-                                <FormField label="Mobile" :error="formError.fields.phone">
-                                    <input v-model="guardianForm.phone" required inputmode="tel" class="input" />
-                                </FormField>
-                                <FormField label="Email (optional)" :error="formError.fields.email">
-                                    <input v-model="guardianForm.email" type="email" class="input" />
-                                </FormField>
-                                <FormField label="Relation" :error="formError.fields.relation">
-                                    <select v-model="guardianForm.relation" class="input capitalize">
-                                        <option v-for="relation in relations" :key="relation" :value="relation">{{ relation }}</option>
-                                    </select>
-                                </FormField>
-                            </div>
-                            <label class="flex items-center gap-2 text-2sm text-gray-700">
-                                <input v-model="guardianForm.is_primary" type="checkbox" class="checkbox" />
-                                Make primary contact
-                            </label>
-                        </div>
-                        <div class="card-footer">
-                            <button type="button" class="btn-secondary" :disabled="busy" @click="openForm = null">Cancel</button>
-                            <button type="submit" class="btn-primary" :disabled="busy">Link guardian</button>
-                        </div>
-                    </form>
                 </section>
 
                 <section class="card">
                     <div class="card-header">
                         <h2 class="card-title">Enrollment</h2>
-                        <button v-if="canManage && year && openForm !== 'placement'" type="button" class="btn-link" @click="open('placement')">
-                            {{ currentEnrollment ? 'Change placement' : `Enroll in ${year.name}` }}
+                        <button v-if="canSeeStructure && year" type="button" class="btn-link" :disabled="busy" @click="open('placement')">
+                            {{ yearEnrollment ? `Change placement in ${year.name}` : `Enroll in ${year.name}` }}
                         </button>
                     </div>
 
                     <ul v-if="student.enrollments.length" class="divide-y divide-gray-200">
                         <li v-for="enrollment in student.enrollments" :key="enrollment.id" class="flex items-center justify-between gap-3 px-5 py-4 text-2sm lg:px-7.5">
                             <div class="flex flex-col gap-0.5">
-                                <span class="font-medium text-gray-900">{{ enrollment.class.name }} {{ enrollment.section.name }}</span>
+                                <span class="font-medium text-gray-900">{{ enrollment.class?.name }}{{ enrollment.section ? ` ${enrollment.section.name}` : '' }}</span>
                                 <span class="text-gray-600">
-                                    {{ enrollment.academic_year.name }}<template v-if="enrollment.roll_no"> · Roll {{ enrollment.roll_no }}</template>
+                                    {{ enrollment.academic_year.name }}<template v-if="!enrollment.section"> · Not placed in a section yet</template><template v-if="enrollment.roll_no"> · Roll {{ enrollment.roll_no }}</template>
                                 </span>
                             </div>
                             <span class="capitalize" :class="enrollmentTone[enrollment.status] ?? 'badge-neutral'">{{ enrollment.status }}</span>
                         </li>
                     </ul>
-                    <EmptyState v-else icon="academic" title="Not enrolled" description="Not enrolled in any year yet." />
-
-                    <form v-if="openForm === 'placement'" class="border-t border-gray-200" @submit.prevent="savePlacement">
-                        <div class="card-body flex flex-col gap-4">
-                            <AlertMessage v-if="formError.message">{{ formError.message }}</AlertMessage>
-                            <div class="grid gap-4 sm:grid-cols-[1fr_8rem]">
-                                <FormField :label="`${terms.class} and ${terms.section.toLowerCase()} (${year.name})`" :error="fieldError('section_id')">
-                                    <select v-model="placementForm.section_id" required class="input">
-                                        <option value="" disabled>Choose…</option>
-                                        <option v-for="section in sections" :key="section.id" :value="section.id" :disabled="section.full && section.id !== currentEnrollment?.section.id">
-                                            {{ section.label }}{{ section.full && section.id !== currentEnrollment?.section.id ? ' (full)' : '' }}
-                                        </option>
-                                    </select>
-                                </FormField>
-                                <FormField label="Roll no." :error="fieldError('roll_no')" hint="Empty = next free">
-                                    <input v-model="placementForm.roll_no" type="number" min="1" class="input" />
-                                </FormField>
-                            </div>
-                        </div>
-                        <div class="card-footer">
-                            <button type="button" class="btn-secondary" :disabled="busy" @click="openForm = null">Cancel</button>
-                            <button type="submit" class="btn-primary" :disabled="busy">Save</button>
-                        </div>
-                    </form>
+                    <EmptyState v-else icon="academic" title="Not enrolled" :description="canSeeStructure && year ? `Enroll the student in ${year.name} to give them a class and roll number.` : 'Not enrolled in any year yet.'" />
                 </section>
             </div>
+
+            <section v-if="canSeeAttendance" class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Attendance{{ attendance ? ` in ${attendance.academic_year.name}` : '' }}</h2>
+                    <span v-if="attendance && attendance.percentage !== null" class="text-2sm font-semibold" :class="attendance.at_risk ? 'text-danger-strong' : 'text-success-strong'">
+                        {{ attendance.percentage }}% of {{ attendance.days_marked }} days
+                    </span>
+                </div>
+                <EmptyState v-if="!attendance" icon="calendar" title="Not enrolled this year" description="Pick another year at the top to see that year's attendance." />
+                <EmptyState v-else-if="!attendance.days_marked" icon="calendar" title="No attendance taken yet" description="Once the section's attendance is marked, it appears here." />
+                <div v-else class="card-body flex flex-col gap-4">
+                    <div class="flex flex-wrap gap-1.5 text-xs">
+                        <span class="badge-success">Present {{ attendance.by_status.present }}</span>
+                        <span class="badge-warning">Late {{ attendance.by_status.late }}</span>
+                        <span class="badge-info">Half day {{ attendance.by_status.half_day }}</span>
+                        <span class="badge-neutral">Leave {{ attendance.by_status.leave }}</span>
+                        <span class="badge-danger">Absent {{ attendance.by_status.absent }}</span>
+                    </div>
+                    <ul v-if="attendance.missed.length" class="flex flex-col gap-1.5 text-2sm">
+                        <li v-for="day in attendance.missed" :key="day.date" class="flex flex-wrap items-center gap-2">
+                            <span class="w-24 text-gray-600 tabular-nums">{{ formatDate(day.date) }}</span>
+                            <span class="capitalize" :class="attendanceTone[day.status]">{{ day.status.replace('_', ' ') }}</span>
+                            <span v-if="day.remark" class="text-gray-600">{{ day.remark }}</span>
+                        </li>
+                    </ul>
+                </div>
+            </section>
         </template>
+
+        <Drawer :open="drawer !== null" :title="drawerTitle" @close="closeDrawer">
+            <form id="student-drawer-form" class="flex flex-col gap-5" @submit.prevent="submitDrawer">
+                <AlertMessage v-if="drawer && error.message">{{ message }}</AlertMessage>
+
+                <template v-if="drawer?.kind === 'details'">
+                    <FormField label="Admission no." :error="fieldError('admission_no')">
+                        <input v-model="detailsForm.admission_no" required class="input" />
+                    </FormField>
+                    <FormField label="Full name" :error="fieldError('name')">
+                        <input v-model="detailsForm.name" required class="input" />
+                    </FormField>
+                    <FormField label="Date of birth" :error="fieldError('date_of_birth')">
+                        <input v-model="detailsForm.date_of_birth" type="date" required class="input" />
+                    </FormField>
+                    <FormField label="Gender" :error="fieldError('gender')">
+                        <select v-model="detailsForm.gender" class="input">
+                            <option value="male">Male</option>
+                            <option value="female">Female</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </FormField>
+                </template>
+
+                <template v-else-if="drawer?.kind === 'guardian'">
+                    <FormField label="Name" :error="fieldError('name')">
+                        <input v-model="guardianForm.name" required class="input" />
+                    </FormField>
+                    <FormField label="Mobile" :error="fieldError('phone')">
+                        <input v-model="guardianForm.phone" required inputmode="tel" class="input" />
+                    </FormField>
+                    <FormField label="Email (optional)" :error="fieldError('email')">
+                        <input v-model="guardianForm.email" type="email" class="input" />
+                    </FormField>
+                    <FormField label="Relation" :error="fieldError('relation')">
+                        <select v-model="guardianForm.relation" class="input capitalize">
+                            <option v-for="relation in relations" :key="relation" :value="relation">{{ relation }}</option>
+                        </select>
+                    </FormField>
+                    <label class="flex items-center gap-2 text-2sm text-gray-700">
+                        <input v-model="guardianForm.is_primary" type="checkbox" class="checkbox" />
+                        Make primary contact
+                    </label>
+                </template>
+
+                <template v-else>
+                    <SectionPicker
+                        v-model="placementForm.section_id"
+                        :label="`${terms.class} and ${terms.section.toLowerCase()} (${year?.name ?? ''})`"
+                        :sections="placementSections"
+                        placeholder="Choose…"
+                        show-counts
+                        :error="fieldError('section_id')"
+                    />
+                    <FormField label="Roll no." hint="Empty = next free number." :error="fieldError('roll_no')">
+                        <input v-model="placementForm.roll_no" type="number" min="1" class="input" />
+                    </FormField>
+                </template>
+            </form>
+
+            <template #footer>
+                <button type="button" class="btn-secondary" :disabled="busy" @click="closeDrawer">Cancel</button>
+                <button type="submit" form="student-drawer-form" class="btn-primary" :disabled="busy">{{ busy ? 'Saving…' : 'Save' }}</button>
+            </template>
+        </Drawer>
+
+        <ConfirmDialog
+            :open="pendingUnlink !== null"
+            :title="`Unlink ${pendingUnlink?.name ?? ''}?`"
+            message="They stay on record, but no longer appear as a guardian of this student."
+            confirm-label="Unlink"
+            :busy="busy"
+            @confirm="confirmUnlink"
+            @cancel="pendingUnlink = null"
+        />
     </div>
 </template>

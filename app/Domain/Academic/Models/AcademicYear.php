@@ -3,6 +3,8 @@
 namespace App\Domain\Academic\Models;
 
 use App\Domain\Examination\Models\Exam;
+use App\Support\AcademicYearContext;
+use Carbon\CarbonInterface;
 use Database\Factories\AcademicYearFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Scope;
@@ -21,8 +23,9 @@ use Illuminate\Support\Carbon;
  * @property Carbon $starts_on
  * @property Carbon $ends_on
  * @property bool $is_current
+ * @property bool $admissions_open
  */
-#[Fillable(['name', 'starts_on', 'ends_on'])]
+#[Fillable(['name', 'starts_on', 'ends_on', 'admissions_open'])]
 #[UseFactory(AcademicYearFactory::class)]
 class AcademicYear extends Model
 {
@@ -34,7 +37,15 @@ class AcademicYear extends Model
      */
     protected $attributes = [
         'is_current' => false,
+        'admissions_open' => false,
     ];
+
+    protected static function booted(): void
+    {
+        // AcademicYearContext caches every year.
+        static::saved(fn () => app(AcademicYearContext::class)->forgetYears());
+        static::deleted(fn () => app(AcademicYearContext::class)->forgetYears());
+    }
 
     /**
      * @return array<string, string>
@@ -45,6 +56,7 @@ class AcademicYear extends Model
             'starts_on' => 'date',
             'ends_on' => 'date',
             'is_current' => 'boolean',
+            'admissions_open' => 'boolean',
         ];
     }
 
@@ -62,6 +74,22 @@ class AcademicYear extends Model
     public function exams(): HasMany
     {
         return $this->hasMany(Exam::class)->orderByRaw('starts_on IS NULL')->orderBy('starts_on')->orderBy('name');
+    }
+
+    /**
+     * @return HasMany<Holiday, $this>
+     */
+    public function holidays(): HasMany
+    {
+        return $this->hasMany(Holiday::class)->orderBy('date');
+    }
+
+    /**
+     * Whether the date falls within this year.
+     */
+    public function includes(CarbonInterface $date): bool
+    {
+        return $date->betweenIncluded($this->starts_on, $this->ends_on);
     }
 
     /**

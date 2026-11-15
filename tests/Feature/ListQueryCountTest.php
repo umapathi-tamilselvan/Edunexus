@@ -137,11 +137,35 @@ class ListQueryCountTest extends TestCase
     public function test_users_run_a_fixed_number_of_queries(): void
     {
         $token = $this->adminToken();
-        $this->createUser(Role::Teacher, ['subject_id' => Subject::factory()->create()->id]);
+        $this->addSubjectWithTeacher();
 
         $this->assertQueryBudget(8, $token, '/api/v1/users', function (): void {
-            $this->createUser(Role::Teacher, ['subject_id' => Subject::factory()->create()->id]);
+            $this->addSubjectWithTeacher();
             $this->createUser(Role::Accountant);
+        });
+    }
+
+    public function test_teachers_run_a_fixed_number_of_queries(): void
+    {
+        $this->addSubjectWithTeacher();
+
+        $this->assertQueryBudget(7, $this->adminToken(), '/api/v1/teachers', function (): void {
+            $this->addSubjectWithTeacher();
+            $this->addSubjectWithTeacher();
+        });
+    }
+
+    public function test_teacher_workload_runs_a_fixed_number_of_queries(): void
+    {
+        $year = AcademicYear::factory()->current()->create();
+        $section = $this->sectionIn($year);
+        $this->addTimetableSlot($section, $this->createUser());
+        $this->addSubjectTeacher($section);
+
+        $this->assertQueryBudget(10, $this->adminToken(), '/api/v1/teachers/workload', function () use ($section): void {
+            $this->addTimetableSlot($section, $this->createUser());
+            $this->addTimetableSlot($section, $this->createUser());
+            $this->addSubjectTeacher($section);
         });
     }
 
@@ -155,12 +179,39 @@ class ListQueryCountTest extends TestCase
         });
     }
 
+    public function test_the_year_setup_status_runs_a_fixed_number_of_queries(): void
+    {
+        $year = AcademicYear::factory()->current()->create();
+        $this->addClassWithSection($year);
+
+        $this->assertQueryBudget(11, $this->adminToken(), "/api/v1/academic-years/{$year->id}/setup-status", function () use ($year): void {
+            $this->addClassWithSection($year);
+            $this->addClassWithSection($year);
+        });
+    }
+
+    public function test_the_attendance_day_summary_runs_a_fixed_number_of_queries(): void
+    {
+        $year = AcademicYear::factory()->current()->create();
+        $this->enrollIn($this->sectionIn($year));
+
+        $this->assertQueryBudget(6, $this->adminToken(), '/api/v1/attendance/day-summary?date='.today()->toDateString(), function () use ($year): void {
+            $this->enrollIn($this->sectionIn($year));
+            $this->enrollIn($this->sectionIn($year));
+        });
+    }
+
+    public function test_the_client_settings_run_a_fixed_number_of_queries(): void
+    {
+        $this->assertQueryBudget(4, $this->adminToken(), '/api/v1/settings', fn (): null => null);
+    }
+
     public function test_students_for_a_user_who_sees_everyone_run_a_fixed_number_of_queries(): void
     {
         $year = AcademicYear::factory()->current()->create();
         $this->enrollIn($this->sectionIn($year));
 
-        $this->assertQueryBudget(11, $this->adminToken(), '/api/v1/students', function () use ($year): void {
+        $this->assertQueryBudget(10, $this->adminToken(), '/api/v1/students', function () use ($year): void {
             $this->enrollIn($this->sectionIn($year));
             $this->enrollIn($this->sectionIn($year));
         });
@@ -172,7 +223,7 @@ class ListQueryCountTest extends TestCase
         $teacher = $this->createUser();
         $this->enrollIn($this->sectionIn($year, $teacher));
 
-        $this->assertQueryBudget(11, $this->issueToken($teacher->email), '/api/v1/students', function () use ($year, $teacher): void {
+        $this->assertQueryBudget(10, $this->issueToken($teacher->email), '/api/v1/students', function () use ($year, $teacher): void {
             $this->enrollIn($this->sectionIn($year, $teacher));
             $this->enrollIn($this->sectionIn($year, $teacher));
         });
@@ -194,7 +245,7 @@ class ListQueryCountTest extends TestCase
         $class = SchoolClass::factory()->for(AcademicYear::factory()->current())->create();
         AdmissionApplication::factory()->for($class, 'schoolClass')->create();
 
-        $this->assertQueryBudget(9, $this->adminToken(), '/api/v1/admissions', fn () => AdmissionApplication::factory()->count(2)->for($class, 'schoolClass')->create());
+        $this->assertQueryBudget(8, $this->adminToken(), '/api/v1/admissions', fn () => AdmissionApplication::factory()->count(2)->for($class, 'schoolClass')->create());
     }
 
     public function test_a_years_exams_run_a_fixed_number_of_queries(): void
@@ -292,7 +343,7 @@ class ListQueryCountTest extends TestCase
 
     private function addSubjectWithTeacher(): void
     {
-        $this->createUser(Role::Teacher, ['subject_id' => Subject::factory()->create()->id]);
+        $this->createUser(Role::Teacher)->subjects()->attach(Subject::factory()->create());
     }
 
     private function addSubjectTeacher(Section $section, ?User $teacher = null): void
@@ -300,7 +351,7 @@ class ListQueryCountTest extends TestCase
         $subject = Subject::factory()->create();
         $section->schoolClass->subjects()->attach($subject);
         $teacher ??= $this->createUser();
-        $teacher->update(['subject_id' => $subject->id]);
+        $teacher->subjects()->attach($subject);
 
         SectionSubjectTeacher::factory()->for($section)->for($subject)->create(['teacher_id' => $teacher->id]);
     }

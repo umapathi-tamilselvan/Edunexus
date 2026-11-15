@@ -35,10 +35,11 @@ class EnrollStudent
             return StudentEnrollment::query()->create([
                 'student_id' => $student->id,
                 'academic_year_id' => $academicYearId,
+                'class_id' => $section->class_id,
                 'section_id' => $section->id,
                 'roll_no' => SectionSeats::rollNumber($section, $rollNo),
                 'status' => EnrollmentStatus::Active,
-            ])->load(['academicYear', 'section.schoolClass']);
+            ])->load(['academicYear', 'schoolClass', 'section.schoolClass']);
         });
     }
 }

@@ -1,3 +1,16 @@
+# EduNexus working rules
+
+`docs/EDUNEXUS.md` is the only specification. Read it before any task.
+
+- `docs/EDUNEXUS.md` is the only document. Do not create other documents, analysis files or specs. Anything that needs writing down goes there.
+- Every commit that changes behaviour updates `docs/EDUNEXUS.md` in the same commit: status, rules, data model and settings.
+- One commit per roadmap step, with the full test suite green before each.
+- Every new screen uses the shared components and the design system. No page-specific copies of pickers, dialogs, formatters or loading logic. If a shared piece is missing, build it once in `resources/js/components` first.
+- Every new endpoint gets a feature test and a query-count budget. Budgets are never raised to make a test pass.
+- Probes and tests use existing credentials only. Never create MySQL or Redis users, grant privileges, or use root or provisioning credentials outside the `edunexus:client:*` commands.
+- Ask only when a decision is a product choice. Make technical decisions yourself, following the existing conventions, and record them in `docs/EDUNEXUS.md` §8.
+- `AGENTS.md`'s install step is already done: `laravel/boost` is a dependency. Do not run `composer require` for it again. This follows the rule above on dependency changes.
+
 <laravel-boost-guidelines>
 === foundation rules ===
 

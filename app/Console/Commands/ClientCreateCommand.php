@@ -16,6 +16,7 @@ use InvalidArgumentException;
     {--admin-email= : Super Admin email}
     {--admin-name=Super Admin : Super Admin name}
     {--url= : APP_URL for the client (defaults to EDUNEXUS_CLIENT_URL)}
+    {--year-start-month= : Month academic years start in, 1-12 (default: 6 for schools, 7 for colleges, 4 for coaching)}
     {--ask-password : Prompt for the Super Admin password instead of generating one}')]
 #[Description('Create a client: deployment .env files, its own database and MySQL user, schema, institution-type data and a Super Admin')]
 class ClientCreateCommand extends Command
@@ -28,6 +29,7 @@ class ClientCreateCommand extends Command
         $type = $this->option('type') ?? $this->choice('Institution type', $types, 0);
         $adminEmail = $this->option('admin-email') ?? $this->ask('Super Admin email');
         $adminPassword = $this->option('ask-password') ? $this->askForPassword() : null;
+        $yearStartMonth = $this->option('year-start-month');
 
         if ($adminPassword === false) {
             return self::FAILURE;
@@ -42,6 +44,8 @@ class ClientCreateCommand extends Command
                 adminName: $this->option('admin-name'),
                 adminPassword: $adminPassword,
                 url: $this->option('url'),
+                // Anything but a whole number fails validation as month 0.
+                yearStartMonth: $yearStartMonth === null ? null : (int) filter_var($yearStartMonth, FILTER_VALIDATE_INT),
             );
         } catch (InvalidArgumentException $exception) {
             $this->components->error($exception->getMessage());
@@ -55,6 +59,7 @@ class ClientCreateCommand extends Command
         $this->components->twoColumnDetail('Client code', $client->code);
         $this->components->twoColumnDetail('Institution', "{$client->name} ({$client->type->label()})");
         $this->components->twoColumnDetail('Database', $client->database);
+        $this->components->twoColumnDetail('Academic year', $result['academic_year']);
 
         if ($result['redis_access'] !== null) {
             $this->components->twoColumnDetail('Redis user', "{$client->username} (password: REDIS_PASSWORD in {$client->code}.env.secure)");

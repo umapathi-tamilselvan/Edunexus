@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\EnsureModuleIsEntitled;
+use App\Http\Middleware\SelectedAcademicYear;
 use App\Support\Deployment\ClientEnvironment;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -21,6 +22,7 @@ $app = Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->statefulApi();
         $middleware->throttleApi();
+        $middleware->api(append: [SelectedAcademicYear::class]);
 
         $middleware->alias([
             'entitled' => EnsureModuleIsEntitled::class,

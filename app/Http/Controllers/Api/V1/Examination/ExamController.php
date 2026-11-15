@@ -21,24 +21,24 @@ class ExamController extends Controller
 {
     public function index(AcademicYear $academicYear): AnonymousResourceCollection
     {
-        return ExamResource::collection($academicYear->exams()->withCount('marks')->get());
+        return ExamResource::collection($academicYear->exams()->withExists('marks')->get());
     }
 
     public function store(StoreExamRequest $request, AcademicYear $academicYear): JsonResponse
     {
         $exam = $academicYear->exams()->create($request->validated());
 
-        return (new ExamResource($exam->load('academicYear')))->response()->setStatusCode(201);
+        return (new ExamResource($exam->load('academicYear')->loadExists('marks')))->response()->setStatusCode(201);
     }
 
     public function show(Exam $exam): ExamResource
     {
-        return new ExamResource($exam->load('academicYear')->loadCount('marks'));
+        return new ExamResource($exam->load('academicYear')->loadExists('marks'));
     }
 
     public function update(StoreExamRequest $request, Exam $exam, UpdateExam $updateExam): ExamResource
     {
-        return new ExamResource($updateExam->handle($exam, $request->validated())->load('academicYear'));
+        return new ExamResource($updateExam->handle($exam, $request->validated())->load('academicYear')->loadExists('marks'));
     }
 
     public function destroy(Exam $exam): Response

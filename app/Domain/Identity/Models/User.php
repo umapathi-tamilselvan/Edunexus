@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Attributes\UseFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -24,7 +24,9 @@ use Spatie\Permission\Traits\HasRoles;
  * @property int $id
  * @property string $name
  * @property string $email
- * @property int|null $subject_id The one subject a teacher teaches.
+ * @property int|null $subject_id One of the subjects the user teaches. Kept in
+ *                                step with subjects() only so the previous
+ *                                release still works; planned for removal (docs/EDUNEXUS.md).
  */
 #[Fillable(['name', 'email', 'password', 'subject_id'])]
 #[Hidden(['password', 'remember_token'])]
@@ -63,11 +65,13 @@ class User extends Authenticatable implements AuditableContract
     }
 
     /**
-     * @return BelongsTo<Subject, $this>
+     * The subjects this user teaches; a teacher may teach several.
+     *
+     * @return BelongsToMany<Subject, $this>
      */
-    public function subject(): BelongsTo
+    public function subjects(): BelongsToMany
     {
-        return $this->belongsTo(Subject::class);
+        return $this->belongsToMany(Subject::class, 'subject_teacher')->orderBy('name');
     }
 
     /**

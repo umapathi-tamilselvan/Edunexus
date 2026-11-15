@@ -18,6 +18,10 @@ class UpdateExam
      */
     public function handle(Exam $exam, array $attributes): Exam
     {
+        if ($attributes['max_marks'] !== $exam->max_marks && $exam->isPublished()) {
+            throw ValidationException::withMessages(['max_marks' => 'The exam is published, so its maximum marks are locked. Reopen the exam first.']);
+        }
+
         if ($attributes['max_marks'] < $exam->max_marks) {
             $highest = ExamMark::query()
                 ->join('student_enrollments', 'student_enrollments.id', '=', 'exam_marks.enrollment_id')

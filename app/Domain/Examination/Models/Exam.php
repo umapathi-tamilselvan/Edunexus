@@ -22,6 +22,7 @@ use Illuminate\Support\Carbon;
  * @property int $max_marks
  * @property Carbon|null $starts_on
  * @property Carbon|null $ends_on
+ * @property Carbon|null $published_at
  */
 #[Fillable(['name', 'max_marks', 'starts_on', 'ends_on'])]
 #[UseFactory(ExamFactory::class)]
@@ -39,6 +40,7 @@ class Exam extends Model
             'max_marks' => 'integer',
             'starts_on' => 'date',
             'ends_on' => 'date',
+            'published_at' => 'datetime',
         ];
     }
 
@@ -72,5 +74,14 @@ class Exam extends Model
     public function maxMarksFor(int $classId, int $subjectId): int
     {
         return $this->papers()->where('class_id', $classId)->where('subject_id', $subjectId)->value('max_marks') ?? $this->max_marks;
+    }
+
+    /**
+     * Published exams are locked: no marks and no maximum marks change until
+     * someone with exam.unlock reopens them.
+     */
+    public function isPublished(): bool
+    {
+        return $this->published_at !== null;
     }
 }

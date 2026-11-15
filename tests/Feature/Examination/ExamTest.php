@@ -26,6 +26,22 @@ class ExamTest extends TestCase
         $this->year = AcademicYear::factory()->current()->create();
     }
 
+    public function test_an_exam_says_whether_marks_have_been_entered_for_it(): void
+    {
+        $exam = Exam::factory()->for($this->year)->create(['name' => 'Half yearly']);
+        $section = Section::factory()->for(SchoolClass::factory()->for($this->year), 'schoolClass')->create();
+        $enrollment = StudentEnrollment::factory()->create(['section_id' => $section->id]);
+
+        $this->withToken($this->adminToken)->getJson("/api/v1/exams/{$exam->id}")->assertOk()->assertJsonPath('data.has_marks', false);
+
+        ExamMark::factory()->for($exam)->for($enrollment, 'enrollment')->for(Subject::factory())->create(['marks' => 40]);
+
+        $this->withToken($this->adminToken)->getJson("/api/v1/exams/{$exam->id}")->assertOk()->assertJsonPath('data.has_marks', true);
+        $this->withToken($this->adminToken)->getJson("/api/v1/academic-years/{$this->year->id}/exams")
+            ->assertOk()
+            ->assertJsonPath('data.0.has_marks', true);
+    }
+
     public function test_an_exam_manager_creates_lists_shows_and_changes_an_exam(): void
     {
         $examId = $this->withToken($this->adminToken)
@@ -37,7 +53,7 @@ class ExamTest extends TestCase
         $this->withToken($this->adminToken)->getJson("/api/v1/academic-years/{$this->year->id}/exams")
             ->assertOk()
             ->assertJsonPath('data.0.name', 'Quarterly')
-            ->assertJsonPath('data.0.marks_count', 0);
+            ->assertJsonPath('data.0.has_marks', false);
 
         $this->withToken($this->adminToken)->patchJson("/api/v1/exams/{$examId}", ['name' => 'Quarterly exam', 'max_marks' => 50])
             ->assertOk()

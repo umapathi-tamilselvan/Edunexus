@@ -2,8 +2,11 @@
 
 namespace App\Support\Deployment;
 
+use App\Domain\Academic\Models\AcademicYear;
 use App\Domain\Identity\Enums\Role;
 use App\Domain\Identity\Models\User;
+use App\Support\OrganizationContext;
+use App\Support\Settings\Setting;
 use Illuminate\Contracts\Console\Kernel as Artisan;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
@@ -26,7 +29,7 @@ class CreateClient
     ) {}
 
     /**
-     * @return array{client: Client, admin_email: string, admin_password: string, redis_access: string|null}
+     * @return array{client: Client, admin_email: string, admin_password: string, academic_year: string, redis_access: string|null}
      */
     public function handle(
         string $code,
@@ -36,9 +39,10 @@ class CreateClient
         ?string $adminName = null,
         #[\SensitiveParameter] ?string $adminPassword = null,
         ?string $url = null,
+        ?int $yearStartMonth = null,
     ): array {
         // 1. Validate.
-        $institutionType = $this->validate($code, $name, $type, $adminEmail);
+        $institutionType = $this->validate($code, $name, $type, $adminEmail, $yearStartMonth);
 
         $prefix = (string) config('edunexus.provisioning.database_prefix');
         $client = new Client(
@@ -56,6 +60,7 @@ class CreateClient
         }
 
         $adminPassword ??= Str::password(16, symbols: false);
+        $academicYear = '';
 
         try {
             // 2–3. Write deployments/<code>/.env and .env.secure.
@@ -64,11 +69,21 @@ class CreateClient
             // 4. Provision the database and its user.
             $this->database->provision($client);
 
-            // 5–6. Migrate, seed and create the admin, connected as the client's user.
-            $this->database->run($client, function () use ($client, $adminEmail, $adminName, $adminPassword): void {
-                $this->asClient($client, function () use ($adminEmail, $adminName, $adminPassword): void {
+            // 5–6. Migrate, seed (which opens the first academic year) and
+            // create the admin, connected as the client's user.
+            $this->database->run($client, function () use ($client, $adminEmail, $adminName, $adminPassword, $yearStartMonth, &$academicYear): void {
+                $this->asClient($client, function () use ($adminEmail, $adminName, $adminPassword, $yearStartMonth, &$academicYear): void {
                     $this->call('migrate', ['--force' => true]);
+
+                    // Before seeding, so the seeders keep it instead of the type's default.
+                    if ($yearStartMonth !== null) {
+                        Setting::query()->create(['key' => OrganizationContext::YEAR_START_MONTH, 'value' => $yearStartMonth]);
+                    }
+
                     $this->call('db:seed', ['--force' => true]);
+
+                    $year = AcademicYear::query()->current()->sole();
+                    $academicYear = "{$year->name} ({$year->starts_on->format('j M Y')} – {$year->ends_on->format('j M Y')})";
 
                     User::query()
                         ->create([
@@ -90,6 +105,7 @@ class CreateClient
             'client' => $client,
             'admin_email' => $adminEmail,
             'admin_password' => $adminPassword,
+            'academic_year' => $academicYear,
             'redis_access' => $this->usesRedis() ? self::redisAccess($code) : null,
         ];
     }
@@ -104,7 +120,7 @@ class CreateClient
         return "on ~edunexus:{$code}:* &edunexus:{$code}:* +@all -@dangerous";
     }
 
-    private function validate(string $code, string $name, string $type, string $adminEmail): InstitutionType
+    private function validate(string $code, string $name, string $type, string $adminEmail, ?int $yearStartMonth): InstitutionType
     {
         if (! preg_match(ClientEnvironment::CODE_PATTERN, $code)) {
             throw new InvalidArgumentException("Client code [{$code}] must be 2 to 20 lowercase letters or digits.");
@@ -125,14 +141,19 @@ class CreateClient
             throw new InvalidArgumentException("Admin email [{$adminEmail}] is not a valid email address.");
         }
 
+        if ($yearStartMonth !== null && ($yearStartMonth < 1 || $yearStartMonth > 12)) {
+            throw new InvalidArgumentException('The year start month must be a month number from 1 to 12.');
+        }
+
         return $institutionType;
     }
 
     /**
      * Run seeders and model code with the client's identity in config, so
      * the institution-type seeder sees the new client, not the one running
-     * the command. The root .env's Super Admin is cleared so UserSeeder
-     * never adds it to the client.
+     * the command, and its settings rather than any already loaded. The
+     * root .env's Super Admin is cleared so UserSeeder never adds it to the
+     * client.
      */
     private function asClient(Client $client, callable $callback): void
     {
@@ -143,12 +164,14 @@ class CreateClient
             'edunexus.super_admin' => null,
         ]);
         $this->permissions->initializeCache();
+        app()->forgetInstance(OrganizationContext::class);
 
         try {
             $callback();
         } finally {
             config($original);
             $this->permissions->initializeCache();
+            app()->forgetInstance(OrganizationContext::class);
         }
     }
 

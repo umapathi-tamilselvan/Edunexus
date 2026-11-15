@@ -3,8 +3,11 @@
 namespace App\Domain\Student\Models;
 
 use App\Domain\Academic\Models\AcademicYear;
+use App\Domain\Academic\Models\SchoolClass;
 use App\Domain\Academic\Models\Section;
+use App\Domain\Attendance\Models\AttendanceRecord;
 use App\Domain\Examination\Models\ExamMark;
+use App\Domain\Fee\Models\FeeEntry;
 use App\Domain\Student\Enums\EnrollmentStatus;
 use Database\Factories\StudentEnrollmentFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -27,7 +30,7 @@ use OwenIt\Auditing\Contracts\Auditable as AuditableContract;
  * @property int|null $roll_no
  * @property EnrollmentStatus $status
  */
-#[Fillable(['student_id', 'academic_year_id', 'section_id', 'roll_no', 'status'])]
+#[Fillable(['student_id', 'academic_year_id', 'class_id', 'section_id', 'roll_no', 'status'])]
 #[UseFactory(StudentEnrollmentFactory::class)]
 class StudentEnrollment extends Model implements AuditableContract
 {
@@ -75,5 +78,33 @@ class StudentEnrollment extends Model implements AuditableContract
     public function examMarks(): HasMany
     {
         return $this->hasMany(ExamMark::class, 'enrollment_id');
+    }
+
+    /**
+     * @return HasMany<AttendanceRecord, $this>
+     */
+    public function attendance(): HasMany
+    {
+        return $this->hasMany(AttendanceRecord::class, 'enrollment_id');
+    }
+
+    /**
+     * The enrollment's fee ledger; its balance is the sum of amounts.
+     *
+     * @return HasMany<FeeEntry, $this>
+     */
+    public function feeEntries(): HasMany
+    {
+        return $this->hasMany(FeeEntry::class, 'enrollment_id');
+    }
+
+    /**
+     * The class the student is enrolled in. Set even before a section (D45).
+     *
+     * @return BelongsTo<SchoolClass, $this>
+     */
+    public function schoolClass(): BelongsTo
+    {
+        return $this->belongsTo(SchoolClass::class, 'class_id');
     }
 }

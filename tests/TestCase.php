@@ -5,6 +5,7 @@ namespace Tests;
 use App\Domain\Identity\Enums\Role;
 use App\Domain\Identity\Models\User;
 use App\Support\Deployment\ClientFiles;
+use Database\Seeders\InstitutionTypeSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use Illuminate\Support\Facades\DB;
@@ -17,9 +18,12 @@ abstract class TestCase extends BaseTestCase
     public const PASSWORD = 'correct-horse-battery-staple';
 
     /**
-     * Seed roles and institution-type data, like a freshly created client.
+     * Seed roles and institution-type data, like a freshly created client,
+     * but not its first academic year: tests build their own years.
      */
     protected bool $seed = true;
+
+    protected string $seeder = InstitutionTypeSeeder::class;
 
     protected function setUp(): void
     {

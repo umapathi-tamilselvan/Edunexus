@@ -24,6 +24,7 @@ class PeriodResource extends JsonResource
             'ends_at' => substr($this->ends_at, 0, 5),
             'is_break' => $this->is_break,
             'sort_order' => $this->sort_order,
+            'session' => $this->session,
         ];
     }
 }

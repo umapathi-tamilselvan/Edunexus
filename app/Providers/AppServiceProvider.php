@@ -2,15 +2,24 @@
 
 namespace App\Providers;
 
+use App\Domain\Attendance\Models\AttendanceRecord;
+use App\Domain\Attendance\Policies\AttendancePolicy;
+use App\Domain\Communication\Contracts\GuardianNotifier;
+use App\Domain\Communication\Notifiers\LogGuardianNotifier;
+use App\Domain\Communication\Notifiers\WhatsAppGuardianNotifier;
 use App\Domain\Examination\Models\Exam;
 use App\Domain\Examination\Policies\ExamPolicy;
 use App\Domain\Identity\Listeners\RecordTokenUse;
 use App\Domain\Identity\Models\User;
 use App\Domain\Identity\Policies\UserPolicy;
+use App\Domain\Student\Models\Guardian;
 use App\Domain\Student\Models\Student;
+use App\Domain\Student\Policies\GuardianPolicy;
 use App\Domain\Student\Policies\StudentPolicy;
+use App\Support\AcademicYearContext;
 use App\Support\OrganizationContext;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
@@ -27,6 +36,12 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->scoped(OrganizationContext::class);
+        $this->app->scoped(AcademicYearContext::class);
+
+        $this->app->bind(GuardianNotifier::class, fn (Application $app): GuardianNotifier => match ($app['config']->get('edunexus.guardian_notifier')) {
+            'whatsapp' => new WhatsAppGuardianNotifier($app['config']->get('services.whatsapp')),
+            default => new LogGuardianNotifier,
+        });
     }
 
     /**
@@ -41,7 +56,9 @@ class AppServiceProvider extends ServiceProvider
         // Policies live in their domain modules, outside the discovery path.
         Gate::policy(User::class, UserPolicy::class);
         Gate::policy(Student::class, StudentPolicy::class);
+        Gate::policy(Guardian::class, GuardianPolicy::class);
         Gate::policy(Exam::class, ExamPolicy::class);
+        Gate::policy(AttendanceRecord::class, AttendancePolicy::class);
 
         Event::listen(TokenAuthenticated::class, RecordTokenUse::class);
 
@@ -57,6 +74,20 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('api', fn (Request $request): Limit => $request->user()
             ? Limit::perMinute(120)->by('user:'.$request->user()->getAuthIdentifier())
             : Limit::perMinute(600)->by('ip:'.$request->ip()));
+
+        // Guardians sign in by phone: codes are limited per phone hash and, as a
+        // separate limit, per IP (D47).
+        RateLimiter::for('guardian-otp', fn (Request $request): array => [
+            Limit::perMinute(3)->by('phone:'.Guardian::hashPhone((string) $request->input('phone'))),
+            Limit::perMinute(20)->by('ip:'.$request->ip()),
+        ]);
+
+        // Requesting a code also has a daily cap per phone hash (D47); checking a code does not.
+        RateLimiter::for('guardian-otp-send', fn (Request $request): array => [
+            Limit::perMinute(3)->by('phone:'.Guardian::hashPhone((string) $request->input('phone'))),
+            Limit::perDay(10)->by('phone-day:'.Guardian::hashPhone((string) $request->input('phone'))),
+            Limit::perMinute(20)->by('ip:'.$request->ip()),
+        ]);
 
         RateLimiter::for('login', fn (Request $request): array => [
             Limit::perMinute(5)->by(strtolower((string) $request->input('email')).'|'.$request->ip()),

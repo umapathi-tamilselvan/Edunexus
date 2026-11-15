@@ -135,7 +135,7 @@ class ClientCommandsTest extends TestCase
         $this->assertFalse(app(ClientFiles::class)->exists('abc'));
     }
 
-    public function test_the_institution_type_seeds_its_own_roles_and_terminology(): void
+    public function test_the_institution_type_seeds_its_own_roles_terminology_and_year_start_month(): void
     {
         $this->createClient('abc', 'college');
 
@@ -149,7 +149,36 @@ class ClientCommandsTest extends TestCase
                 ['class' => 'Semester', 'classes' => 'Semesters', 'section' => 'Division', 'sections' => 'Divisions', 'teacher' => 'Faculty', 'head' => 'Principal'],
                 json_decode(DB::table('settings')->where('key', 'institution.terminology')->value('value'), true),
             );
+            $this->assertSame(7, json_decode(DB::table('settings')->where('key', 'academic_year.start_month')->value('value')));
         });
+    }
+
+    public function test_the_year_start_month_option_sets_when_the_first_academic_year_starts_and_survives_reseeding(): void
+    {
+        $this->travelTo('2026-10-26');
+
+        $this->artisan('edunexus:client:create', ['code' => 'abc', '--name' => 'ABC', '--type' => 'school', '--admin-email' => 'owner@abc.test', '--year-start-month' => '4'])
+            ->expectsOutputToContain('2026-27 (1 Apr 2026 – 31 Mar 2027)')
+            ->assertSuccessful();
+
+        $this->artisan('edunexus:client:migrate', ['code' => 'abc', '--seed' => true])->assertSuccessful();
+
+        $this->asClient('abc', function (): void {
+            $this->assertSame(4, json_decode(DB::table('settings')->where('key', 'academic_year.start_month')->value('value')));
+            $this->assertSame([['name' => '2026-27', 'is_current' => 1]], DB::table('academic_years')->get(['name', 'is_current'])->map(fn ($year): array => (array) $year)->all());
+        });
+    }
+
+    #[TestWith(['13'])]
+    #[TestWith(['0'])]
+    #[TestWith(['june'])]
+    public function test_create_rejects_a_year_start_month_that_is_not_a_month(string $month): void
+    {
+        $this->artisan('edunexus:client:create', ['code' => 'abc', '--name' => 'ABC', '--type' => 'school', '--admin-email' => 'owner@abc.test', '--year-start-month' => $month])
+            ->expectsOutputToContain('The year start month must be a month number from 1 to 12.')
+            ->assertFailed();
+
+        $this->assertFalse(app(ClientFiles::class)->exists('abc'));
     }
 
     #[TestWith(['a', 'must be 2 to 20 lowercase letters or digits'])]

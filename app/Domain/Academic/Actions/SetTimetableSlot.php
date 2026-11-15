@@ -15,6 +15,10 @@ use Illuminate\Validation\ValidationException;
 /**
  * Sets (creates or replaces) one slot of a section's weekly timetable.
  *
+ * Without a teacher the slot gets the section's subject teacher for the
+ * subject, and follows it when it changes; any other teacher is an
+ * override that stays put.
+ *
  * Rules: the period belongs to the section's academic year and is not a
  * break, the subject is offered to the section's class, and the teacher is
  * not already teaching another section in that slot.
@@ -37,41 +41,30 @@ class SetTimetableSlot
             throw ValidationException::withMessages(['subject_id' => "{$subject->name} is not offered to {$section->schoolClass->name}. Add it to the class's subjects first."]);
         }
 
+        $subjectTeacher = $section->subjectTeachers()->where('subject_id', $subject->id)->with('teacher')->first()?->teacher;
+        $isOverride = $teacher !== null && $teacher->id !== $subjectTeacher?->id;
+        $teacher ??= $subjectTeacher;
+
         try {
-            return DB::transaction(function () use ($section, $weekday, $period, $subject, $teacher): TimetableEntry {
+            return DB::transaction(function () use ($section, $weekday, $period, $subject, $teacher, $isOverride): TimetableEntry {
                 if ($teacher !== null) {
-                    $this->ensureTeacherIsFree($teacher, $section, $weekday, $period);
+                    TimetableClashes::ensureFree($teacher, $section, [[$weekday, $period]]);
                 }
 
                 $entry = TimetableEntry::query()->updateOrCreate(
                     ['section_id' => $section->id, 'weekday' => $weekday, 'period_id' => $period->id],
-                    ['subject_id' => $subject->id, 'teacher_id' => $teacher?->id],
+                    ['subject_id' => $subject->id, 'teacher_id' => $teacher?->id, 'is_override' => $isOverride],
                 );
 
                 return $entry->load(['period', 'subject', 'teacher']);
             });
         } catch (UniqueConstraintViolationException) {
             // Two people booked the same teacher at the same moment.
-            $this->ensureTeacherIsFree($teacher, $section, $weekday, $period);
+            if ($teacher !== null) {
+                TimetableClashes::ensureFree($teacher, $section, [[$weekday, $period]]);
+            }
 
             throw ValidationException::withMessages(['teacher_id' => 'This slot was changed by someone else. Reload and try again.']);
-        }
-    }
-
-    private function ensureTeacherIsFree(User $teacher, Section $section, Weekday $weekday, Period $period): void
-    {
-        $clash = TimetableEntry::query()
-            ->with('section.schoolClass')
-            ->where('teacher_id', $teacher->id)
-            ->where('weekday', $weekday)
-            ->where('period_id', $period->id)
-            ->where('section_id', '!=', $section->id)
-            ->first();
-
-        if ($clash !== null) {
-            throw ValidationException::withMessages([
-                'teacher_id' => "{$teacher->name} already teaches {$clash->section->schoolClass->name} {$clash->section->name} on {$weekday->label()} in {$period->name}.",
-            ]);
         }
     }
 }

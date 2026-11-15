@@ -1,21 +1,33 @@
 <?php
 
 use App\Http\Controllers\Api\V1\Academic\AcademicYearController;
+use App\Http\Controllers\Api\V1\Academic\ClassroomController;
+use App\Http\Controllers\Api\V1\Academic\HolidayController;
+use App\Http\Controllers\Api\V1\Academic\MyClassroomsController;
 use App\Http\Controllers\Api\V1\Academic\PeriodController;
 use App\Http\Controllers\Api\V1\Academic\SchoolClassController;
 use App\Http\Controllers\Api\V1\Academic\SectionController;
 use App\Http\Controllers\Api\V1\Academic\SectionSubjectTeacherController;
 use App\Http\Controllers\Api\V1\Academic\SubjectController;
+use App\Http\Controllers\Api\V1\Academic\TeacherController;
 use App\Http\Controllers\Api\V1\Academic\TimetableController;
 use App\Http\Controllers\Api\V1\Admission\AdmissionController;
+use App\Http\Controllers\Api\V1\Attendance\AttendanceController;
 use App\Http\Controllers\Api\V1\Auth\SessionController;
 use App\Http\Controllers\Api\V1\Auth\TokenController;
 use App\Http\Controllers\Api\V1\BrandingController;
 use App\Http\Controllers\Api\V1\Examination\ExamController;
 use App\Http\Controllers\Api\V1\Examination\ExamMarkController;
+use App\Http\Controllers\Api\V1\Examination\ExamPublicationController;
+use App\Http\Controllers\Api\V1\Examination\SectionResultsController;
 use App\Http\Controllers\Api\V1\Examination\SubjectScoreController;
+use App\Http\Controllers\Api\V1\Fee\FeeController;
+use App\Http\Controllers\Api\V1\Guardian\GuardianAuthController;
+use App\Http\Controllers\Api\V1\Guardian\GuardianChildrenController;
+use App\Http\Controllers\Api\V1\Home\OfficeHomeController;
 use App\Http\Controllers\Api\V1\MeController;
 use App\Http\Controllers\Api\V1\RoleController;
+use App\Http\Controllers\Api\V1\Settings\ClientSettingsController;
 use App\Http\Controllers\Api\V1\Student\EnrollmentController;
 use App\Http\Controllers\Api\V1\Student\StudentController;
 use App\Http\Controllers\Api\V1\Student\StudentGuardianController;
@@ -34,6 +46,18 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('branding', BrandingController::class)->name('branding');
 
+// Guardian sign-in by phone code (§3.4, R7). Guardians hold no permissions:
+// they see only their linked children, checked by GuardianPolicy.
+Route::post('guardian/otp', [GuardianAuthController::class, 'sendCode'])->middleware('throttle:guardian-otp-send')->name('guardian.otp.send');
+Route::post('guardian/otp/verify', [GuardianAuthController::class, 'verifyCode'])->middleware('throttle:guardian-otp')->name('guardian.otp.verify');
+
+Route::middleware('auth:sanctum')->prefix('guardian')->name('guardian.')->group(function () {
+    Route::get('children', [GuardianChildrenController::class, 'index'])->name('children.index');
+    Route::get('children/{student}/attendance', [GuardianChildrenController::class, 'attendance'])->name('children.attendance');
+    Route::get('children/{student}/marks', [GuardianChildrenController::class, 'marks'])->name('children.marks');
+    Route::get('children/{student}/scores', [GuardianChildrenController::class, 'scores'])->name('children.scores');
+});
+
 Route::prefix('auth')->name('auth.')->group(function () {
     Route::post('login', [SessionController::class, 'store'])->middleware('throttle:login')->name('login');
     Route::post('tokens', [TokenController::class, 'store'])->middleware('throttle:login')->name('tokens.store');
@@ -46,11 +70,12 @@ Route::prefix('auth')->name('auth.')->group(function () {
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('me', MeController::class)->name('me');
+    Route::get('home/office', OfficeHomeController::class)->name('home.office');
 
     Route::get('roles', [RoleController::class, 'index'])->name('roles.index');
     Route::apiResource('users', UserController::class)->only(['index', 'store']);
     Route::put('users/{user}/roles', [UserController::class, 'updateRoles'])->name('users.roles.update');
-    Route::put('users/{user}/subject', [UserController::class, 'updateSubject'])->name('users.subject.update');
+    Route::put('users/{user}/subjects', [UserController::class, 'updateSubjects'])->name('users.subjects.update');
 });
 
 /*
@@ -64,22 +89,32 @@ Route::middleware(['auth:sanctum', 'entitled:academic'])->group(function () {
         Route::get('academic-years/{academicYear}/classes', [SchoolClassController::class, 'index'])->name('classes.index');
         Route::get('sections/{section}', [SectionController::class, 'show'])->name('sections.show');
         Route::get('subjects', [SubjectController::class, 'index'])->name('subjects.index');
+        Route::get('academic-years/{academicYear}/setup-status', [AcademicYearController::class, 'setupStatus'])->name('academic-years.setup-status');
         Route::get('academic-years/{academicYear}/periods', [PeriodController::class, 'index'])->name('periods.index');
         Route::get('sections/{section}/timetable', [TimetableController::class, 'section'])->name('timetable.section');
+        Route::get('teachers', [TeacherController::class, 'index'])->name('teachers.index');
+        Route::get('teachers/workload', [TeacherController::class, 'workload'])->name('teachers.workload');
+        Route::get('academic-years/{academicYear}/holidays', [HolidayController::class, 'index'])->name('holidays.index');
+        Route::get('classes/{schoolClass}/teacher-grid', [ClassroomController::class, 'teacherGrid'])->name('classes.teacher-grid.show');
     });
 
     Route::get('me/timetable', [TimetableController::class, 'mine'])->name('timetable.mine');
     Route::get('me/teaching', [SectionSubjectTeacherController::class, 'mine'])->name('teaching.mine');
+    Route::get('me/classrooms', MyClassroomsController::class)->name('me.classrooms');
 
     Route::middleware('can:academic.manage')->group(function () {
-        Route::post('academic-years', [AcademicYearController::class, 'store'])->name('academic-years.store');
-        Route::patch('academic-years/{academicYear}', [AcademicYearController::class, 'update'])->name('academic-years.update');
+        Route::post('academic-years/next', [AcademicYearController::class, 'next'])->name('academic-years.next');
         Route::post('academic-years/{academicYear}/make-current', [AcademicYearController::class, 'makeCurrent'])->name('academic-years.make-current');
+        Route::get('academic-years/{academicYear}/make-current-preview', [AcademicYearController::class, 'makeCurrentPreview'])->name('academic-years.make-current.preview');
+        Route::put('academic-years/{academicYear}/admissions', [AcademicYearController::class, 'setAdmissions'])->name('academic-years.admissions.update');
 
         Route::post('academic-years/{academicYear}/classes', [SchoolClassController::class, 'store'])->name('classes.store');
         Route::patch('classes/{schoolClass}', [SchoolClassController::class, 'update'])->name('classes.update');
         Route::delete('classes/{schoolClass}', [SchoolClassController::class, 'destroy'])->name('classes.destroy');
         Route::put('classes/{schoolClass}/subjects', [SchoolClassController::class, 'syncSubjects'])->name('classes.subjects.sync');
+        Route::put('classes/{schoolClass}/subjects/{subject}/teacher', [SectionSubjectTeacherController::class, 'updateClass'])->name('classes.subjects.teacher.update');
+        Route::post('classes/{schoolClass}/classrooms', [ClassroomController::class, 'store'])->name('classes.classrooms.store');
+        Route::put('classes/{schoolClass}/teacher-grid', [ClassroomController::class, 'saveTeacherGrid'])->name('classes.teacher-grid.update');
 
         Route::post('classes/{schoolClass}/sections', [SectionController::class, 'store'])->name('sections.store');
         Route::patch('sections/{section}', [SectionController::class, 'update'])->name('sections.update');
@@ -88,6 +123,10 @@ Route::middleware(['auth:sanctum', 'entitled:academic'])->group(function () {
 
         Route::post('subjects', [SubjectController::class, 'store'])->name('subjects.store');
         Route::patch('subjects/{subject}', [SubjectController::class, 'update'])->name('subjects.update');
+        Route::put('subjects/{subject}/teachers', [SubjectController::class, 'syncTeachers'])->name('subjects.teachers.sync');
+
+        Route::post('academic-years/{academicYear}/holidays', [HolidayController::class, 'store'])->name('holidays.store');
+        Route::delete('holidays/{holiday}', [HolidayController::class, 'destroy'])->name('holidays.destroy');
 
         Route::post('academic-years/{academicYear}/periods', [PeriodController::class, 'store'])->name('periods.store');
         Route::patch('periods/{period}', [PeriodController::class, 'update'])->name('periods.update');
@@ -109,6 +148,7 @@ Route::middleware(['auth:sanctum', 'entitled:student'])->group(function () {
     Route::middleware('can:student.manage')->group(function () {
         Route::post('students', [StudentController::class, 'store'])->name('students.store');
         Route::patch('students/{student}', [StudentController::class, 'update'])->name('students.update');
+        Route::post('classes/{schoolClass}/students/distribute', [ClassroomController::class, 'distribute'])->name('classes.students.distribute');
 
         Route::post('students/{student}/guardians', [StudentGuardianController::class, 'store'])->name('students.guardians.store');
         Route::delete('students/{student}/guardians/{guardian}', [StudentGuardianController::class, 'destroy'])->name('students.guardians.destroy');
@@ -116,6 +156,54 @@ Route::middleware(['auth:sanctum', 'entitled:student'])->group(function () {
         Route::post('students/{student}/enrollments', [EnrollmentController::class, 'store'])->name('students.enrollments.store');
         Route::patch('enrollments/{enrollment}', [EnrollmentController::class, 'update'])->name('enrollments.update');
     });
+});
+
+/*
+| Attendance: a section's sheet for one day. Its teachers mark it within
+| the edit window; attendance.edit_late changes any day (AttendancePolicy).
+*/
+Route::middleware(['auth:sanctum', 'entitled:attendance'])->group(function () {
+    Route::middleware('can:attendance.view')->group(function () {
+        Route::get('sections/{section}/attendance', [AttendanceController::class, 'show'])->name('attendance.show');
+        Route::get('students/{student}/attendance', [AttendanceController::class, 'student'])->middleware('entitled:student')->name('students.attendance');
+        Route::get('attendance/day-summary', [AttendanceController::class, 'daySummary'])->name('attendance.day-summary');
+    });
+
+    Route::put('sections/{section}/attendance', [AttendanceController::class, 'update'])->name('attendance.update');
+});
+
+/*
+| Client settings: what the admins may change (settings.manage).
+*/
+Route::middleware(['auth:sanctum', 'can:settings.manage'])->group(function () {
+    Route::get('settings', [ClientSettingsController::class, 'index'])->name('settings.index');
+    Route::put('settings', [ClientSettingsController::class, 'update'])->name('settings.update');
+});
+
+/*
+| Fees: an append-only ledger per enrollment, in integer paise. Dues and
+| payments are reversed, never changed; receipts are numbered without gaps.
+*/
+Route::middleware(['auth:sanctum', 'entitled:examination'])->group(function () {
+    Route::middleware('can:exam.publish')->post('exams/{exam}/publish', [ExamPublicationController::class, 'publish'])->name('exams.publish');
+    Route::middleware('can:exam.unlock')->post('exams/{exam}/unlock', [ExamPublicationController::class, 'unlock'])->name('exams.unlock');
+});
+
+Route::middleware(['auth:sanctum', 'entitled:fee'])->group(function () {
+    Route::middleware('can:fee.view')->group(function () {
+        Route::get('fee-heads', [FeeController::class, 'heads'])->name('fee-heads.index');
+        Route::get('students/{student}/fees', [FeeController::class, 'student'])->middleware('entitled:student')->name('students.fees');
+        Route::get('sections/{section}/fees', [FeeController::class, 'section'])->name('sections.fees');
+        Route::get('receipts/{receipt}', [FeeController::class, 'receipt'])->name('receipts.show');
+    });
+
+    Route::middleware('can:fee.collect')->group(function () {
+        Route::post('fee-heads', [FeeController::class, 'storeHead'])->name('fee-heads.store');
+        Route::post('fee-dues', [FeeController::class, 'postDues'])->name('fee-dues.store');
+        Route::post('enrollments/{enrollment}/payments', [FeeController::class, 'collect'])->name('payments.store');
+    });
+
+    Route::post('fee-entries/{feeEntry}/reverse', [FeeController::class, 'reverse'])->middleware('can:fee.reverse')->name('fee-entries.reverse');
 });
 
 /*
@@ -141,6 +229,8 @@ Route::middleware(['auth:sanctum', 'entitled:examination'])->group(function () {
         Route::get('academic-years/{academicYear}/exams', [ExamController::class, 'index'])->name('exams.index');
         Route::get('exams/{exam}', [ExamController::class, 'show'])->name('exams.show');
         Route::get('exams/{exam}/marks', [ExamMarkController::class, 'index'])->name('exams.marks.index');
+        Route::get('exams/{exam}/sections/{section}/mark-sheets', [ExamMarkController::class, 'sheets'])->name('exams.mark-sheets.index');
+        Route::get('sections/{section}/results', SectionResultsController::class)->name('sections.results');
         Route::get('students/{student}/scores', SubjectScoreController::class)->middleware('entitled:student')->name('students.scores');
     });
 

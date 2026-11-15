@@ -13,7 +13,7 @@ defineProps({
             <AppIcon name="academic" class="size-5" />
         </span>
         <span class="flex min-w-0 flex-col">
-            <span class="text-base/5 font-bold tracking-tight" :class="inverse ? 'text-white' : 'text-gray-900'">EduNexus</span>
+            <span class="truncate text-base/5 font-bold tracking-tight" :class="inverse ? 'text-white' : 'text-gray-900'">EduNexus</span>
             <span v-if="caption" class="truncate text-xs" :class="inverse ? 'text-white/70' : 'text-gray-600'">{{ caption }}</span>
         </span>
     </span>

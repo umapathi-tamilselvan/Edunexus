@@ -21,6 +21,10 @@ class SetExamMaxMarks
 {
     public function handle(Exam $exam, SchoolClass $schoolClass, Subject $subject, int $maxMarks): int
     {
+        if ($exam->isPublished()) {
+            throw ValidationException::withMessages(['max_marks' => 'The exam is published, so its maximum marks are locked. Reopen the exam first.']);
+        }
+
         if ($schoolClass->academic_year_id !== $exam->academic_year_id) {
             throw ValidationException::withMessages(['class_id' => "{$schoolClass->name} is not in {$exam->name}'s academic year."]);
         }

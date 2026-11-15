@@ -21,17 +21,6 @@ class AcademicStructureTest extends TestCase
         $this->adminToken = $this->issueToken($this->createUser(Role::Admin)->email);
     }
 
-    public function test_the_first_academic_year_becomes_current_and_later_ones_do_not(): void
-    {
-        $this->withToken($this->adminToken)->postJson('/api/v1/academic-years', ['name' => '2026-27', 'starts_on' => '2026-06-01', 'ends_on' => '2027-04-30'])
-            ->assertCreated()
-            ->assertJsonPath('data.is_current', true);
-
-        $this->withToken($this->adminToken)->postJson('/api/v1/academic-years', ['name' => '2027-28', 'starts_on' => '2027-06-01', 'ends_on' => '2028-04-30'])
-            ->assertCreated()
-            ->assertJsonPath('data.is_current', false);
-    }
-
     public function test_making_a_year_current_leaves_exactly_one_current_year(): void
     {
         $old = AcademicYear::factory()->current()->create();
@@ -43,18 +32,6 @@ class AcademicStructureTest extends TestCase
 
         $this->assertFalse($old->fresh()->is_current);
         $this->assertSame([$next->id], AcademicYear::query()->current()->pluck('id')->all());
-    }
-
-    public function test_an_academic_year_must_end_after_it_starts_and_have_a_unique_name(): void
-    {
-        AcademicYear::factory()->create(['name' => '2026-27']);
-
-        $this->withToken($this->adminToken)->postJson('/api/v1/academic-years', ['name' => '2026-27', 'starts_on' => '2026-06-01', 'ends_on' => '2026-05-01'])
-            ->assertUnprocessable()
-            ->assertJsonValidationErrors([
-                'name' => 'The name has already been taken.',
-                'ends_on' => 'The ends on field must be a date after starts on.',
-            ]);
     }
 
     public function test_classes_sections_and_subjects_build_the_year_structure(): void

@@ -15,7 +15,7 @@ use Tests\TestCase;
 
 /**
  * Who teaches each subject to each section, e.g. Class 1 A Mathematics:
- * Satheesh, and the subject each teacher is linked to.
+ * Satheesh, and the subjects each teacher teaches.
  */
 class SubjectTeacherTest extends TestCase
 {
@@ -38,7 +38,7 @@ class SubjectTeacherTest extends TestCase
         $this->section = Section::factory()->for($this->class, 'schoolClass')->create(['name' => 'A']);
         $this->maths = Subject::factory()->create(['name' => 'Mathematics']);
         $this->class->subjects()->attach($this->maths);
-        $this->teacher = $this->createUser(Role::Teacher, ['name' => 'Satheesh', 'subject_id' => $this->maths->id]);
+        $this->teacher = $this->createTeacher('Satheesh', $this->maths);
     }
 
     public function test_a_section_gets_a_subject_teacher_who_teaches_that_subject(): void
@@ -54,7 +54,7 @@ class SubjectTeacherTest extends TestCase
 
     public function test_assigning_again_replaces_the_teacher_and_no_teacher_clears_the_subject(): void
     {
-        $karthik = $this->createUser(Role::Teacher, ['subject_id' => $this->maths->id]);
+        $karthik = $this->createTeacher('Karthik', $this->maths);
         $this->assign($this->section, $this->maths, $this->teacher)->assertOk();
 
         $this->assign($this->section, $this->maths, $karthik)->assertOk();
@@ -66,16 +66,27 @@ class SubjectTeacherTest extends TestCase
         $this->assertDatabaseCount('section_subject_teachers', 0);
     }
 
-    public function test_a_teacher_of_another_subject_or_of_none_is_rejected(): void
+    public function test_a_teacher_of_other_subjects_or_of_none_is_rejected(): void
     {
-        $english = Subject::factory()->create(['name' => 'English']);
-        $karthik = $this->createUser(Role::Teacher, ['name' => 'Karthik', 'subject_id' => $english->id]);
-        $srini = $this->createUser(Role::Teacher, ['name' => 'Srini']);
+        $karthik = $this->createTeacher('Karthik', Subject::factory()->create(['name' => 'English']), Subject::factory()->create(['name' => 'Tamil']));
+        $srini = $this->createTeacher('Srini');
 
         $this->assign($this->section, $this->maths, $karthik)
-            ->assertJsonValidationErrors(['teacher_id' => 'Karthik teaches English, not Mathematics.']);
+            ->assertJsonValidationErrors(['teacher_id' => 'Karthik teaches English and Tamil, not Mathematics.']);
         $this->assign($this->section, $this->maths, $srini)
-            ->assertJsonValidationErrors(['teacher_id' => 'Srini is not linked to a subject. Link them to Mathematics on the Users page first.']);
+            ->assertJsonValidationErrors(['teacher_id' => 'Srini is not linked to a subject. Link them to Mathematics first.']);
+    }
+
+    public function test_a_teacher_of_several_subjects_teaches_any_of_them(): void
+    {
+        $science = Subject::factory()->create(['name' => 'Science']);
+        $this->class->subjects()->attach($science);
+        $this->teacher->subjects()->attach($science);
+
+        $this->assign($this->section, $this->maths, $this->teacher)->assertOk();
+        $this->assign($this->section, $science, $this->teacher)->assertOk();
+
+        $this->assertSame(2, $this->teacher->subjectTeaching()->count());
     }
 
     public function test_the_subject_must_be_offered_to_the_sections_class(): void
@@ -86,32 +97,107 @@ class SubjectTeacherTest extends TestCase
             ->assertJsonValidationErrors(['subject_id' => 'Art is not offered to Class 1. Add it to the class\'s subjects first.']);
     }
 
+    public function test_a_class_gives_every_section_the_same_subject_teacher_replacing_their_own(): void
+    {
+        $sectionB = Section::factory()->for($this->class, 'schoolClass')->create(['name' => 'B']);
+        $this->assign($sectionB, $this->maths, $this->createTeacher('Karthik', $this->maths))->assertOk();
+
+        $this->withToken($this->adminToken)->putJson("/api/v1/classes/{$this->class->id}/subjects/{$this->maths->id}/teacher", ['teacher_id' => $this->teacher->id])
+            ->assertOk()
+            ->assertJsonPath('data.teacher.name', 'Satheesh')
+            ->assertJsonPath('data.section_ids', [$this->section->id, $sectionB->id]);
+
+        $this->assertSame(
+            [$this->section->id => $this->teacher->id, $sectionB->id => $this->teacher->id],
+            SectionSubjectTeacher::query()->orderBy('section_id')->pluck('teacher_id', 'section_id')->all(),
+        );
+
+        $this->withToken($this->adminToken)->putJson("/api/v1/classes/{$this->class->id}/subjects/{$this->maths->id}/teacher", ['teacher_id' => null])->assertOk();
+        $this->assertDatabaseCount('section_subject_teachers', 0);
+    }
+
+    public function test_a_class_wide_assignment_changes_no_section_when_the_teacher_does_not_teach_the_subject(): void
+    {
+        $this->assign($this->section, $this->maths, $this->teacher)->assertOk();
+        Section::factory()->for($this->class, 'schoolClass')->create(['name' => 'B']);
+
+        $this->withToken($this->adminToken)->putJson("/api/v1/classes/{$this->class->id}/subjects/{$this->maths->id}/teacher", ['teacher_id' => $this->createTeacher('Srini')->id])
+            ->assertJsonValidationErrors(['teacher_id' => 'Srini is not linked to a subject. Link them to Mathematics first.']);
+
+        $this->assertSame([$this->section->id => $this->teacher->id], SectionSubjectTeacher::query()->pluck('teacher_id', 'section_id')->all());
+    }
+
     public function test_teachers_cannot_assign_subject_teachers(): void
     {
-        $this->withToken($this->issueToken($this->teacher->email))
+        $token = $this->issueToken($this->teacher->email);
+
+        $this->withToken($token)
             ->putJson("/api/v1/sections/{$this->section->id}/subjects/{$this->maths->id}/teacher", ['teacher_id' => $this->teacher->id])
+            ->assertForbidden();
+        $this->withToken($token)
+            ->putJson("/api/v1/classes/{$this->class->id}/subjects/{$this->maths->id}/teacher", ['teacher_id' => $this->teacher->id])
             ->assertForbidden();
     }
 
-    public function test_a_teacher_cannot_move_to_another_subject_while_teaching_their_subject_to_sections(): void
+    public function test_a_teacher_gets_more_subjects_but_keeps_a_subject_they_teach_to_sections_this_year(): void
     {
         $english = Subject::factory()->create(['name' => 'English']);
         $this->assign($this->section, $this->maths, $this->teacher)->assertOk();
 
-        $this->withToken($this->adminToken)->putJson("/api/v1/users/{$this->teacher->id}/subject", ['subject_id' => $english->id])
-            ->assertJsonValidationErrors(['subject_id' => 'Satheesh teaches Mathematics to Class 1 A. Give those sections another teacher first.']);
+        $this->withToken($this->adminToken)->putJson("/api/v1/users/{$this->teacher->id}/subjects", ['subject_ids' => [$this->maths->id, $english->id]])
+            ->assertOk()
+            ->assertJsonPath('data.subjects.*.name', ['English', 'Mathematics']);
+
+        $this->withToken($this->adminToken)->putJson("/api/v1/users/{$this->teacher->id}/subjects", ['subject_ids' => [$english->id]])
+            ->assertJsonValidationErrors(['subject_ids' => 'Satheesh teaches Mathematics to Class 1 A. Give those sections another teacher first.']);
 
         $this->assign($this->section, $this->maths, null)->assertOk();
-        $this->withToken($this->adminToken)->putJson("/api/v1/users/{$this->teacher->id}/subject", ['subject_id' => $english->id])
+        $this->withToken($this->adminToken)->putJson("/api/v1/users/{$this->teacher->id}/subjects", ['subject_ids' => [$english->id]])
             ->assertOk()
-            ->assertJsonPath('data.subject.name', 'English');
+            ->assertJsonPath('data.subjects.*.name', ['English']);
+        // The previous release reads one subject per teacher from users.subject_id.
         $this->assertSame($english->id, $this->teacher->fresh()->subject_id);
     }
 
-    public function test_only_user_managers_link_a_teacher_to_a_subject(): void
+    public function test_teaching_a_subject_in_an_earlier_year_does_not_keep_a_teacher_on_it(): void
+    {
+        // Factory years start from 2000, so this one is earlier than the current year.
+        $earlierYear = AcademicYear::factory()->create(['name' => '1990-91', 'starts_on' => '1990-06-01', 'ends_on' => '1991-05-31']);
+        $lastYearSection = Section::factory()->for(SchoolClass::factory()->for($earlierYear), 'schoolClass')->create();
+        $lastYearSection->schoolClass->subjects()->attach($this->maths);
+        $this->assign($lastYearSection, $this->maths, $this->teacher)->assertOk();
+
+        $this->withToken($this->adminToken)->putJson("/api/v1/users/{$this->teacher->id}/subjects", ['subject_ids' => []])
+            ->assertOk()
+            ->assertJsonPath('data.subjects', []);
+        $this->assertNull($this->teacher->fresh()->subject_id);
+    }
+
+    public function test_only_user_managers_set_a_teachers_subjects(): void
     {
         $this->withToken($this->issueToken($this->teacher->email))
-            ->putJson("/api/v1/users/{$this->teacher->id}/subject", ['subject_id' => null])
+            ->putJson("/api/v1/users/{$this->teacher->id}/subjects", ['subject_ids' => []])
+            ->assertForbidden();
+    }
+
+    public function test_a_subjects_teachers_are_set_from_the_subject_under_the_same_rule(): void
+    {
+        $karthik = $this->createTeacher('Karthik', Subject::factory()->create(['name' => 'English']));
+        $this->assign($this->section, $this->maths, $this->teacher)->assertOk();
+
+        $this->withToken($this->adminToken)->putJson("/api/v1/subjects/{$this->maths->id}/teachers", ['teacher_ids' => [$karthik->id]])
+            ->assertJsonValidationErrors(['teacher_ids' => 'Satheesh teaches Mathematics to Class 1 A. Give those sections another teacher first.']);
+
+        $this->withToken($this->adminToken)->putJson("/api/v1/subjects/{$this->maths->id}/teachers", ['teacher_ids' => [$this->teacher->id, $karthik->id]])
+            ->assertOk()
+            ->assertJsonPath('data.teachers.*.name', ['Karthik', 'Satheesh']);
+        $this->assertSame(['English', 'Mathematics'], $karthik->subjects()->pluck('name')->all());
+    }
+
+    public function test_teachers_cannot_set_a_subjects_teachers(): void
+    {
+        $this->withToken($this->issueToken($this->teacher->email))
+            ->putJson("/api/v1/subjects/{$this->maths->id}/teachers", ['teacher_ids' => []])
             ->assertForbidden();
     }
 
@@ -161,6 +247,14 @@ class SubjectTeacherTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.0.name', 'Mathematics')
             ->assertJsonPath('data.0.teachers.0.name', 'Satheesh');
+    }
+
+    private function createTeacher(string $name, Subject ...$subjects): User
+    {
+        $teacher = $this->createUser(Role::Teacher, ['name' => $name]);
+        $teacher->subjects()->attach(array_map(fn (Subject $subject): int => $subject->id, $subjects));
+
+        return $teacher;
     }
 
     private function assign(Section $section, Subject $subject, ?User $teacher): TestResponse

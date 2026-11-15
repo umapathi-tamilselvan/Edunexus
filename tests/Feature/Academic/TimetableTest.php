@@ -55,6 +55,24 @@ class TimetableTest extends TestCase
         );
     }
 
+    private function makeSubjectTeacher(Section $section, User $teacher): void
+    {
+        $teacher->subjects()->syncWithoutDetaching($this->maths);
+        $this->assignSubjectTeacher($section, $teacher)->assertOk();
+    }
+
+    private function assignSubjectTeacher(Section $section, ?User $teacher): TestResponse
+    {
+        return $this->withToken($this->adminToken)->putJson("/api/v1/sections/{$section->id}/subjects/{$this->maths->id}/teacher", ['teacher_id' => $teacher?->id]);
+    }
+
+    private function assertSlot(int $slotId, ?User $teacher, bool $isOverride): void
+    {
+        $slot = TimetableEntry::query()->findOrFail($slotId);
+
+        $this->assertSame([$teacher?->id, $isOverride], [$slot->teacher_id, $slot->is_override]);
+    }
+
     public function test_the_bell_schedule_is_managed_per_year(): void
     {
         $this->withToken($this->adminToken)->postJson("/api/v1/academic-years/{$this->year->id}/periods", ['name' => 'Lunch', 'starts_at' => '12:30', 'ends_at' => '13:00', 'is_break' => true, 'sort_order' => 5])
@@ -166,6 +184,62 @@ class TimetableTest extends TestCase
         $this->withToken($teacherToken)->getJson('/api/v1/students')
             ->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.id', $taught->id);
+    }
+
+    public function test_a_slot_without_a_teacher_gets_the_subject_teacher_and_any_other_teacher_is_an_override(): void
+    {
+        $this->makeSubjectTeacher($this->sectionA, $this->teacher);
+        $period2 = Period::factory()->for($this->year)->create(['name' => 'Period 2']);
+        $period3 = Period::factory()->for($this->year)->create(['name' => 'Period 3']);
+
+        $this->setSlot($this->sectionA, 1, $this->period, $this->maths)
+            ->assertJsonPath('data.teacher.name', 'Meena')
+            ->assertJsonPath('data.is_override', false);
+        $this->setSlot($this->sectionA, 1, $period2, $this->maths, $this->teacher)
+            ->assertJsonPath('data.is_override', false);
+        $this->setSlot($this->sectionA, 1, $period3, $this->maths, $this->createUser(Role::Teacher, ['name' => 'Ravi']))
+            ->assertJsonPath('data.teacher.name', 'Ravi')
+            ->assertJsonPath('data.is_override', true);
+    }
+
+    public function test_slots_follow_a_new_subject_teacher_except_overrides(): void
+    {
+        $this->makeSubjectTeacher($this->sectionA, $this->teacher);
+        $ravi = $this->createUser(Role::Teacher, ['name' => 'Ravi']);
+        $ravi->subjects()->attach($this->maths);
+        $period2 = Period::factory()->for($this->year)->create(['name' => 'Period 2']);
+        $period3 = Period::factory()->for($this->year)->create(['name' => 'Period 3']);
+        $usha = $this->createUser(Role::Teacher, ['name' => 'Usha']);
+        $following = $this->setSlot($this->sectionA, 1, $this->period, $this->maths)->json('data.id');
+        $override = $this->setSlot($this->sectionA, 1, $period2, $this->maths, $usha)->json('data.id');
+        $setToRavi = $this->setSlot($this->sectionA, 1, $period3, $this->maths, $ravi)->json('data.id');
+
+        $this->assignSubjectTeacher($this->sectionA, $ravi)->assertOk();
+
+        $this->assertSlot($following, $ravi, false);
+        $this->assertSlot($override, $usha, true);
+        $this->assertSlot($setToRavi, $ravi, false);
+
+        $this->assignSubjectTeacher($this->sectionA, null)->assertOk();
+
+        $this->assertSlot($following, null, false);
+        $this->assertSlot($override, $usha, true);
+        $this->assertSlot($setToRavi, null, false);
+    }
+
+    public function test_a_new_subject_teacher_busy_in_a_following_slot_changes_nothing(): void
+    {
+        $this->makeSubjectTeacher($this->sectionA, $this->teacher);
+        $ravi = $this->createUser(Role::Teacher, ['name' => 'Ravi']);
+        $ravi->subjects()->attach($this->maths);
+        $slot = $this->setSlot($this->sectionA, 1, $this->period, $this->maths)->json('data.id');
+        $this->setSlot($this->sectionB, 1, $this->period, $this->maths, $ravi)->assertSuccessful();
+
+        $this->assignSubjectTeacher($this->sectionA, $ravi)
+            ->assertJsonValidationErrors(['teacher_id' => 'Ravi already teaches Class 5 B on Monday in Period 1.']);
+
+        $this->assertSlot($slot, $this->teacher, false);
+        $this->assertSame($this->teacher->id, $this->sectionA->subjectTeachers()->sole()->teacher_id);
     }
 
     public function test_teachers_cannot_edit_the_timetable(): void

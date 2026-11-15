@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Support\Deployment\Client;
 use App\Support\Deployment\ClientDatabase;
 use App\Support\Deployment\ClientFiles;
+use App\Support\OrganizationContext;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
@@ -46,12 +47,15 @@ class ClientMigrateCommand extends Command
                 // The root .env's Super Admin must never be seeded into a client.
                 'edunexus.super_admin' => null,
             ]);
+            // Seeders read this client's settings, not any already loaded.
+            app()->forgetInstance(OrganizationContext::class);
 
             try {
                 return $this->callSilently('migrate', ['--force' => true]) === 0
                     && (! $this->option('seed') || $this->callSilently('db:seed', ['--force' => true]) === 0);
             } finally {
                 config($original);
+                app()->forgetInstance(OrganizationContext::class);
             }
         });
     }

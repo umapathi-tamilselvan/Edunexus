@@ -7,6 +7,7 @@ use App\Domain\Admission\Enums\ApplicationStatus;
 use App\Domain\Admission\Models\AdmissionApplication;
 use App\Support\Sequences;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Records an admission enquiry for a class. Application numbers are
@@ -23,6 +24,14 @@ class CreateApplication
     {
         return DB::transaction(function () use ($class, $details): AdmissionApplication {
             $year = $class->academicYear;
+
+            // Refused before a number is drawn, so no gap appears in the numbering (D50).
+            if (! $year->admissions_open) {
+                throw ValidationException::withMessages([
+                    'class_id' => "Admissions are closed for {$year->name}. An admin can open them on the Academic page.",
+                ]);
+            }
+
             $number = $this->sequences->next("admission.application.{$year->id}");
 
             $application = new AdmissionApplication([...$details, 'class_id' => $class->id]);

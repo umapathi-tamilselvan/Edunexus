@@ -22,6 +22,7 @@ class AcademicYearResource extends JsonResource
             'starts_on' => $this->starts_on->toDateString(),
             'ends_on' => $this->ends_on->toDateString(),
             'is_current' => $this->is_current,
+            'admissions_open' => $this->admissions_open,
             'classes' => SchoolClassResource::collection($this->whenLoaded('classes')),
         ];
     }

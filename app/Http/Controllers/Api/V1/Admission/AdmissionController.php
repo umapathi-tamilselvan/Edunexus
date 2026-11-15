@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Api\V1\Admission;
 
-use App\Domain\Academic\Models\AcademicYear;
 use App\Domain\Academic\Models\SchoolClass;
 use App\Domain\Academic\Models\Section;
 use App\Domain\Admission\Actions\AdmitApplicant;
@@ -16,6 +15,7 @@ use App\Http\Requests\Api\V1\Admission\AdmitApplicantRequest;
 use App\Http\Requests\Api\V1\Admission\DecideApplicationRequest;
 use App\Http\Requests\Api\V1\Admission\StoreApplicationRequest;
 use App\Http\Resources\Api\V1\AdmissionApplicationResource;
+use App\Support\AcademicYearContext;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -26,11 +26,11 @@ use Illuminate\Validation\ValidationException;
 class AdmissionController extends Controller
 {
     /**
-     * Applications of a year (default: current), newest first. Filters:
-     * status, class_id, search (applicant name, application no. or exact
-     * guardian phone).
+     * Applications of a year (default: the request's selected year), newest
+     * first. Filters: status, class_id, search (applicant name, application
+     * no. or exact guardian phone).
      */
-    public function index(Request $request): AnonymousResourceCollection
+    public function index(Request $request, AcademicYearContext $academicYear): AnonymousResourceCollection
     {
         $filters = $request->validate([
             'academic_year_id' => ['nullable', 'integer'],
@@ -39,7 +39,7 @@ class AdmissionController extends Controller
             'search' => ['nullable', 'string', 'max:100'],
         ]);
 
-        $yearId = $filters['academic_year_id'] ?? AcademicYear::query()->current()->value('id');
+        $yearId = $filters['academic_year_id'] ?? $academicYear->id();
 
         $applications = AdmissionApplication::query()
             ->with(['academicYear', 'schoolClass'])
@@ -104,7 +104,7 @@ class AdmissionController extends Controller
     {
         return new AdmissionApplicationResource($admitApplicant->handle(
             application: $admission,
-            section: Section::query()->findOrFail($request->validated('section_id')),
+            section: $request->validated('section_id') === null ? null : Section::query()->findOrFail($request->validated('section_id')),
             consentMethod: $request->validated('consent_method'),
             actor: $request->user(),
             admissionNo: $request->validated('admission_no'),

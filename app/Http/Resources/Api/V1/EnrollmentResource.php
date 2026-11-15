@@ -7,6 +7,9 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
+ * An enrolment. The class is always there; the section is null until the
+ * student is distributed (D45).
+ *
  * @mixin StudentEnrollment
  */
 class EnrollmentResource extends JsonResource
@@ -20,8 +23,8 @@ class EnrollmentResource extends JsonResource
             'id' => $this->id,
             'student_id' => $this->student_id,
             'academic_year' => $this->whenLoaded('academicYear', fn () => ['id' => $this->academicYear->id, 'name' => $this->academicYear->name]),
-            'class' => $this->whenLoaded('section', fn () => ['id' => $this->section->schoolClass->id, 'name' => $this->section->schoolClass->name]),
-            'section' => $this->whenLoaded('section', fn () => ['id' => $this->section->id, 'name' => $this->section->name]),
+            'class' => $this->whenLoaded('schoolClass', fn () => $this->schoolClass === null ? null : ['id' => $this->schoolClass->id, 'name' => $this->schoolClass->name]),
+            'section' => $this->whenLoaded('section', fn () => $this->section === null ? null : ['id' => $this->section->id, 'name' => $this->section->name]),
             'roll_no' => $this->roll_no,
             'status' => $this->status->value,
         ];

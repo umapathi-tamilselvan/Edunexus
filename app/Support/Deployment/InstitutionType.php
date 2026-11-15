@@ -56,6 +56,19 @@ enum InstitutionType: string
     }
 
     /**
+     * The month (1–12) academic years start in, unless the client's
+     * academic_year.start_month setting says otherwise.
+     */
+    public function yearStartMonth(): int
+    {
+        return match ($this) {
+            self::School => 6,
+            self::College => 7,
+            self::Coaching => 4,
+        };
+    }
+
+    /**
      * Words the UI uses for the academic structure.
      *
      * @return array{class: string, classes: string, section: string, sections: string, teacher: string, head: string}

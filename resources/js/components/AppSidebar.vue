@@ -12,10 +12,10 @@ defineEmits(['close']);
 
 const route = useRoute();
 
-/** Links grouped under their section heading, keeping the given order. */
+/** Links grouped under their area heading, keeping the given order. */
 const groups = computed(() =>
     props.links.reduce((result, link) => {
-        const title = link.section ?? '';
+        const title = link.area ?? '';
         const group = result.find((item) => item.title === title);
 
         if (group) {
@@ -28,7 +28,7 @@ const groups = computed(() =>
     }, []),
 );
 
-/** A link stays active on its child pages, e.g. Students on /students/12. */
+/** A link stays active on its child pages, e.g. Students on /people/students/12. */
 function isActive(link) {
     return route.path === link.to || route.path.startsWith(`${link.to}/`);
 }

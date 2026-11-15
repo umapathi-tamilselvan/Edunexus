@@ -16,6 +16,10 @@ class UpdateEnrollment
     public function handle(StudentEnrollment $enrollment, ?Section $section, ?int $rollNo, bool $rollNoGiven): StudentEnrollment
     {
         return DB::transaction(function () use ($enrollment, $section, $rollNo, $rollNoGiven): StudentEnrollment {
+            if ($section === null && $enrollment->section_id === null) {
+                throw ValidationException::withMessages(['section_id' => 'Choose a section to place this student in.']);
+            }
+
             $moving = $section !== null && $section->id !== $enrollment->section_id;
             $target = SectionSeats::lock($section ?? $enrollment->section);
 
@@ -36,9 +40,10 @@ class UpdateEnrollment
             }
 
             $enrollment->section_id = $target->id;
+            $enrollment->class_id = $target->class_id;
             $enrollment->save();
 
-            return $enrollment->load(['academicYear', 'section.schoolClass']);
+            return $enrollment->load(['academicYear', 'schoolClass', 'section.schoolClass']);
         });
     }
 }
