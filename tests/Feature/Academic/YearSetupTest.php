@@ -46,7 +46,8 @@ class YearSetupTest extends TestCase
         $this->assertSame('No classes yet.', $steps['classes']['detail']);
         $this->assertFalse($steps['bell_schedule']['done']);
         $this->assertFalse($steps['holidays']['done']);
-        $this->assertTrue($steps['admissions']['done']);
+        // A new year has admissions switched off, so the step is not done (D44).
+        $this->assertFalse($steps['admissions']['done']);
     }
 
     public function test_a_section_without_a_class_teacher_is_reported_until_one_is_assigned(): void

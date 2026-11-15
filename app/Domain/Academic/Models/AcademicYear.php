@@ -56,6 +56,7 @@ class AcademicYear extends Model
             'starts_on' => 'date',
             'ends_on' => 'date',
             'is_current' => 'boolean',
+            'admissions_open' => 'boolean',
         ];
     }
 
