@@ -15,7 +15,7 @@ use App\Domain\Student\Models\StudentEnrollment;
 use Tests\TestCase;
 
 /**
- * A student's score out of 5 per subject: every exam's marks as a
+ * A student's academic score per subject, out of the client's scale (10 by default): every exam's marks as a
  * percentage of that paper's maximum, averaged, scaled to 5.
  */
 class SubjectScoreTest extends TestCase
@@ -51,15 +51,15 @@ class SubjectScoreTest extends TestCase
 
         $this->withToken($this->adminToken)->getJson("/api/v1/students/{$this->student->id}/scores")
             ->assertOk()
-            ->assertJsonCount(1, 'data')
-            ->assertJsonPath('data.0.subject.name', 'Mathematics')
-            ->assertJsonPath('data.0.score', 4.3)
-            ->assertJsonPath('data.0.average_percentage', 85)
-            ->assertJsonCount(2, 'data.0.exams')
-            ->assertJsonPath('data.0.exams.0.exam', 'Quarterly')
-            ->assertJsonPath('data.0.exams.0.max_marks', 50)
-            ->assertJsonPath('data.0.exams.0.percentage', 80)
-            ->assertJsonPath('data.0.exams.1.percentage', 90);
+            ->assertJsonCount(1, 'data.academic.subjects')
+            ->assertJsonPath('data.academic.subjects.0.subject.name', 'Mathematics')
+            ->assertJsonPath('data.academic.subjects.0.score', 8.5)
+            ->assertJsonPath('data.academic.subjects.0.average_percentage', 85)
+            ->assertJsonCount(2, 'data.academic.subjects.0.exams')
+            ->assertJsonPath('data.academic.subjects.0.exams.0.exam', 'Quarterly')
+            ->assertJsonPath('data.academic.subjects.0.exams.0.max_marks', 50)
+            ->assertJsonPath('data.academic.subjects.0.exams.0.percentage', 80)
+            ->assertJsonPath('data.academic.subjects.0.exams.1.percentage', 90);
     }
 
     public function test_a_score_counts_exams_from_every_academic_year_and_subjects_are_listed_by_name(): void
@@ -72,12 +72,12 @@ class SubjectScoreTest extends TestCase
         ExamMark::factory()->for($this->exam('Half yearly', '2026-12-07'))->for($this->enrollment, 'enrollment')->for($english)->create(['marks' => 100]);
 
         $this->withToken($this->adminToken)->getJson("/api/v1/students/{$this->student->id}/scores")
-            ->assertJsonPath('data.0.subject.name', 'English')
-            ->assertJsonPath('data.0.score', 5)
-            ->assertJsonPath('data.1.subject.name', 'Mathematics')
-            ->assertJsonPath('data.1.score', 3.5)
-            ->assertJsonPath('data.1.exams.0.academic_year', '2025-26')
-            ->assertJsonPath('data.1.exams.1.academic_year', '2026-27');
+            ->assertJsonPath('data.academic.subjects.0.subject.name', 'English')
+            ->assertJsonPath('data.academic.subjects.0.score', 10)
+            ->assertJsonPath('data.academic.subjects.1.subject.name', 'Mathematics')
+            ->assertJsonPath('data.academic.subjects.1.score', 7)
+            ->assertJsonPath('data.academic.subjects.1.exams.0.academic_year', '2025-26')
+            ->assertJsonPath('data.academic.subjects.1.exams.1.academic_year', '2026-27');
     }
 
     public function test_a_teacher_gets_403_for_a_student_outside_their_sections(): void

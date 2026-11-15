@@ -14,8 +14,8 @@ use Illuminate\Database\Eloquent\Factories\Factory;
 class StudentEnrollmentFactory extends Factory
 {
     /**
-     * Define the model's default state. The academic year always follows
-     * the section's class.
+     * Define the model's default state. The class and the academic year always
+     * follow the section's class.
      *
      * @return array<string, mixed>
      */
@@ -25,6 +25,7 @@ class StudentEnrollmentFactory extends Factory
             'student_id' => Student::factory(),
             'section_id' => Section::factory(),
             'academic_year_id' => fn (array $attributes): int => Section::query()->with('schoolClass')->findOrFail($attributes['section_id'])->schoolClass->academic_year_id,
+            'class_id' => fn (array $attributes): int => Section::query()->findOrFail($attributes['section_id'])->class_id,
             'status' => EnrollmentStatus::Active,
         ];
     }
